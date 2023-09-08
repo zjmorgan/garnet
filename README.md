@@ -9,13 +9,30 @@ The goal of this project is to combine several amorphous tools from many of the 
 
 ### UB determination
 1. Load data
-2. Find strong peaks
-3. Integrate peaks
-4. Find intitial UB
-5. Transform UB
-6. Optimize UB
-7. Plan experiment
-8. Setup auto-reduction
-9. Launch reduction workflow
+2. Convert to Q-space
+3. Find strong peaks
+4. Integrate peaks
+5. Find intitial UB
+6. Transform UB
+7. Optimize UB
+8. Plan experiment
+9. Setup auto-reduction
+10. Launch reduction workflow
 
-### Peak integration
+### Peak integration 
+1. Load data
+2. Convert to Q-space
+3. Predict peak positions
+4. Integrate peaks
+5. Combine peaks from all runs
+6. Apply spectrum, efficiency, and absorption corrections
+7. Save HKL lists
+
+### Order parameter tracking
+1. Load data
+2. Define detector region of interest near a peak
+3. Filter events by log value
+4. Convert to target dimension
+5. Fit peak intensity
+6. Plot intensity vs log value 
+   
