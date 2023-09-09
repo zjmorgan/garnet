@@ -40,3 +40,9 @@ The goal of this project is to combine several amorphous tools from many of the 
 7. Plot intensity vs log value 
    
 ### Volume reconstruction
+1. Load data
+2. Apply calibration
+3. Convert to Q-space
+4. Normalize with vanadium
+5. Apply symmetry operators
+6. Subtract background
