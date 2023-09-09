@@ -39,7 +39,7 @@ The goal of this project is to combine several amorphous tools from many of the 
 6. Fit peak intensity
 7. Plot intensity vs log value 
    
-### Volume reconstruction
+### Reciprocal space reconstruction
 1. Load data
 2. Apply calibration
 3. Convert to Q-space
