@@ -48,3 +48,11 @@ Future development may incorporate live data reduction or analysis, but that is 
 4. Normalize with vanadium
 5. Apply symmetry operators
 6. Subtract background
+
+Scope of covered instruments
+- TOPAZ
+- MANDI
+- CORELLI
+- DEMAND
+- WAND2
+- SNAP
