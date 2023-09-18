@@ -16,7 +16,7 @@ Scope of covered instruments
 - CORELLI
 - DEMAND
 - WAND2
-- SNAP, IMAGINE-X, ...,
+- SNAP
 
 The garnet tool will allow users to select single crystal diffraction data from one (minimally white beam) or more (minimally monochromatic beam) orientations, and transform it into a meaningful form.
 There exists essential steps of a single crystal data reduction.
