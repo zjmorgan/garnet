@@ -26,6 +26,8 @@ These include:
 - Reciprocal space reconstruction for visualization and analysis
 - Order parameter tracking and event filtering 
 
+Data processing will be based on Mantid and use a PyQt5 application.
+
 ### UB determination
 1. Load data
 2. Apply calibration
