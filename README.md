@@ -26,7 +26,7 @@ These include:
 - Reciprocal space reconstruction for visualization and analysis
 - Order parameter tracking and event filtering analysis
 
-Data processing will be based on Mantid and use a PyQt5 application.
+Data processing will be based on Mantid and use PyQt5 for the application.
 
 ### UB determination
 1. Load data
