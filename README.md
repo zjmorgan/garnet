@@ -6,6 +6,8 @@ Although they come in many colors, the word comes from a 14th-century Middle Eng
 Some rare-earth synthetic garnets has recently served as a useful calibration standard used across several beamlines.
 
 The goal of this project is to combine several amorphous tools from many of the instruments into a user-friendly environment for data reduction.
+The scope of this project only covers reduction post-data collection.
+Future development may incorporate live data reduction or analysis, but that is not the focus in this effort.
 
 ### UB determination
 1. Load data
