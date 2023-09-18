@@ -24,7 +24,7 @@ These include:
 - UB matrix determination and refinement for data reduction and experiment planning
 - Peak integration and corrections for structure refinement
 - Reciprocal space reconstruction for visualization and analysis
-- Order parameter tracking and event filtering 
+- Order parameter tracking and event filtering analysis
 
 Data processing will be based on Mantid and use a PyQt5 application.
 
