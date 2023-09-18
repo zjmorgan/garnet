@@ -29,8 +29,8 @@ These include:
 Data processing will be based on Mantid and use PyQt5 for the application.
 
 This project will be broken down into phases, milestones, or components
-[Milestone 0: Deployment](https://github.com/users/zjmorgan/projects/1?pane=issue&itemId=38115185)
-[Milestone 1: UB-matrix determination and refinement](https://github.com/users/zjmorgan/projects/1?pane=issue&itemId=38115119)
+- [Milestone 0: Deployment](https://github.com/users/zjmorgan/projects/1?pane=issue&itemId=38115185)
+- [Milestone 1: UB-matrix determination and refinement](https://github.com/users/zjmorgan/projects/1?pane=issue&itemId=38115119)
 
 ### UB determination
 1. Load data
