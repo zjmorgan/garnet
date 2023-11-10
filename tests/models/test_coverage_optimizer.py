@@ -3,9 +3,9 @@ import unittest
 
 import numpy as np
 
-from garnet.models.coverage_optimizer import ExperimentPlanner
+from garnet.models.coverage_optimizer import CoverageOptimizerModel
 
-class test_ExperimentPlanner(unittest.TestCase):
+class test_CoverageOptimizerModel(unittest.TestCase):
 
     def setUp(self):
 
@@ -34,13 +34,14 @@ class test_ExperimentPlanner(unittest.TestCase):
         point_group = 'm-3m'
         refl_cond = 'Body centred'
 
-        garnet = ExperimentPlanner(inst_name, axes, limits, UB,
-                                   wl_limits, point_group, refl_cond, d_min)
+        garnet = CoverageOptimizerModel()
+        garnet.initialize_parameters(inst_name, axes, limits, UB,
+                                     wl_limits, point_group, refl_cond, d_min)
 
-        cov_int = garnet.initialize_settings(6, 4, 'garnet', n_proc=6)
-        cov_opt = garnet.optimize_settings(10)
+        garnet.initialize_settings(6, 4, 'garnet', n_proc=6)
+        garnet.optimize_settings(10)
         
-        self.assertGreater(cov_opt, cov_int)
+        self.assertGreater(self.garnet.best[0], self.garnet.best[-1])
 
 if __name__ == "__main__":
     unittest.main()

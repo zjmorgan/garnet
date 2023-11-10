@@ -15,7 +15,7 @@ import pyvista as pv
 
 from pyvistaqt import QtInteractor
 
-class ReciprocalSpaceViewerView(QWidget):
+class SatellitePeakIndexerView(QWidget):
 
     def __init__(self, parent=None):
 

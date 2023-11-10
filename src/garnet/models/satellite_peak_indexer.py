@@ -5,7 +5,7 @@ from mantid.simpleapi import (CreatePeaksWorkspace,
 import numpy as np
 import scipy.linalg
 
-class ReciprocalSpaceViewerModel():
+class SatellitePeakIndexerModel():
 
     def __init__(self):
 
@@ -42,21 +42,13 @@ class ReciprocalSpaceViewerModel():
 
             I = peak.getIntensity()
 
-            shape = eval(peak.getPeakShape().toJSON())
-
             pk_no = peak.getPeakNumber()
 
             Q = peak.getQSampleFrame()
 
-            r = np.array([shape['radius0'],
-                          shape['radius1'],
-                          shape['radius2']])
+            r = np.array([0.1,0.1,0.1])
 
-            dir1 = np.array(shape['direction0'].split(' ')).astype(float)
-            dir2 = np.array(shape['direction1'].split(' ')).astype(float)
-            dir3 = np.array(shape['direction2'].split(' ')).astype(float)
-
-            v = np.column_stack([dir1, dir2, dir3])
+            v = np.eye(3)
 
             P = np.dot(v, np.dot(np.diag(r), v.T))
 

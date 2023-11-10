@@ -9,6 +9,7 @@ from mantid.simpleapi import (CreatePeaksWorkspace,
                               LoadEmptyInstrument,
                               LoadNexus,
                               SaveNexus,
+                              AddSampleLog,
                               SetGoniometer,
                               SetUB,
                               mtd)
@@ -18,11 +19,14 @@ import numpy as np
 
 from garnet.models.parallel_task_utilities import ParallelTasks
 
-class ExperimentPlanner(ParallelTasks):
+class CoverageOptimizerModel(ParallelTasks):
 
-    def __init__(self, inst_name, axes, limits, UB,
-                       wl_limits, point_group, refl_cond, d_min):
+    def __init__(self):
+
         super().__init__(None, None)
+
+    def initialize_parameters(self, inst_name, axes, limits, UB,
+                                    wl_limits, point_group, refl_cond, d_min):
 
         self.inst_name = inst_name
         self.axes = axes
@@ -33,14 +37,25 @@ class ExperimentPlanner(ParallelTasks):
         self.refl_cond = refl_cond
         self.d_min = d_min
         self.d_max = 1/np.linalg.norm(UB, axis=0).min()
-        
-        self.coverage = []
 
-    def initialize_settings(self, n_indiv, n_orient, outname,
+        self.best = []
+        self.worst = []
+
+        self.settings = None
+
+    def get_coverage(self):
+
+        return self.best, self.worst
+
+    def get_settings(self):
+
+        return self.settings
+
+    def initialize_settings(self, n_orient, n_indiv, outname,
                                   outdir='/tmp/', n_proc=2):
 
-        self.n_indiv = n_indiv
         self.n_orient = n_orient
+        self.n_indiv = n_indiv
 
         fname = os.path.join(outdir, outname+'_ind{}.nxs')
         fnames = [fname.format(i_indiv) for i_indiv in range(n_indiv)]
@@ -63,15 +78,15 @@ class ExperimentPlanner(ParallelTasks):
         self.fitness = np.array(fitness)
         self.fnames = np.array(fnames)
         self.plans = np.array(plans)
-        self.plan = plan
+        self.plan = outname+'_ind{}'
 
         ranking = np.argsort(self.fitness)
 
-        coverage = self.fitness[ranking[-1]]
+        cov_min = self.fitness[ranking[0]]
+        cov_max = self.fitness[ranking[-1]]
 
-        self.coverage.append(coverage)
-
-        return coverage
+        self.best.append(cov_max)
+        self.worst.append(cov_min)
 
     def _coverage(self, peaks_ws):
 
@@ -122,6 +137,16 @@ class ExperimentPlanner(ParallelTasks):
                                        RHSWorkspace='gen_peaks_ws',
                                        OutputWorkspace='gen_peaks')
 
+                run = mtd['gen_peaks_ws'].run()
+
+                for key in run.keys():
+
+                    angle = run[key].value[0]
+
+                    AddSampleLog(Workspace='gen_peaks',
+                                 LogName='{}_{}'.format(key,i_orient),
+                                 LogText='{}'.format(angle))
+
                 DeleteWorkspace(Workspace='gen_peaks_ws')
 
             SaveNexus(InputWorkspace='gen_peaks', Filename=fname)
@@ -138,7 +163,7 @@ class ExperimentPlanner(ParallelTasks):
         for axis, limit in zip(axes, limits):
             if limit is not None:
                 angle = limit[0]+(limit[1]-limit[0])*np.random.random()
-                ax.append(axis.format(angle))
+                ax.append(axis.format(round(angle,1)))
             else:
                 ax.append(axis)
         for _ in range(6-len(axes)):
@@ -165,7 +190,9 @@ class ExperimentPlanner(ParallelTasks):
             peak.setIntensity(1)
             peak.setSigmaIntensity(peak.getIntensity())
 
-    def optimize_settings(self, n_gener, n_elites=2, mutation_rate=0.05):
+    def optimize_settings(self, n_gener, elite_rate=20, mutation_rate=20):
+
+        n_elites = int(round(elite_rate/100*self.n_indiv))
 
         ranking = np.argsort(self.fitness)
 
@@ -176,7 +203,7 @@ class ExperimentPlanner(ParallelTasks):
             fraction = self.fitness/np.sum(self.fitness)
 
             selections = []
-            while len(selections) < (self.n_indiv-n_elites) // 2:
+            while len(selections) < (self.n_indiv-n_elites+1) // 2:
                 choices = np.random.choice(self.plans, size=2,
                                            p=fraction, replace=False)
                 selections.append(choices)
@@ -191,17 +218,17 @@ class ExperimentPlanner(ParallelTasks):
 
             ranking = np.argsort(self.fitness)
 
-            coverage = self.fitness[ranking[-1]]
+            cov_min = self.fitness[ranking[0]]
+            cov_max = self.fitness[ranking[-1]]
 
-            self.coverage.append(coverage)
-
-        return coverage
+            self.best.append(cov_max)
+            self.worst.append(cov_min)
 
     def _mutation(self, mutation_rate):
 
         for i_indiv, plan in enumerate(self.plans):
             for i_orient in range(self.n_orient):
-                if np.random.random() < mutation_rate:
+                if 100*np.random.random() < mutation_rate:
 
                     FilterPeaks(InputWorkspace=plan,
                                 FilterVariable='RunNumber',
@@ -217,6 +244,17 @@ class ExperimentPlanner(ParallelTasks):
                     CombinePeaksWorkspaces(LHSWorkspace=plan,
                                            RHSWorkspace='gen_peaks_ws',
                                            OutputWorkspace=plan)
+
+
+                    run = mtd['gen_peaks_ws'].run()
+
+                    for key in run.keys():
+
+                        angle = run[key].value[0]
+
+                        AddSampleLog(Workspace=plan,
+                                     LogName='{}_{}'.format(key,i_orient),
+                                     LogText='{}'.format(angle))
 
                     DeleteWorkspace(Workspace='gen_peaks_ws')
 
@@ -238,52 +276,38 @@ class ExperimentPlanner(ParallelTasks):
 
             i_indiv += 1
 
-        for parents in selections:
+        for recombinations in selections:
 
             k = np.random.randint(self.n_orient)
 
-            plan0 = next_plan.format(i_indiv)
-            plan1 = next_plan.format(i_indiv+1)
+            for parents in [recombinations, recombinations[::-1]]:
 
-            FilterPeaks(InputWorkspace=parents[0],
-                        FilterVariable='RunNumber',
-                        FilterValue=k,
-                        Operator='<',
-                        OutputWorkspace=plan0)
+                if i_indiv < self.n_indiv:
 
-            FilterPeaks(InputWorkspace=parents[1],
-                        FilterVariable='RunNumber',
-                        FilterValue=k,
-                        Operator='<',
-                        OutputWorkspace=plan1)
+                    plan = next_plan.format(i_indiv)
 
-            FilterPeaks(InputWorkspace=parents[0],
-                        FilterVariable='RunNumber',
-                        FilterValue=k,
-                        Operator='>=',
-                        OutputWorkspace='cross_peaks_ws1')
+                    FilterPeaks(InputWorkspace=parents[0],
+                                FilterVariable='RunNumber',
+                                FilterValue=k,
+                                Operator='<',
+                                OutputWorkspace='cross_peaks_ws0')
 
-            FilterPeaks(InputWorkspace=parents[1],
-                        FilterVariable='RunNumber',
-                        FilterValue=k,
-                        Operator='>=',
-                        OutputWorkspace='cross_peaks_ws0')
+                    FilterPeaks(InputWorkspace=parents[1],
+                                FilterVariable='RunNumber',
+                                FilterValue=k,
+                                Operator='>=',
+                                OutputWorkspace='cross_peaks_ws1')
 
-            CombinePeaksWorkspaces(LHSWorkspace=plan0,
-                                   RHSWorkspace='cross_peaks_ws0',
-                                   OutputWorkspace=plan0)
+                    CombinePeaksWorkspaces(LHSWorkspace='cross_peaks_ws0',
+                                           RHSWorkspace='cross_peaks_ws1',
+                                           OutputWorkspace=plan)
 
-            CombinePeaksWorkspaces(LHSWorkspace=plan1,
-                                   RHSWorkspace='cross_peaks_ws1',
-                                   OutputWorkspace=plan1)
+                    DeleteWorkspace(Workspace='cross_peaks_ws0')
+                    DeleteWorkspace(Workspace='cross_peaks_ws1')
 
-            DeleteWorkspace(Workspace='cross_peaks_ws0')
-            DeleteWorkspace(Workspace='cross_peaks_ws1')
+                    next_plans.append(plan)
 
-            next_plans.append(plan0)
-            next_plans.append(plan1)
-
-            i_indiv += 2
+                    i_indiv += 1
 
         RenameWorkspaces(InputWorkspaces=next_plans,
-                         WorkspaceNames=self.plan)
+                         WorkspaceNames=self.plans)
