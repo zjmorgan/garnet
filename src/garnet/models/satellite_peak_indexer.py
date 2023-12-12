@@ -1,9 +1,10 @@
 from mantid.simpleapi import (CreatePeaksWorkspace,
                               HasUB,
+                              CalculatePeaksHKL,
                               mtd)
 
 import numpy as np
-import scipy.linalg
+from sklearn.cluster import DBSCAN
 
 class SatellitePeakIndexerModel():
 
@@ -30,41 +31,51 @@ class SatellitePeakIndexerModel():
 
             self.UB = self.peaks_ws.sample().getOrientedLattice().getUB()
 
+    def cluster_peaks(self, peak_info, eps=0.025, min_samples=15):
+
+        points = np.array(peak_info['coordinates'])
+
+        clustering = DBSCAN(eps=eps, min_samples=min_samples)
+
+        labels = clustering.fit_predict(points)
+
+        centroids = []
+        for label in np.unique(labels):
+            if label >= 0:
+                centroids.append(points[labels == label].mean(axis=0))
+        centroids = np.array(centroids)
+
+        peak_info['clusters'] = labels
+        peak_info['centroids'] = centroids
+
     def get_peak_info(self):
 
         peak_dict = {}
 
-        Qs, Is, pk_nos, Ts = [], [], [], []
+        Qs, HKLs, pk_nos = [], [], []
+
+        UB = self.peaks_ws.sample().getOrientedLattice().getUB()
+
+        CalculatePeaksHKL(PeaksWorkspace=self.peaks_ws, OverWrite=True)
 
         for j, peak in enumerate(self.peaks_ws):
 
-            T = np.zeros((4,4))
-
-            I = peak.getIntensity()
-
             pk_no = peak.getPeakNumber()
 
-            Q = peak.getQSampleFrame()
+            diff_HKL = peak.getHKL()-np.round(peak.getHKL())
 
-            r = np.array([0.1,0.1,0.1])
+            if np.sum(diff_HKL) < 0:
+                diff_HKL *= -1
 
-            v = np.eye(3)
-
-            P = np.dot(v, np.dot(np.diag(r), v.T))
-
-            T[:3,:3] = P
-            T[:3,-1] = Q
-            T[-1,-1] = 1
+            Q = 2*np.pi*np.dot(UB, diff_HKL)
 
             Qs.append(Q)
-            Is.append(I)
+            HKLs.append(diff_HKL)
             pk_nos.append(pk_no)
-            Ts.append(T)
 
         peak_dict['coordinates'] = Qs
-        peak_dict['intensities'] = Is
+        peak_dict['points'] = HKLs
         peak_dict['numbers'] = pk_nos
-        peak_dict['transforms'] = Ts
 
         return peak_dict
 
@@ -74,16 +85,10 @@ class SatellitePeakIndexerModel():
 
             UB = self.peaks_ws.sample().getOrientedLattice().getUB()
 
-            Gstar = np.dot(UB.T, UB)
-            B = scipy.linalg.cholesky(Gstar, lower=False)
-            U = np.dot(UB, np.linalg.inv(B))
-
-            t = B.copy()
+            t = UB.copy()
             t /= np.max(t, axis=1)
 
-            T = np.dot(U,t)
-
-            return T
+            return t
 
     def get_peak(self, pk_no):
 

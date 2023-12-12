@@ -1,0 +1,271 @@
+import sys
+
+from qtpy.QtWidgets import (QWidget,
+                            QLineEdit,
+                            QLabel,
+                            QPushButton,
+                            QComboBox,
+                            QTableWidget,
+                            QTableWidgetItem,
+                            QHeaderView,
+                            QFrame,
+                            QHBoxLayout,
+                            QVBoxLayout,
+                            QGridLayout)
+
+from matplotlib.backends.backend_qtagg import FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+from matplotlib.figure import Figure
+
+from qtpy.QtGui import QDoubleValidator
+from PyQt5.QtCore import Qt
+
+from PyQt5.QtWidgets import QApplication, QMainWindow
+
+class IntrumentData(QWidget):
+
+    def __init__(self, parent=None):
+
+        super().__init__(parent)
+
+        experiment_layout = QHBoxLayout()
+
+        self.experiment_label = QLabel('Experiment Name', self)
+        self.experiment_combo = QComboBox(self)
+
+        experiment_layout.addWidget(self.experiment_label)
+        experiment_layout.addWidget(self.experiment_combo)
+
+        self.table = QTableWidget()
+
+        header = ['Projection','Name','Min','Max','Width','Bins']
+
+        self.table.setRowCount(3)
+        self.table.setColumnCount(len(header))
+        self.table.setHorizontalHeaderLabels(header)
+
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        self.symmetry_label = QLabel('Symmetry Operations', self)
+        self.symmetry_button = QPushButton('Copy From Sample', self)
+        self.symmetry_line = QLineEdit(self)
+
+        self.symmetry_combo = QComboBox(self)
+        self.symmetry_combo.addItem('Point Group')
+        self.symmetry_combo.addItem('Space Group')
+        self.symmetry_combo.addItem('Manual')
+
+        self.group_combo = QComboBox(self)
+        self.symmetry_combo.addItem('Point Group')
+
+        symmetry_layout = QGridLayout()
+        symmetry_layout.addWidget(self.symmetry_label, 0, 0)
+        symmetry_layout.addWidget(self.symmetry_combo, 0, 1)
+        symmetry_layout.addWidget(self.group_combo, 0, 2)
+        symmetry_layout.addWidget(self.symmetry_button, 0, 3)
+        symmetry_layout.addWidget(self.symmetry_line, 1, 0, 1, 4)
+
+        parameters_layout = QVBoxLayout()
+
+        parameters_layout.addLayout(experiment_layout)
+        parameters_layout.addWidget(self.table)
+        parameters_layout.addLayout(symmetry_layout)
+
+        sample_layout = QHBoxLayout()
+
+        self.sample_label = QLabel('Sample Name', self)
+        self.sample_combo = QComboBox(self)
+
+        sample_layout.addWidget(self.sample_label)
+        sample_layout.addWidget(self.sample_combo)
+
+        layout = QHBoxLayout()
+
+        vert_sep = QFrame()
+        vert_sep.setFrameShape(QFrame.VLine)
+
+        layout.addLayout(parameters_layout)
+        layout.addWidget(vert_sep)
+        layout.addLayout(sample_layout)
+
+        self.setLayout(layout)
+
+        # experiment_layout = QHBoxLayout()
+        # dataset_layout = QGridLayout()
+
+        # self.instrument_combo = QComboBox(self)
+        # self.instrument_combo.addItem('TOPAZ')
+        # self.instrument_combo.addItem('MANDI')
+        # self.instrument_combo.addItem('CORELLI')
+        # self.instrument_combo.addItem('SNAP')
+        # self.instrument_combo.addItem('DEMAND')
+        # self.instrument_combo.addItem('WAND²')
+
+        # self.ipts_combo = QComboBox(self)
+        # self.experiment_combo = QComboBox(self)
+
+        # self.catalog_button = QPushButton('Connect to OnCat', self)
+
+        # experiment_layout.addWidget(self.instrument_combo)
+        # experiment_layout.addWidget(self.ipts_combo)
+        # experiment_layout.addWidget(self.experiment_combo)
+        # experiment_layout.addWidget(self.catalog_button)
+
+        # self.dataset_label = QLabel('Dataset', self)
+        # self.runs_label = QLabel('Run Numbers', self)
+        # self.goniometer_label = QLabel('Goniometer', self)
+
+        # self.dataset_combo = QComboBox(self)
+        # self.runs_line = QLineEdit(self)
+        # self.goniometer_combo = QComboBox(self)
+
+        # dataset_layout.addWidget(self.dataset_label, 0, 0)
+        # dataset_layout.addWidget(self.runs_label, 1, 0)
+        # dataset_layout.addWidget(self.goniometer_label, 2, 0)
+
+        # dataset_layout.addWidget(self.dataset_combo, 0, 1)
+        # dataset_layout.addWidget(self.runs_line, 1, 1)
+        # dataset_layout.addWidget(self.goniometer_combo, 2, 1)
+
+        # self.table = QTableWidget()
+
+        # header = ['Axis','Direction','Sense','Min','Max']
+
+        # self.table.setRowCount(5)
+        # self.table.setColumnCount(len(header))
+        # self.table.setHorizontalHeaderLabels(header)
+
+        # self.table.horizontalHeader().setStretchLastSection(True)
+        # self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # instrument_layout = QVBoxLayout()
+
+        # self.canvas = FigureCanvas(Figure())
+
+        # instrument_layout.addLayout(experiment_layout)
+        # instrument_layout.addWidget(NavigationToolbar2QT(self.canvas, self))
+        # instrument_layout.addWidget(self.canvas)
+
+        # calibration_layout = QGridLayout()
+        # vanadium_layout = QGridLayout()
+        # grouping_layout = QGridLayout()
+
+        # self.calibration_label = QLabel('Calibration', self)
+        # self.detector_label = QLabel('Detector', self)
+        # self.tube_label = QLabel('Tube', self)
+        # self.vanadium_label = QLabel('Vanadium', self)
+        # self.counts_label = QLabel('Counts', self)
+        # self.spectrum_label = QLabel('Spectrum', self)
+        # self.grouping_label = QLabel('Grouping', self)
+        # self.mask_label = QLabel('Mask', self)
+        # self.background_label = QLabel('Background', self)
+
+        # self.calibration_combo = QComboBox(self)
+        # self.detector_line = QLineEdit(self)
+        # self.tube_line = QLineEdit(self)
+        # self.vanadium_combo = QComboBox(self)
+        # self.counts_line = QLineEdit(self)
+        # self.spectrum_line = QLineEdit(self)
+        # self.grouping_combo = QComboBox(self)
+        # self.mask_line = QLineEdit(self)
+        # self.background_line = QLineEdit(self)
+
+        # self.detector_button = QPushButton('Browse', self)
+        # self.tube_button = QPushButton('Browse', self)
+        # self.counts_button = QPushButton('Browse', self)
+        # self.spectrum_button = QPushButton('Browse', self)
+        # self.mask_button = QPushButton('Browse', self)
+        # self.background_button = QPushButton('Browse', self)
+
+        # calibration_layout.addWidget(self.calibration_label, 0, 0)
+        # calibration_layout.addWidget(self.calibration_combo, 0, 1)
+        # calibration_layout.addWidget(self.detector_label, 1, 0)
+        # calibration_layout.addWidget(self.detector_line, 1, 1)
+        # calibration_layout.addWidget(self.detector_button, 1, 2)
+        # calibration_layout.addWidget(self.tube_label, 2, 0)
+        # calibration_layout.addWidget(self.tube_line, 2, 1)
+        # calibration_layout.addWidget(self.tube_button, 2, 2)
+
+        # vanadium_layout.addWidget(self.vanadium_label, 0, 0)
+        # vanadium_layout.addWidget(self.vanadium_combo, 0, 1)
+        # vanadium_layout.addWidget(self.counts_label, 1, 0)
+        # vanadium_layout.addWidget(self.counts_line, 1, 1)
+        # vanadium_layout.addWidget(self.counts_button, 1, 2)
+        # vanadium_layout.addWidget(self.spectrum_label, 2, 0)
+        # vanadium_layout.addWidget(self.spectrum_line, 2, 1)
+        # vanadium_layout.addWidget(self.spectrum_button, 2, 2)
+
+        # grouping_layout.addWidget(self.grouping_label, 0, 0)
+        # grouping_layout.addWidget(self.grouping_combo, 0, 1)
+        # grouping_layout.addWidget(self.mask_label, 1, 0)
+        # grouping_layout.addWidget(self.mask_line, 1, 1)
+        # grouping_layout.addWidget(self.mask_button, 1, 2)
+        # grouping_layout.addWidget(self.background_label, 2, 0)
+        # grouping_layout.addWidget(self.background_line, 2, 1)
+        # grouping_layout.addWidget(self.background_button, 2, 2)
+
+        # horz_sep_cal_van = QFrame()
+        # horz_sep_cal_van.setFrameShape(QFrame.HLine)
+
+        # horz_sep_van_grp = QFrame()
+        # horz_sep_van_grp.setFrameShape(QFrame.HLine)
+
+        # parameters_layout = QVBoxLayout()
+        # parameters_layout.addLayout(dataset_layout)
+        # parameters_layout.addWidget(self.table)
+        # parameters_layout.addLayout(calibration_layout)
+        # parameters_layout.addWidget(horz_sep_cal_van)
+        # parameters_layout.addLayout(vanadium_layout)
+        # parameters_layout.addWidget(horz_sep_van_grp)
+        # parameters_layout.addLayout(grouping_layout)
+        # parameters_layout.addStretch()
+
+        # generate_layout = QGridLayout()
+
+        # label = QLabel('Experiment Name', self)
+
+        # self.save_button = QPushButton('Save', self)
+        # self.load_button = QPushButton('Load', self)
+        # self.create_button = QPushButton('Create', self)
+        # self.remove_button = QPushButton('Remove', self)
+
+        # self.plan_line = QLineEdit(self)
+        # self.plan_combo = QComboBox(self)
+
+        # generate_layout.addWidget(label, 0, 0, 1, 2)
+        # generate_layout.addWidget(self.plan_line, 0, 2)
+        # generate_layout.addWidget(self.save_button, 0, 3)
+        # generate_layout.addWidget(self.create_button, 1, 0)
+        # generate_layout.addWidget(self.remove_button, 1, 1)
+        # generate_layout.addWidget(self.plan_combo, 1, 2)
+        # generate_layout.addWidget(self.load_button, 1, 3)
+
+        # parameters_layout.addLayout(generate_layout)
+
+        # layout = QHBoxLayout()
+
+        # vert_sep = QFrame()
+        # vert_sep.setFrameShape(QFrame.VLine)
+
+        # layout.addLayout(instrument_layout)
+        # layout.addWidget(vert_sep)
+        # layout.addLayout(parameters_layout)
+
+        # self.setLayout(layout)
+
+class MainWindow(QMainWindow):
+
+    def __init__(self):
+        super(MainWindow, self).__init__()
+
+        self.setWindowTitle('Reciprocal Space Reconstruction')
+
+        widget = IntrumentData()
+        self.setCentralWidget(widget)
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())

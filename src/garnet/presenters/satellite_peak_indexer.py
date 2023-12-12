@@ -25,12 +25,29 @@ class SatellitePeakIndexer:
         self.view.b_button.clicked.connect(self.view_ca)
         self.view.c_button.clicked.connect(self.view_ab)
 
+        self.view.cluster_button.clicked.connect(self.cluster)
+
         peaks = LoadIsawPeaks('/SNS/TOPAZ/IPTS-23996/shared/zgf/satellite_index/26079_Niggli.integrate')
         LoadIsawUB(peaks, '/SNS/TOPAZ/IPTS-23996/shared/zgf/satellite_index/26079_Niggli.mat')
 
         self.model.set_peak_workspace('peaks')
-        self.view.add_peaks(self.model.get_peak_info())
         self.view.set_transform(self.model.get_transform())
+        
+        self.cluster()
+
+    def cluster(self):
+
+        params = self.view.get_cluster_parameters()
+
+        if params is not None:
+
+            peak_info = self.model.get_peak_info()
+
+            self.model.cluster_peaks(peak_info, *params)
+
+            self.view.add_peaks(peak_info)
+            
+            self.view.update_table(peak_info)
 
     def view_ab_star(self):
 

@@ -15,16 +15,23 @@ exts = ['.nxs.h5']
 title_entry = 'metadata.entry.title'
 run_number_entry = 'metadata.entry.run_number'
 
-ipts_number = 31189
-instrument = 'HB3A'
-facility = 'HFIR', 
-tags = ['type/raw']
-exts = ['.dat']
+scale_entry = 'metadata.entry.proton_charge'
 
-title_entry = 'metadata.scan_title'
-run_number_entry = 'metadata.scan'
+goniometer_entries = ['metadata.entry.daslogs.bl12:mot:gonioc:omega.average_value',
+                      'metadata.entry.daslogs.bl12:mot:gonioc:chi.average_value',
+                      'metadata.entry.daslogs.bl12:mot:gonioc:phi.average_value']
 
-projection = [title_entry, run_number_entry]
+# ipts_number = 31189
+# instrument = 'HB3A'
+# facility = 'HFIR', 
+# tags = ['type/raw']
+# exts = ['.dat']
+
+# title_entry = 'metadata.scan_title'
+# run_number_entry = 'metadata.scan'
+
+projection = [title_entry, run_number_entry, scale_entry]
+projection += goniometer_entries
 
 data_files = data_catalog.retrieve_data_files(login,
                                               facility,  
@@ -38,7 +45,11 @@ run_title_dict = data_catalog.run_title_dictionary(data_files,
                                                    title_entry,
                                                    run_number_entry)
 
-print(run_title_dict)
+run_str = run_title_dict['YAG']
+
+runs_list = data_catalog.run_numbers_list(run_str)
+
+print(data_files)
 
 # for key in run_title_dict.keys():
 #     print(data_catalog.run_numbers_list(run_title_dict[key]))

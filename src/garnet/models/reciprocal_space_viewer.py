@@ -28,7 +28,7 @@ class ReciprocalSpaceViewerModel():
 
         if HasUB(Workspace=self.peaks_ws):
 
-            self.UB = self.peaks_ws.sample().getOrientedLattice().getUB()
+            self.UB = self.peaks_ws.sample().getOrientedLattice().getUB().copy()
 
     def get_peak_info(self):
 
@@ -82,16 +82,10 @@ class ReciprocalSpaceViewerModel():
 
             UB = self.peaks_ws.sample().getOrientedLattice().getUB()
 
-            Gstar = np.dot(UB.T, UB)
-            B = scipy.linalg.cholesky(Gstar, lower=False)
-            U = np.dot(UB, np.linalg.inv(B))
-
-            t = B.copy()
+            t = UB.copy()
             t /= np.max(t, axis=1)
 
-            T = np.dot(U,t)
-
-            return T
+            return t
 
     def get_peak(self, pk_no):
 

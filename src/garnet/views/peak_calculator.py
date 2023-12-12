@@ -48,7 +48,7 @@ class PeakCalculator(QWidget):
 
         self.d1_label = QLabel('d = '+' '*12+' Å', self)   
         self.d2_label = QLabel('d = '+' '*12+' Å', self)   
-        
+
         self.phi12_label = QLabel('φ = '+' '*12+ ' °', self)   
 
         self.calculate = QPushButton(text='Calculate')

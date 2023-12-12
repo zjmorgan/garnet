@@ -1,19 +1,25 @@
 from qtpy.QtWidgets import (QWidget,
+                            QTableWidget,
+                            QTableWidgetItem,
+                            QHeaderView,
                             QFrame,
                             QGridLayout,
                             QHBoxLayout,
                             QVBoxLayout,
+                            QFormLayout,
                             QPushButton,
                             QCheckBox,
                             QComboBox,
                             QLineEdit)
 
-from qtpy.QtGui import QDoubleValidator
+from qtpy.QtGui import QDoubleValidator, QIntValidator
 
 import numpy as np
 import pyvista as pv
 
 from pyvistaqt import QtInteractor
+
+# import matplotlib as mpl
 
 class SatellitePeakIndexerView(QWidget):
 
@@ -64,8 +70,9 @@ class SatellitePeakIndexerView(QWidget):
         self.frame = QFrame()
 
         self.plotter = QtInteractor(self.frame)
+        self.plotter.add_camera_orientation_widget()
 
-        layout = QVBoxLayout()
+        viwer_layout = QVBoxLayout()
         camera_layout = QHBoxLayout()
         plot_layout = QHBoxLayout()
         view_layout = QGridLayout()
@@ -95,62 +102,111 @@ class SatellitePeakIndexerView(QWidget):
         view_layout.addWidget(self.b_button, 1, 4)
         view_layout.addWidget(self.c_button, 1, 5)
 
-        layout.addLayout(camera_layout)
-        layout.addLayout(plot_layout)
-        layout.addLayout(view_layout)
+        viwer_layout.addLayout(camera_layout)
+        viwer_layout.addLayout(plot_layout)
+        viwer_layout.addLayout(view_layout)
+
+        self.cluster_button = QPushButton('Cluster', self)
+
+        dbl_validator = QDoubleValidator(0.0, 10, 5, notation=notation)
+        int_validator = QIntValidator(1, 1000)
+
+        self.param_eps_line = QLineEdit('0.025')
+        self.param_min_line = QLineEdit('15')
+
+        self.param_eps_line.setValidator(dbl_validator)
+        self.param_min_line.setValidator(int_validator)
+
+        self.table = QTableWidget()
+
+        self.table.setRowCount(0)
+        self.table.setColumnCount(3)
+
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setHorizontalHeaderLabels(['h','k','l'])
+
+        cluster_layout = QFormLayout()
+
+        cluster_layout.addRow(self.cluster_button)
+        cluster_layout.addRow('Maximum distance:', self.param_eps_line)
+        cluster_layout.addRow('Minimum samples:', self.param_min_line)
+        cluster_layout.addRow(self.table)
+
+        layout = QHBoxLayout()
+
+        layout.addLayout(viwer_layout)
+        layout.addLayout(cluster_layout)
 
         self.setLayout(layout)
 
+    def update_table(self, peak_info):
+
+        centroids = peak_info['centroids'].round(3).astype(str)
+
+        self.table.setRowCount(0)
+        self.table.setRowCount(len(centroids))
+
+        for row, centroid in enumerate(centroids):
+            self.table.setItem(row, 0, QTableWidgetItem(centroid[0]))
+            self.table.setItem(row, 1, QTableWidgetItem(centroid[1]))
+            self.table.setItem(row, 2, QTableWidgetItem(centroid[2]))
+
+    def get_cluster_parameters(self):
+
+        params = [self.param_eps_line, self.param_min_line]
+        valid_params = all([param.hasAcceptableInput() for param in params])
+
+        if valid_params:
+
+            return float(self.param_eps_line.text()), \
+                   int(self.param_min_line.text())
+
     def add_peaks(self, peak_dict):
 
-        transforms = peak_dict['transforms']
-        intensities = peak_dict['intensities']
-        numbers = peak_dict['numbers']
+        self.plotter.clear()
+        self.plotter.clear_actors()
 
-        sphere = pv.Icosphere(radius=1, nsub=1)
+        coordinates = np.array(peak_dict['coordinates'])
+        clusters = np.array(peak_dict['clusters'])
 
-        geoms, self.indexing = [], {}
-        for i, (T, I, no) in enumerate(zip(transforms, intensities, numbers)):
-            ellipsoid = sphere.copy().transform(T)
-            ellipsoid['scalars'] = np.full(sphere.n_cells, I)
-            geoms.append(ellipsoid)
-            self.indexing[i] = no
+        geoms, labels = [], []
+        for uni in np.unique(clusters):
+            coords = coordinates[clusters == uni]
+            coords = np.row_stack([coords,-coords])
+            points = pv.PolyData(coords)
+            if uni >= 0:
+                geoms.append(points)
+                labels.append('C{}'.format(uni+1))
+            else:
+                self.plotter.add_mesh(points,
+                                      color='k', 
+                                      smooth_shading=True,
+                                      point_size=5,
+                                      render_points_as_spheres=True)
 
         multiblock = pv.MultiBlock(geoms)
 
         _, mapper = self.plotter.add_composite(multiblock,
-                                               scalars='scalars',
-                                               log_scale=True,
+                                               multi_colors=True,
                                                smooth_shading=True,
-                                               scalar_bar_args={'title':
-                                                                'Intensity'})
+                                               point_size=10,
+                                               render_points_as_spheres=True)
 
-        self.mapper = mapper
+        colors = []
+        for i in range(1,len(mapper.block_attr)):
+            colors.append(mapper.block_attr[i].color)
 
-        self.plotter.enable_block_picking(callback=self.highlight,
-                                          side='left')
-        self.plotter.enable_block_picking(callback=self.highlight,
-                                          side='right')
+        legend = [[label, color] for label, color in zip(labels,colors)]
 
-        self.plotter.add_camera_orientation_widget()
+        self.plotter.add_legend(legend,
+                                loc='lower right',
+                                bcolor='w',
+                                face=None)
+
         self.plotter.enable_depth_peeling()
 
         self.change_proj()
-
-    def highlight(self, index, dataset):
-
-        color = self.mapper.block_attr[index].color
-
-        if color == 'pink':
-            color, select = None, False
-        else:
-            color, select = 'pink', True
-
-        self.mapper.block_attr[index].color = color
-        
-        print('peak_no = {}'.format(self.indexing[index]))
-
-        return self.indexing[index], select
 
     def change_proj(self):
 

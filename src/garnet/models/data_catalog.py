@@ -1,5 +1,5 @@
 import pyoncat
-import getpass as gp
+import getpass
 
 import numpy as np
 
@@ -12,8 +12,10 @@ def oncat_login():
                           client_id=CLIENT_ID,
                           flow=pyoncat.RESOURCE_OWNER_CREDENTIALS_FLOW)
 
-    username = gp.getuser()
-    oncat.login(username, gp.getpass('Enter password for "' + username + '":'))
+    username = getpass.getuser()
+
+    oncat.login(username,
+                getpass.getpass('Enter password for "'+username+'":'))
 
     return oncat
 
@@ -31,11 +33,11 @@ def retrieve_data_files(login,
                                      projection=projection,
                                      exts=exts,
                                      tags=tags)
-    
+
     return data_files
 
 def run_title_dictionary(data_files, title_entry, run_number_entry):
-    
+
     titles = np.array([df[title_entry] for df in data_files])
     run_numbers = np.array([int(df[run_number_entry]) for df in data_files])
 

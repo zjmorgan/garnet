@@ -1,4 +1,4 @@
-from mantid.simpleapi import LoadNexus
+from mantid.simpleapi import LoadNexus, FindUBUsingIndexedPeaks
 
 class ReciprocalSpaceViewer:
 
@@ -26,6 +26,7 @@ class ReciprocalSpaceViewer:
         self.view.c_button.clicked.connect(self.view_ab)
 
         peaks = LoadNexus('/SNS/TOPAZ/shared/zgf/garnet_peaks.nxs')
+        FindUBUsingIndexedPeaks(peaks)        
 
         self.model.set_peak_workspace('peaks')
         self.view.add_peaks(self.model.get_peak_info())
