@@ -82,10 +82,9 @@ class ReciprocalSpaceViewerModel():
 
             UB = self.peaks_ws.sample().getOrientedLattice().getUB()
 
-            t = UB.copy()
-            t /= np.max(t, axis=1)
+            ub = UB/np.linalg.norm(UB, axis=0)
 
-            return t
+            return ub
 
     def get_peak(self, pk_no):
 
