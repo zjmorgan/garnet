@@ -17,9 +17,33 @@ class ReciprocalSpaceSlicer:
         self.view.b_button.clicked.connect(self.view_ca)
         self.view.c_button.clicked.connect(self.view_ab)
 
+        self.view.view_combo.currentIndexChanged.connect(self.update_labels)
+
         histo = LoadMD(Filename='/SNS/CORELLI/IPTS-15331/shared/normalization/Ba3Co2O6_50K_small/Ba3Co2O6_50K_small_6_m.nxs')
+        #histo = LoadMD(Filename='/SNS/CORELLI/IPTS-15331/shared/normalization/Ba3Co2O6_50K_proj_small/Ba3Co2O6_50K_proj_small_6_m.nxs')
         self.model.set_md_histo_workspace('histo')
+        
+        self.histo = self.model.get_histo_info()
+        
+        self.set_slice((0,0,-1))
+        self.plot_data()
+
+    def plot_data(self):
+
+        method = self.view.get_clim_clip_type()
+        clim = self.model.calculate_clim(method)
+
+        self.view.add_histo(self.histo, clim, self.normal, self.origin)
         self.view.set_transform(self.model.get_transform())
+
+    def set_slice(self, vec):
+
+        self.normal = vec
+        self.origin = (0,0,0)
+
+    def update_labels(self):
+
+        self.view.update_axis_labels()
 
     def view_ab_star(self):
 

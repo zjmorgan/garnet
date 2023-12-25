@@ -4,11 +4,13 @@ from qtpy.QtWidgets import (QWidget,
                             QHBoxLayout,
                             QVBoxLayout,
                             QPushButton,
+                            QLabel,
                             QCheckBox,
                             QComboBox,
                             QLineEdit)
 
 from qtpy.QtGui import QDoubleValidator
+from PyQt5.QtCore import Qt
 
 import numpy as np
 import pyvista as pv
@@ -28,8 +30,8 @@ class ReciprocalSpaceSlicerView(QWidget):
         self.reset_button.clicked.connect(self.reset_view)
 
         self.view_combo = QComboBox(self)
-        self.view_combo.addItem('[uvw]')
         self.view_combo.addItem('[hkl]')
+        self.view_combo.addItem('[uvw]')
 
         notation = QDoubleValidator.StandardNotation
 
@@ -43,7 +45,11 @@ class ReciprocalSpaceSlicerView(QWidget):
         self.axis2_line.setValidator(validator)
         self.axis3_line.setValidator(validator)
 
-        self.manual_button = QPushButton('View Plane', self)
+        self.axis1_label = QLabel('h', self)
+        self.axis2_label = QLabel('k', self)
+        self.axis3_label = QLabel('l', self)
+
+        self.manual_button = QPushButton('View Axis', self)
 
         self.a_star_button = QPushButton('a*', self)
         self.b_star_button = QPushButton('b*', self)
@@ -57,69 +63,127 @@ class ReciprocalSpaceSlicerView(QWidget):
 
         self.plotter = QtInteractor(self.frame)
 
-        layout = QVBoxLayout()
-        camera_layout = QHBoxLayout()
-        plot_layout = QHBoxLayout()
-        view_layout = QGridLayout()
+        self.clim_combo = QComboBox(self)
+        self.clim_combo.addItem('3-sig')
+        self.clim_combo.addItem('1.5-IQR')
 
-        camera_layout.addWidget(self.proj_box)
-        camera_layout.addWidget(self.reset_button)
-        camera_layout.addStretch(1)
-        camera_layout.addWidget(self.axis1_line)
-        camera_layout.addWidget(self.axis2_line)
-        camera_layout.addWidget(self.axis3_line)
-        camera_layout.addWidget(self.view_combo)
-        camera_layout.addWidget(self.manual_button)
+        self.slice_combo = QComboBox(self)
+
+        layout = QVBoxLayout()
+        camera_layout = QGridLayout()
+        plot_layout = QHBoxLayout()
+        slice_layout = QHBoxLayout()
+
+        camera_layout.addWidget(self.proj_box, 0, 0)
+        camera_layout.addWidget(self.reset_button, 1, 0)
+        camera_layout.addWidget(self.a_star_button, 0, 1)
+        camera_layout.addWidget(self.b_star_button, 0, 2)
+        camera_layout.addWidget(self.c_star_button, 0, 3)
+        camera_layout.addWidget(self.a_button, 1, 1)
+        camera_layout.addWidget(self.b_button, 1, 2)
+        camera_layout.addWidget(self.c_button, 1, 3)
+        camera_layout.addWidget(self.axis1_label, 0, 4, Qt.AlignCenter)
+        camera_layout.addWidget(self.axis2_label, 0, 5, Qt.AlignCenter)
+        camera_layout.addWidget(self.axis3_label, 0, 6, Qt.AlignCenter)
+        camera_layout.addWidget(self.axis1_line, 1, 4)
+        camera_layout.addWidget(self.axis2_line, 1, 5)
+        camera_layout.addWidget(self.axis3_line, 1, 6)
+        camera_layout.addWidget(self.view_combo, 0, 7)
+        camera_layout.addWidget(self.manual_button, 1, 7)
 
         plot_layout.addWidget(self.plotter.interactor)
 
-        view_layout.addWidget(self.a_star_button, 0, 0)
-        view_layout.addWidget(self.b_star_button, 0, 1)
-        view_layout.addWidget(self.c_star_button, 0, 2)
-
-        view_layout.addWidget(self.a_button, 1, 0)
-        view_layout.addWidget(self.b_button, 1, 1)
-        view_layout.addWidget(self.c_button, 1, 2)
+        slice_layout.addWidget(self.clim_combo)
 
         layout.addLayout(camera_layout)
         layout.addLayout(plot_layout)
-        layout.addLayout(view_layout)
+        layout.addLayout(slice_layout)
 
         self.setLayout(layout)
 
-    def add_peaks(self, peak_dict):
+    def add_histo(self, histo_dict, clim, normal, origin):
 
-        transforms = peak_dict['transforms']
-        intensities = peak_dict['intensities']
-        numbers = peak_dict['numbers']
+        self.plotter.clear()        
+        self.plotter.clear_actors()
 
-        sphere = pv.Icosphere(radius=1, nsub=1)
+        signal = histo_dict['signal']
+        labels = histo_dict['labels']
 
-        geoms, self.indexing = [], {}
-        for i, (T, I, no) in enumerate(zip(transforms, intensities, numbers)):
-            ellipsoid = sphere.copy().transform(T)
-            ellipsoid['scalars'] = np.full(sphere.n_cells, I)
-            geoms.append(ellipsoid)
-            self.indexing[i] = no
+        min_lim = histo_dict['min_lim']
+        max_lim = histo_dict['max_lim']
+        spacing = histo_dict['spacing']
 
-        multiblock = pv.MultiBlock(geoms)
+        P = histo_dict['projection']
+        T = histo_dict['transform']
+        S = histo_dict['scales']
 
-        _, mapper = self.plotter.add_composite(multiblock,
-                                               scalars='scalars',
-                                               log_scale=True,
-                                               smooth_shading=True,
-                                               scalar_bar_args={'title':
-                                                                'Intensity'})
+        grid = pv.ImageData()
 
-        self.mapper = mapper
+        grid.dimensions = np.array(signal.shape)+1
 
-        self.plotter.enable_block_picking(callback=self.highlight,
-                                          side='left')
-        self.plotter.enable_block_picking(callback=self.highlight,
-                                          side='right')
+        grid.origin = min_lim
+        grid.spacing = spacing
+        
+        min_bnd = min_lim*S
+        max_bnd = max_lim*S
 
-        self.plotter.add_camera_orientation_widget()
-        self.plotter.enable_depth_peeling()
+        bounds = np.array([[min_bnd[i], max_bnd[i]] for i in [0,1,2]])
+        limits = np.array([[min_lim[i], max_lim[i]] for i in [0,1,2]])
+
+        a = pv._vtk.vtkMatrix3x3()
+        b = pv._vtk.vtkMatrix4x4()
+        for i in range(3):
+            for j in range(3):
+                a.SetElement(i,j,T[i,j])
+                b.SetElement(i,j,P[i,j])
+
+        trans = np.log10(signal)
+        if clim is not None:
+            trans[trans < clim[0]] = clim[0]
+            trans[trans > clim[1]] = clim[1]
+
+        grid.cell_data['scalars'] = trans.flatten(order='F')
+
+        self.clip = self.plotter.add_volume_clip_plane(grid,
+                                                       opacity='linear',
+                                                       log_scale=False,
+                                                       clim=clim,
+                                                       normal=normal,
+                                                       origin=origin,
+                                                       origin_translation=True,
+                                                       show_scalar_bar=False,
+                                                       normal_rotation=False,
+                                                       user_matrix=b)
+
+        prop = self.clip.GetOutlineProperty()
+        prop.SetOpacity(0)
+
+        actor = self.plotter.show_grid(xtitle=labels[0],
+                                       ytitle=labels[1],
+                                       ztitle=labels[2],
+                                       font_size=8,
+                                       minor_ticks=True)
+
+        actor.SetAxisBaseForX(*T[:,0])
+        actor.SetAxisBaseForY(*T[:,1])
+        actor.SetAxisBaseForZ(*T[:,2])
+
+        actor.bounds = bounds.ravel()
+        actor.SetXAxisRange(limits[0])
+        actor.SetYAxisRange(limits[1])
+        actor.SetZAxisRange(limits[2])
+
+        axis0_args = *limits[0], actor.n_xlabels, actor.x_label_format
+        axis1_args = *limits[1], actor.n_ylabels, actor.y_label_format
+        axis2_args = *limits[2], actor.n_zlabels, actor.z_label_format
+
+        axis0_label = pv.plotting.cube_axes_actor.make_axis_labels(*axis0_args)
+        axis1_label = pv.plotting.cube_axes_actor.make_axis_labels(*axis1_args)
+        axis2_label = pv.plotting.cube_axes_actor.make_axis_labels(*axis2_args)
+
+        actor.SetAxisLabels(0, axis0_label)
+        actor.SetAxisLabels(1, axis1_label)
+        actor.SetAxisLabels(2, axis2_label)
 
         self.change_proj()
 
@@ -149,36 +213,26 @@ class ReciprocalSpaceSlicerView(QWidget):
                                           zlabel='c*')
             actor.SetUserMatrix(b)
 
-    def view_xy(self):
-
-        self.plotter.view_xy()
-
-    def view_yz(self):
-
-        self.plotter.view_yz()
-
-    def view_zx(self):
-
-        self.plotter.view_zx()
-
-    def view_yx(self):
-
-        self.plotter.view_yx()
-
-    def view_zy(self):
-
-        self.plotter.view_zy()
-
-    def view_xz(self):
-
-        self.plotter.view_xz()
-
     def view_vector(self, vecs):
 
         if len(vecs) == 2:
-            self.plotter.view_vector(*vecs)
+            vec = np.cross(vecs[0],vecs[1])
+            self.plotter.view_vector(vecs[0],vec)
         else:
             self.plotter.view_vector(vecs)
+
+    def update_axis_labels(self):
+
+        axes_type = self.view_combo.currentText()
+
+        if axes_type == '[hkl]':
+            self.axis1_label.setText('h')
+            self.axis2_label.setText('k')
+            self.axis3_label.setText('l')
+        else:
+            self.axis1_label.setText('u')
+            self.axis2_label.setText('v')
+            self.axis3_label.setText('w')
 
     def get_manual_indices(self):
 
@@ -196,3 +250,7 @@ class ReciprocalSpaceSlicerView(QWidget):
             ind = np.array([axis1,axis2,axis3])
 
             return axes_type, ind
+    
+    def get_clim_clip_type(self):
+        
+        return self.clim_combo.currentText()
