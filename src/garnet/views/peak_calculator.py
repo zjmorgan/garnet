@@ -22,9 +22,9 @@ class PeakCalculator(QWidget):
         self.h_label = QLabel('h', self)
         self.k_label = QLabel('k', self)
         self.l_label = QLabel('l', self)
- 
-        self.peak_1_label = QLabel('Peak 1', self)   
-        self.peak_2_label = QLabel('Peak 2', self)   
+
+        self.peak_1_label = QLabel('Peak 1', self)
+        self.peak_2_label = QLabel('Peak 2', self)
 
         notation = QDoubleValidator.StandardNotation
 
@@ -46,12 +46,12 @@ class PeakCalculator(QWidget):
         self.k2_line.setValidator(validator)
         self.l2_line.setValidator(validator)
 
-        self.d1_label = QLabel('d = '+' '*12+' Å', self)   
-        self.d2_label = QLabel('d = '+' '*12+' Å', self)   
+        self.d1_label = QLabel('d = '+' '*12+' Å', self)
+        self.d2_label = QLabel('d = '+' '*12+' Å', self)
 
-        self.phi12_label = QLabel('φ = '+' '*12+ ' °', self)   
+        self.phi12_label = QLabel('φ = '+' '*12+ ' °', self)
 
-        self.calculate = QPushButton(text='Calculate')
+        self.calculate = QPushButton('Calculate', self)
 
         layout.addWidget(self.calculate, 0, 0, Qt.AlignRight)
         layout.addWidget(self.h_label, 0, 1, Qt.AlignCenter)
@@ -59,13 +59,13 @@ class PeakCalculator(QWidget):
         layout.addWidget(self.l_label, 0, 3, Qt.AlignCenter)
         layout.addWidget(self.phi12_label, 0, 4)
 
-        layout.addWidget(self.peak_1_label, 1, 0, Qt.AlignRight)    
+        layout.addWidget(self.peak_1_label, 1, 0, Qt.AlignRight)
         layout.addWidget(self.h1_line, 1, 1)
         layout.addWidget(self.k1_line, 1, 2)
         layout.addWidget(self.l1_line, 1, 3)
         layout.addWidget(self.d1_label, 1, 4)
-    
-        layout.addWidget(self.peak_2_label, 2, 0, Qt.AlignRight)    
+
+        layout.addWidget(self.peak_2_label, 2, 0, Qt.AlignRight)
         layout.addWidget(self.h2_line, 2, 1)
         layout.addWidget(self.k2_line, 2, 2)
         layout.addWidget(self.l2_line, 2, 3)

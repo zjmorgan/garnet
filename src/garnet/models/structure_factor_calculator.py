@@ -11,7 +11,7 @@ from mantid.simpleapi import (CreatePeaksWorkspace,
 
 import numpy as np
 
-class StructureFactorCalculator():
+class StructureFactorCalculatorModel():
 
     def __init__(self, ref_ws=None):
 
@@ -22,10 +22,10 @@ class StructureFactorCalculator():
 
     def load_CIF(self, filename):
 
-        LoadCIF(Workspace='struct_fact_ws', 
+        LoadCIF(Workspace='struct_fact_ws',
                 InputFile=filename)
 
-        cryst_struct = mtd['struct_fact_ws'].sample().getCrystalStructure()        
+        cryst_struct = mtd['struct_fact_ws'].sample().getCrystalStructure()
 
         unit_cell = cryst_struct.getUnitCell()
 
@@ -38,7 +38,7 @@ class StructureFactorCalculator():
 
     def set_crystal_structure(self, lattice_params, space_group, scatterers):
 
-        line = ' '.join(['{}']*6)        
+        line = ' '.join(['{}']*6)
 
         constants = line.format(*lattice_params)
 
@@ -52,17 +52,17 @@ class StructureFactorCalculator():
 
     def update_lattice_parameters(self, a, b, c, alpha, beta, gamma):
 
-        SetUB(Workspace='struct_fact_ws', 
-              a=a, 
-              b=b, 
-              c=c, 
+        SetUB(Workspace='struct_fact_ws',
+              a=a,
+              b=b,
+              c=c,
               alpha=alpha,
               beta=beta,
               gamma=gamma)
 
     def generate_F2(self, d_min=0.7):
 
-        cryst_struct = mtd['struct_fact_ws'].sample().getCrystalStructure()        
+        cryst_struct = mtd['struct_fact_ws'].sample().getCrystalStructure()
 
         generator = ReflectionGenerator(cryst_struct)
 
