@@ -1,7 +1,13 @@
 from mantid.kernel import V3D
+
 from mantid.geometry import (CrystalStructure,
                              ReflectionGenerator,
-                             ReflectionConditionFilter)
+                             ReflectionConditionFilter,
+                             SpaceGroup,
+                             PointGroup,
+                             PointGroupFactory,
+                             SpaceGroupFactory)
+
 from mantid.simpleapi import (CreatePeaksWorkspace,
                               DeleteTableRows,
                               AddPeakHKL,
@@ -19,6 +25,18 @@ class StructureFactorCalculatorModel():
                              NumberOfPeaks=0,
                              OutputType='LeanElasticPeak',
                              OutputWorkspace='struct_fact_ws')
+
+    def generate_space_groups_from_crystal_system(self, system):
+
+        pg_system = getattr(PointGroup.CrystalSystem, system)
+        pgs = list(PointGroupFactory.getPointGroupSymbols(pg_system))
+        sgs = [SpaceGroupFactory.getSpaceGroupsForPointGroup(pg) for pg in pgs]
+
+        return [sg.getNumber() for sg in sgs]
+
+    def generate_settings_from_space_group(self, no):
+
+        return list(SpaceGroupFactory.subscribedSpaceGroupSymbols(no))
 
     def load_CIF(self, filename):
 

@@ -5,48 +5,27 @@ class StructureFactorCalculator:
         self.view = view
         self.model = model
 
-        #self.view.manual_button.clicked.connect(self.view_manual)
+        self.view.crystal_system_combo.activated.connect(self.generate_groups)
+        self.view.space_group_combo.activated.connect(self.generate_settings)
 
-    def view_ab_star(self):
+        self.view.load_CIF_button.clicked.connect(self.load_CIF)
 
-        vecs = self.model.ab_star_axes()
-        if vecs is not None:
-            self.view.view_vector(vecs)
+        self.generate_groups()
+        self.generate_settings()
 
-    def view_bc_star(self):
+    def generate_groups(self):
 
-        vecs = self.model.bc_star_axes()
-        if vecs is not None:
-            self.view.view_vector(vecs)
+        system = self.get_crystal_system()
+        nos = self.model.generate_space_groups_from_crystal_system(system)
+        self.update_space_groups(nos)
 
-    def view_ca_star(self):
-        vecs = self.model.ca_star_axes()
-        if vecs is not None:
-            self.view.view_vector(vecs)
+    def generate_settings(self):
 
-    def view_ab(self):
+        no = self.get_space_group()
+        settings = self.model.generate_settings_from_space_group(no)
+        self.update_space_groups(settings)
 
-        vecs = self.model.ab_axes()
-        if vecs is not None:
-            self.view.view_vector(vecs)
 
-    def view_bc(self):
+    def load_CIF(self):
 
-        vecs = self.model.bc_axes()
-        if vecs is not None:
-            self.view.view_vector(vecs)
-
-    def view_ca(self):
-
-        vecs = self.model.ca_axes()
-        if vecs is not None:
-            self.view.view_vector(vecs)
-
-    def view_manual(self):
-
-        indices = self.view.get_manual_indices()
-
-        if indices is not None:
-            vec = self.model.get_vector(*indices)
-            if vec is not None:
-                self.view.view_vector(vec)
+        pass
