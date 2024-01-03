@@ -96,7 +96,7 @@ class ReciprocalSpaceSlicerModel():
                 cmin, cmax = Q1-spread, Q3+spread
 
             else:
-                
+
                 cmin, cmax = vmin, vmax
 
             clim = [cmin if cmin > vmin else vmin,

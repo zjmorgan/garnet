@@ -25,7 +25,9 @@ class ReciprocalSpaceSlicer:
         
         self.histo = self.model.get_histo_info()
         
-        self.set_slice((0,0,-1))
+        self.normal = (0,0,-1)
+        self.origin = (0,0,0)
+
         self.plot_data()
 
     def plot_data(self):
@@ -35,11 +37,6 @@ class ReciprocalSpaceSlicer:
 
         self.view.add_histo(self.histo, clim, self.normal, self.origin)
         self.view.set_transform(self.model.get_transform())
-
-    def set_slice(self, vec):
-
-        self.normal = vec
-        self.origin = (0,0,0)
 
     def update_labels(self):
 

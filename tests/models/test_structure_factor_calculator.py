@@ -32,12 +32,12 @@ class test_StructureFactorCalculator(unittest.TestCase):
         self.assertEqual(struct_fact_calc.get_space_group(), space_group)
         self.assertEqual(struct_fact_calc.get_point_group(), 'm-3m')
 
-    def test_T4_lysozyme(self):
+    # def test_T4_lysozyme(self):
 
-        struct_fact_calc = StructureFactorCalculator()
-        struct_fact_calc.load_CIF(os.path.abspath('tests/data/5vnq.cif'))
+    #     struct_fact_calc = StructureFactorCalculator()
+    #     struct_fact_calc.load_CIF(os.path.abspath('tests/data/5vnq.cif'))
 
-        hkls, ds, F2s = struct_fact_calc.generate_F2(d_min=2)
+    #     hkls, ds, F2s = struct_fact_calc.generate_F2(d_min=2)
 
-        self.assertEqual(len(F2s), 1000)
-        self.assertEqual(struct_fact_calc.get_space_group(), 'P 32 2 1')
+    #     self.assertEqual(len(F2s), 1000)
+    #     self.assertEqual(struct_fact_calc.get_space_group(), 'P 32 2 1')

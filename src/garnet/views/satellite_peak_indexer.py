@@ -10,7 +10,8 @@ from qtpy.QtWidgets import (QWidget,
                             QPushButton,
                             QCheckBox,
                             QComboBox,
-                            QLineEdit)
+                            QLineEdit,
+                            QFileDialog)
 
 from qtpy.QtGui import QDoubleValidator, QIntValidator
 
@@ -67,12 +68,12 @@ class SatellitePeakIndexerView(QWidget):
         self.b_button = QPushButton('b', self)
         self.c_button = QPushButton('c', self)
 
-        self.frame = QFrame()
+        frame = QFrame()
 
-        self.plotter = QtInteractor(self.frame)
+        self.plotter = QtInteractor(frame)
         self.plotter.add_camera_orientation_widget()
 
-        viwer_layout = QVBoxLayout()
+        viewer_layout = QVBoxLayout()
         camera_layout = QHBoxLayout()
         plot_layout = QHBoxLayout()
         view_layout = QGridLayout()
@@ -102,9 +103,9 @@ class SatellitePeakIndexerView(QWidget):
         view_layout.addWidget(self.b_button, 1, 4)
         view_layout.addWidget(self.c_button, 1, 5)
 
-        viwer_layout.addLayout(camera_layout)
-        viwer_layout.addLayout(plot_layout)
-        viwer_layout.addLayout(view_layout)
+        viewer_layout.addLayout(camera_layout)
+        viewer_layout.addLayout(plot_layout)
+        viewer_layout.addLayout(view_layout)
 
         self.cluster_button = QPushButton('Cluster', self)
 
@@ -135,7 +136,7 @@ class SatellitePeakIndexerView(QWidget):
 
         layout = QHBoxLayout()
 
-        layout.addLayout(viwer_layout)
+        layout.addLayout(viewer_layout)
         layout.addLayout(cluster_layout)
 
         self.setLayout(layout)
@@ -197,7 +198,7 @@ class SatellitePeakIndexerView(QWidget):
         for i in range(1,len(mapper.block_attr)):
             colors.append(mapper.block_attr[i].color)
 
-        legend = [[label, color] for label, color in zip(labels,colors)]
+        legend = [[label, color] for label, color in zip(labels, colors)]
 
         self.plotter.add_legend(legend,
                                 loc='lower right',

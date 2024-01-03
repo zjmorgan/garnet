@@ -45,9 +45,9 @@ class ReciprocalSpaceSlicerView(QWidget):
         self.axis2_line.setValidator(validator)
         self.axis3_line.setValidator(validator)
 
-        self.axis1_label = QLabel('h', self)
-        self.axis2_label = QLabel('k', self)
-        self.axis3_label = QLabel('l', self)
+        axis1_label = QLabel('h', self)
+        axis2_label = QLabel('k', self)
+        axis3_label = QLabel('l', self)
 
         self.manual_button = QPushButton('View Axis', self)
 
@@ -67,12 +67,16 @@ class ReciprocalSpaceSlicerView(QWidget):
         self.clim_combo.addItem('3-sig')
         self.clim_combo.addItem('1.5-IQR')
 
+        self.slice_button = QPushButton('Slice Plane', self)
+
         self.slice_combo = QComboBox(self)
+        self.slice_combo.addItem('[hkl]')
+        self.slice_combo.addItem('[uvw]')
 
         layout = QVBoxLayout()
         camera_layout = QGridLayout()
         plot_layout = QHBoxLayout()
-        slice_layout = QHBoxLayout()
+        slice_layout = QGridLayout()
 
         camera_layout.addWidget(self.proj_box, 0, 0)
         camera_layout.addWidget(self.reset_button, 1, 0)
@@ -82,9 +86,9 @@ class ReciprocalSpaceSlicerView(QWidget):
         camera_layout.addWidget(self.a_button, 1, 1)
         camera_layout.addWidget(self.b_button, 1, 2)
         camera_layout.addWidget(self.c_button, 1, 3)
-        camera_layout.addWidget(self.axis1_label, 0, 4, Qt.AlignCenter)
-        camera_layout.addWidget(self.axis2_label, 0, 5, Qt.AlignCenter)
-        camera_layout.addWidget(self.axis3_label, 0, 6, Qt.AlignCenter)
+        camera_layout.addWidget(axis1_label, 0, 4, Qt.AlignCenter)
+        camera_layout.addWidget(axis2_label, 0, 5, Qt.AlignCenter)
+        camera_layout.addWidget(axis3_label, 0, 6, Qt.AlignCenter)
         camera_layout.addWidget(self.axis1_line, 1, 4)
         camera_layout.addWidget(self.axis2_line, 1, 5)
         camera_layout.addWidget(self.axis3_line, 1, 6)
@@ -93,7 +97,32 @@ class ReciprocalSpaceSlicerView(QWidget):
 
         plot_layout.addWidget(self.plotter.interactor)
 
-        slice_layout.addWidget(self.clim_combo)
+        self.normal1_line = QLineEdit()
+        self.normal2_line = QLineEdit()
+        self.normal3_line = QLineEdit()
+        self.scalar_line = QLineEdit()
+
+        self.normal1_line.setValidator(validator)
+        self.normal2_line.setValidator(validator)
+        self.normal3_line.setValidator(validator)
+        self.scalar_line.setValidator(validator)
+
+        normal1_label = QLabel('h', self)
+        normal2_label = QLabel('k', self)
+        normal3_label = QLabel('l', self)
+        scalar_label = QLabel('value', self)
+
+        slice_layout.addWidget(self.clim_combo, 0, 0)
+        slice_layout.addWidget(normal1_label, 0, 1, Qt.AlignCenter)
+        slice_layout.addWidget(normal2_label, 0, 2, Qt.AlignCenter)
+        slice_layout.addWidget(normal3_label, 0, 3, Qt.AlignCenter)
+        slice_layout.addWidget(scalar_label, 0, 4, Qt.AlignCenter)
+        slice_layout.addWidget(self.slice_combo, 0, 5)
+        slice_layout.addWidget(self.normal1_line, 1, 1)
+        slice_layout.addWidget(self.normal2_line, 1, 2)
+        slice_layout.addWidget(self.normal3_line, 1, 3)
+        slice_layout.addWidget(self.scalar_line, 1, 4)
+        slice_layout.addWidget(self.slice_button, 1, 5)
 
         layout.addLayout(camera_layout)
         layout.addLayout(plot_layout)
@@ -250,7 +279,7 @@ class ReciprocalSpaceSlicerView(QWidget):
             ind = np.array([axis1,axis2,axis3])
 
             return axes_type, ind
-    
+
     def get_clim_clip_type(self):
         
         return self.clim_combo.currentText()
