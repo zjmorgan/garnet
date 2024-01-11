@@ -8,6 +8,7 @@ class ReciprocalSpaceSlicer:
         self.model = model
 
         self.view.manual_button.clicked.connect(self.view_manual)
+        self.view.slice_button.clicked.connect(self.slice_manual)
 
         self.view.a_star_button.clicked.connect(self.view_bc_star)
         self.view.b_star_button.clicked.connect(self.view_ca_star)
@@ -18,6 +19,9 @@ class ReciprocalSpaceSlicer:
         self.view.c_button.clicked.connect(self.view_ab)
 
         self.view.view_combo.currentIndexChanged.connect(self.update_labels)
+        self.view.slice_combo.currentIndexChanged.connect(self.update_labels)
+
+        self.view.replot_button.clicked.connect(self.plot_data)
 
         histo = LoadMD(Filename='/SNS/CORELLI/IPTS-15331/shared/normalization/Ba3Co2O6_50K_small/Ba3Co2O6_50K_small_6_m.nxs')
         #histo = LoadMD(Filename='/SNS/CORELLI/IPTS-15331/shared/normalization/Ba3Co2O6_50K_proj_small/Ba3Co2O6_50K_proj_small_6_m.nxs')
@@ -26,7 +30,7 @@ class ReciprocalSpaceSlicer:
         self.histo = self.model.get_histo_info()
         
         self.normal = (0,0,-1)
-        self.origin = (0,0,0)
+        self.origin = 0
 
         self.plot_data()
 
@@ -41,6 +45,7 @@ class ReciprocalSpaceSlicer:
     def update_labels(self):
 
         self.view.update_axis_labels()
+        self.view.update_normal_labels()
 
     def view_ab_star(self):
 
@@ -79,9 +84,22 @@ class ReciprocalSpaceSlicer:
 
     def view_manual(self):
 
-        indices = self.view.get_manual_indices()
+        indices = self.view.get_manual_axis_indices()
 
         if indices is not None:
             vec = self.model.get_vector(*indices)
             if vec is not None:
                 self.view.view_vector(vec)
+
+    def slice_manual(self):
+
+        indices = self.view.get_manual_normal_indices()
+        value = self.view.get_manual_normal_value()
+        
+        if indices is not None:
+            vec = self.model.get_vector(*indices)
+            if vec is not None:
+                self.normal = -vec
+                print(vec)
+                self.origin = value if value is not None else 0
+                self.plot_data()

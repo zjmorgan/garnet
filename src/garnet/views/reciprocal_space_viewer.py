@@ -6,9 +6,11 @@ from qtpy.QtWidgets import (QWidget,
                             QPushButton,
                             QCheckBox,
                             QComboBox,
-                            QLineEdit)
+                            QLineEdit,
+                            QLabel)
 
 from qtpy.QtGui import QDoubleValidator
+from PyQt5.QtCore import Qt
 
 import numpy as np
 import pyvista as pv
@@ -66,38 +68,45 @@ class ReciprocalSpaceViewerView(QWidget):
         self.plotter = QtInteractor(self.frame)
 
         layout = QVBoxLayout()
-        camera_layout = QHBoxLayout()
+        camera_layout = QGridLayout()
         plot_layout = QHBoxLayout()
-        view_layout = QGridLayout()
 
-        camera_layout.addWidget(self.proj_box)
-        camera_layout.addWidget(self.reset_button)
-        camera_layout.addStretch(1)
-        camera_layout.addWidget(self.axis1_line)
-        camera_layout.addWidget(self.axis2_line)
-        camera_layout.addWidget(self.axis3_line)
-        camera_layout.addWidget(self.view_combo)
-        camera_layout.addWidget(self.manual_button)
+        self.axis1_label = QLabel('h', self)
+        self.axis2_label = QLabel('k', self)
+        self.axis3_label = QLabel('l', self)
+
+        camera_layout.addWidget(self.proj_box, 0, 0)
+        camera_layout.addWidget(self.reset_button, 1, 0)
+
+        camera_layout.addWidget(self.px_button, 0, 1)
+        camera_layout.addWidget(self.py_button, 0, 2)
+        camera_layout.addWidget(self.pz_button, 0, 3)
+        camera_layout.addWidget(self.a_star_button, 0, 4)
+        camera_layout.addWidget(self.b_star_button, 0, 5)
+        camera_layout.addWidget(self.c_star_button, 0, 6)
+
+        camera_layout.addWidget(self.mx_button, 1, 1)
+        camera_layout.addWidget(self.my_button, 1, 2)
+        camera_layout.addWidget(self.mz_button, 1, 3)
+        camera_layout.addWidget(self.a_button, 1, 4)
+        camera_layout.addWidget(self.b_button, 1, 5)
+        camera_layout.addWidget(self.c_button, 1, 6)
+
+        camera_layout.addWidget(self.axis1_label, 0, 7, Qt.AlignCenter)
+        camera_layout.addWidget(self.axis2_label, 0, 8, Qt.AlignCenter)
+        camera_layout.addWidget(self.axis3_label, 0, 9, Qt.AlignCenter)
+
+        camera_layout.addWidget(self.axis1_line, 1, 7)
+        camera_layout.addWidget(self.axis2_line, 1, 8)
+        camera_layout.addWidget(self.axis3_line, 1, 9)
+
+        camera_layout.addWidget(self.view_combo, 0, 10)
+        camera_layout.addWidget(self.manual_button, 1, 10)
 
         plot_layout.addWidget(self.plotter.interactor)
 
-        view_layout.addWidget(self.px_button, 0, 0)
-        view_layout.addWidget(self.py_button, 0, 1)
-        view_layout.addWidget(self.pz_button, 0, 2)
-        view_layout.addWidget(self.a_star_button, 0, 3)
-        view_layout.addWidget(self.b_star_button, 0, 4)
-        view_layout.addWidget(self.c_star_button, 0, 5)
-
-        view_layout.addWidget(self.mx_button, 1, 0)
-        view_layout.addWidget(self.my_button, 1, 1)
-        view_layout.addWidget(self.mz_button, 1, 2)
-        view_layout.addWidget(self.a_button, 1, 3)
-        view_layout.addWidget(self.b_button, 1, 4)
-        view_layout.addWidget(self.c_button, 1, 5)
-
         layout.addLayout(camera_layout)
         layout.addLayout(plot_layout)
-        layout.addLayout(view_layout)
 
         self.setLayout(layout)
 
