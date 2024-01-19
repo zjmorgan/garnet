@@ -1,3 +1,17 @@
+### Getting started
+
+Create conda environment
+`conda env create -f environment.yml`
+
+Activate garnet environment
+`conda activate garnet`
+
+Install in editable mode for developlment
+`python -m pip install -e .`
+
+Run the GUI
+`python src/garnet.py`
+
 # The Single Crystal *GARNET* project
 Single Crystal Graphical Advanced Reduction Neutron Event Toolkit
 

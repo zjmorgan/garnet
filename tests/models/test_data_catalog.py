@@ -1,57 +1,27 @@
 from garnet.models import data_catalog
-  
-import numpy as np
-  
+from garnet.config import instruments
+
 login = data_catalog.oncat_login()
 
-#projection = ['facility', 'instrument']
+def test_topaz():
 
-ipts_number = 31189
-instrument = 'TOPAZ'
-facility = 'SNS', 
-tags = ['type/raw']
-exts = ['.nxs.h5']
+    ipts_number = 31189
+    title = 'YAG'
+    instrument = instruments.topaz
+    
+    data_files = data_catalog.retrieve_data_files(login,
+                                                  instrument, 
+                                                  ipts_number)
+        
+    run_title_dict = data_catalog.run_title_dictionary(data_files, instrument)
+    
+    rs = run_title_dict[title]
 
-title_entry = 'metadata.entry.title'
-run_number_entry = 'metadata.entry.run_number'
+    run_list = data_catalog.run_numbers_list(rs)
 
-scale_entry = 'metadata.entry.proton_charge'
+    goniometer_entries_list = data_catalog.goniometer_entries(instrument)
 
-# goniometer_entries = ['metadata.entry.daslogs.bl12:mot:gonioc:omega.average_value',
-#                       'metadata.entry.daslogs.bl12:mot:gonioc:chi.average_value',
-#                       'metadata.entry.daslogs.bl12:mot:gonioc:phi.average_value']
+    for goniometer_entry in goniometer_entries_list:
+        print([df[goniometer_entry] for df in data_files])
 
-ipts_number = 32044
-instrument = 'HB3A'
-facility = 'HFIR', 
-tags = ['type/raw']
-exts = ['.dat']
-
-title_entry = 'metadata.scan_title'
-run_number_entry = 'metadata.scan'
-
-projection = [title_entry, run_number_entry, scale_entry]
-# projection += goniometer_entries
-
-data_files = data_catalog.retrieve_data_files(login,
-                                              facility,  
-                                              instrument, 
-                                              ipts_number,
-                                              projection, 
-                                              exts, 
-                                              tags)
-
-print(data_files)
-
-run_title_dict = data_catalog.run_title_dictionary(data_files, 
-                                                   title_entry,
-                                                   run_number_entry)
-
-# run_str = run_title_dict['YAG']
-
-# runs_list = data_catalog.run_numbers_list(run_str)
-
-# print(data_files)
-
-for key in run_title_dict.keys():
-    print(data_catalog.run_numbers_list(run_title_dict[key]))
+test_topaz()
