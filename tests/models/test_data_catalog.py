@@ -19,9 +19,6 @@ def test_topaz():
 
     run_list = data_catalog.run_numbers_list(rs)
 
-    goniometer_entries_list = data_catalog.goniometer_entries(instrument)
+    return data_files, run_list
 
-    for goniometer_entry in goniometer_entries_list:
-        print([df[goniometer_entry] for df in data_files])
-
-test_topaz()
+data_files, run_list = test_topaz()

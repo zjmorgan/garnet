@@ -1,4 +1,4 @@
-class StructureFactorCalculator:
+class CrystalStructure:
 
     def __init__(self, view, model):
 
@@ -8,6 +8,21 @@ class StructureFactorCalculator:
         self.view.crystal_system_combo.activated.connect(self.generate_groups)
         self.view.space_group_combo.activated.connect(self.generate_settings)
         self.view.calculate_button.clicked.connect(self.calculate_F2)
+        self.view.individual_button.clicked.connect(self.calculate_hkl)
+        self.view.atm_table.itemSelectionChanged.connect(self.highlight_row)
+
+        self.view.a_line.editingFinished.connect(self.update_parameters)
+        self.view.b_line.editingFinished.connect(self.update_parameters)
+        self.view.c_line.editingFinished.connect(self.update_parameters)
+        self.view.alpha_line.editingFinished.connect(self.update_parameters)
+        self.view.beta_line.editingFinished.connect(self.update_parameters)
+        self.view.gamma_line.editingFinished.connect(self.update_parameters)
+
+        self.view.x_line.editingFinished.connect(self.set_atom_table)
+        self.view.y_line.editingFinished.connect(self.set_atom_table)
+        self.view.z_line.editingFinished.connect(self.set_atom_table)
+        self.view.occ_line.editingFinished.connect(self.set_atom_table)
+        self.view.Uiso_line.editingFinished.connect(self.set_atom_table)
 
         self.view.load_CIF_button.clicked.connect(self.load_CIF)
 
@@ -27,6 +42,21 @@ class StructureFactorCalculator:
 
         self.generate_groups()
         self.generate_settings()
+
+    def highlight_row(self):
+
+        scatterer = self.view.get_scatterer()
+        self.view.set_atom(scatterer)
+
+    def set_atom_table(self):
+
+        self.view.set_atom_table()
+
+    def update_parameters(self):
+
+        params = self.view.get_lattice_constants()
+        params = self.model.update_parameters(params)
+        self.view.set_lattice_constants(params)
 
     def update_labels(self):
 
@@ -129,10 +159,43 @@ class StructureFactorCalculator:
             self.view.draw_cell(self.model.get_unit_cell_transform())
             self.view.set_transform(self.model.get_transform())
 
+            form, z = self.model.get_chemical_formula_z_parameter()
+            self.view.set_formula_z(form, z)
+
+    def update_atoms(self):
+
+        params = self.view.get_lattice_constants()
+        setting = self.view.get_setting()
+        scatterers = self.view.get_scatterers()
+
+        self.model.set_crystal_structure(params, setting, scatterers)
+
+        atom_dict = self.model.generate_atom_positions()
+        self.view.add_atoms(atom_dict)
+
+        self.view.draw_cell(self.model.get_unit_cell_transform())
+        self.view.set_transform(self.model.get_transform())
+
     def calculate_F2(self):
 
-        dmin = self.view.get_minimum_d_spacing()
+        d_min = self.view.get_minimum_d_spacing()
 
         params = self.view.get_lattice_constants()
 
-        hkls, ds, F2s = self.model.generate_F2(dmin)
+        if params is not None:
+
+            if d_min is None: 
+                d_min = min(params[0:2])*0.2
+
+            hkls, ds, F2s = self.model.generate_F2(d_min)
+
+            self.view.set_factors(hkls, ds, F2s)
+    
+    def calculate_hkl(self):
+        
+        hkl = self.view.get_hkl()
+        
+        if hkl is not None:
+            
+            hkls, d, F2 = self.model.calculate_F2(*hkl)
+            self.view.set_equivalents(hkls, d, F2)

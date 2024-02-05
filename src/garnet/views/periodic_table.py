@@ -4,6 +4,7 @@ import numpy as np
 from qtpy.QtWidgets import (QWidget,
                             QPushButton,
                             QLabel,
+                            QHBoxLayout,
                             QGridLayout,
                             QSizePolicy)
 
@@ -29,15 +30,25 @@ class PeriodicTable(QWidget):
 
         super().__init__(parent)
 
-        layout = QGridLayout()
+        layout = QHBoxLayout()
+
+        table = self.__init_table()
+
+        layout.addLayout(table)
+
+        self.setLayout(layout)
+
+    def __init_table(self):
+
+        table = QGridLayout()
 
         for row in range(7):
             label = QLabel(str(row+1))
-            layout.addWidget(label, row+1, 0, Qt.AlignCenter)
+            table.addWidget(label, row+1, 0, Qt.AlignCenter)
 
         for col in range(18):
             label = QLabel(str(col+1))
-            layout.addWidget(label, 0, col+1, Qt.AlignCenter)
+            table.addWidget(label, 0, col+1, Qt.AlignCenter)
 
         self.atom_buttons = []
 
@@ -47,11 +58,12 @@ class PeriodicTable(QWidget):
             button.setFixedSize(50, 50)
             group = groups.get(key)
             if group is not None:
-                button.setStyleSheet('background-color: {}'.format(colors[group]))
+                color = colors[group]
+                button.setStyleSheet('background-color: {}'.format(color))
             self.atom_buttons.append(button)
-            layout.addWidget(button, row, col)
+            table.addWidget(button, row, col)
 
-        self.setLayout(layout)
+        return table
 
 class MainWindow(QMainWindow):
 

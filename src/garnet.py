@@ -7,7 +7,7 @@ from mantidqt.gui_helper import set_matplotlib_backend
 set_matplotlib_backend()
 
 from garnet._version import __version__  
-from garnet.views.mainwindow import MainWindow
+from garnet.views.main_window import MainWindow
 
 logger = Logger('garnet')
 
@@ -33,6 +33,6 @@ def gui():
     window = Garnet()
     window.show()
     sys.exit(app.exec_())
-    
+
 if __name__ == '__main__':
     gui()

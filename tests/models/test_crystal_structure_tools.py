@@ -1,9 +1,9 @@
 import os
 import unittest
 
-from garnet.models.structure_factor_calculator import StructureFactorCalculator
+from garnet.models.crystal_structure_tools import CrystalStructureModel
 
-class test_StructureFactorCalculator(unittest.TestCase):
+class test_CrystalStructureModel(unittest.TestCase):
 
     def setUp(self):
 
@@ -15,7 +15,7 @@ class test_StructureFactorCalculator(unittest.TestCase):
 
     def test_silicon(self):
 
-        struct_fact_calc = StructureFactorCalculator()
+        struct_fact_calc = CrystalStructureModel()
 
         lattice_params = [5.431]*3+[90]*3
 

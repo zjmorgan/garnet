@@ -26,7 +26,7 @@ def goniometer_entries(inst_params):
 
     projection = []
     for name in goniometer.keys():
-        entry = '.'.join([goniometer_entry,name.lower(),'average_value'])
+        entry = '.'.join([goniometer_entry, name.lower(), 'average_value'])
         projection.append(entry)    
     
     return projection

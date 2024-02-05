@@ -28,13 +28,33 @@ import matplotlib.colors
 
 from garnet.config.atoms import colors, radii
 
-class StructureFactorCalculatorView(QWidget):
+class CrystalStructureView(QWidget):
 
     def __init__(self, parent=None):
 
         super().__init__(parent)
 
+        structure_layout = self.__init_structure()
+        viewer_layout = self.__init_viewer()
+        factors_layout = self.__init_factors()
+
+        vert_sep_left = QFrame()
+        vert_sep_right = QFrame()
+
+        vert_sep_left.setFrameShape(QFrame.VLine)
+        vert_sep_right.setFrameShape(QFrame.VLine)
+
         layout = QHBoxLayout()
+
+        layout.addLayout(structure_layout)
+        layout.addWidget(vert_sep_left)
+        layout.addLayout(viewer_layout)
+        layout.addWidget(vert_sep_right)
+        layout.addLayout(factors_layout)
+
+        self.setLayout(layout)
+
+    def __init_structure(self):
 
         structure_layout = QVBoxLayout()
 
@@ -124,8 +144,64 @@ class StructureFactorCalculatorView(QWidget):
         self.atm_table.horizontalHeader().setSectionResizeMode(stretch)
         self.atm_table.setHorizontalHeaderLabels(['atm','x','y','z','occ','U'])
         self.atm_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.atm_table.setSelectionBehavior(QTableWidget.SelectRows)
 
         structure_layout.addWidget(self.atm_table)
+
+        scatterer_layout = QHBoxLayout()
+
+        self.atm_button = QPushButton('', self)
+
+        self.x_line = QLineEdit()
+        self.y_line = QLineEdit()
+        self.z_line = QLineEdit()
+        self.occ_line = QLineEdit()
+        self.Uiso_line = QLineEdit()
+
+        validator = QDoubleValidator(-1, 1, 4, notation=notation)
+
+        self.x_line.setValidator(validator)
+        self.y_line.setValidator(validator)
+        self.z_line.setValidator(validator)
+
+        validator = QDoubleValidator(0, 1, 4, notation=notation)
+
+        self.occ_line.setValidator(validator)
+
+        validator = QDoubleValidator(0, 100, 4, notation=notation)
+
+        self.Uiso_line.setValidator(validator)
+
+        scatterer_layout.addWidget(self.atm_button)
+        scatterer_layout.addWidget(self.x_line)
+        scatterer_layout.addWidget(self.y_line)
+        scatterer_layout.addWidget(self.z_line)
+        scatterer_layout.addWidget(self.occ_line)
+        scatterer_layout.addWidget(self.Uiso_line)
+
+        sample_layout = QGridLayout()
+
+        self.chem_line = QLineEdit()
+        self.Z_line = QLineEdit()
+        self.V_line = QLineEdit()
+
+        Z_label = QLabel('Z')
+        V_label = QLabel('Ω')
+        uc_vol_label = QLabel('Å^3')
+
+        sample_layout.addWidget(self.chem_line, 0, 0, 1, 5)
+        sample_layout.addWidget(Z_label, 1, 0)
+        sample_layout.addWidget(self.Z_line, 1, 1)
+        sample_layout.addWidget(V_label, 1, 2)
+        sample_layout.addWidget(self.V_line, 1, 3)
+        sample_layout.addWidget(uc_vol_label, 1, 4)
+
+        structure_layout.addLayout(scatterer_layout)
+        structure_layout.addLayout(sample_layout)
+
+        return structure_layout
+
+    def __init_factors(self):
 
         factors_layout = QVBoxLayout()
 
@@ -161,7 +237,7 @@ class StructureFactorCalculatorView(QWidget):
         self.f2_table.setHorizontalHeaderLabels(['h','k','l','d','F²'])
         self.f2_table.setEditTriggers(QTableWidget.NoEditTriggers)
 
-        indivdual_layout = QGridLayout()
+        indivdual_layout = QHBoxLayout()
 
         notation = QDoubleValidator.StandardNotation
 
@@ -175,26 +251,24 @@ class StructureFactorCalculatorView(QWidget):
         self.k_line.setValidator(validator)
         self.l_line.setValidator(validator)
 
-        self.d_label = QLabel('d = '+' '*12+' Å', self)
+        self.individual_button = QPushButton('Calculate', self)
 
-        self.f2_label = QLabel('F² = '+' '*12+ ' ', self)
+        hkl_label = QLabel('hkl')
 
-        self.equivalents = QLabel(' '*48, self)
-
-        self.indivdual = QPushButton('Calculate', self)
-
-        indivdual_layout.addWidget(self.h_line, 0, 0)
-        indivdual_layout.addWidget(self.k_line, 0, 1)
-        indivdual_layout.addWidget(self.l_line, 0, 2)
-        indivdual_layout.addWidget(self.d_label, 0, 3)
-        indivdual_layout.addWidget(self.f2_label, 0, 4)
-
-        indivdual_layout.addWidget(self.equivalents, 1, 0, 1, 3)
-        indivdual_layout.addWidget(self.indivdual, 1, 4, 1, 1)
+        indivdual_layout.addWidget(hkl_label)
+        indivdual_layout.addWidget(self.h_line)
+        indivdual_layout.addWidget(self.k_line)
+        indivdual_layout.addWidget(self.l_line)
+        indivdual_layout.addStretch(1)
+        indivdual_layout.addWidget(self.individual_button)
 
         factors_layout.addLayout(calculate_layout)
         factors_layout.addWidget(self.f2_table)
         factors_layout.addLayout(indivdual_layout)
+
+        return factors_layout
+    
+    def __init_viewer(self):
 
         self.proj_box = QCheckBox('Parallel Projection', self)
 
@@ -257,19 +331,7 @@ class StructureFactorCalculatorView(QWidget):
         viewer_layout.addLayout(camera_layout)
         viewer_layout.addWidget(self.plotter.interactor)
 
-        vert_sep_left = QFrame()
-        vert_sep_right = QFrame()
-
-        vert_sep_left.setFrameShape(QFrame.VLine)
-        vert_sep_right.setFrameShape(QFrame.VLine)
-
-        layout.addLayout(structure_layout)
-        layout.addWidget(vert_sep_left)
-        layout.addLayout(viewer_layout)
-        layout.addWidget(vert_sep_right)
-        layout.addLayout(factors_layout)
-
-        self.setLayout(layout)
+        return viewer_layout
 
     def set_transform(self, T):
 
@@ -418,12 +480,79 @@ class StructureFactorCalculatorView(QWidget):
         self.atm_table.setRowCount(len(scatterers))
 
         for row, scatterer in enumerate(scatterers):
-            self.atm_table.setItem(row, 0, QTableWidgetItem(scatterer[0]))
-            self.atm_table.setItem(row, 1, QTableWidgetItem(scatterer[1]))
-            self.atm_table.setItem(row, 2, QTableWidgetItem(scatterer[2]))
-            self.atm_table.setItem(row, 3, QTableWidgetItem(scatterer[3]))
-            self.atm_table.setItem(row, 4, QTableWidgetItem(scatterer[4]))
-            self.atm_table.setItem(row, 5, QTableWidgetItem(scatterer[5]))
+            self.set_scatterer(row, scatterer)
+
+    def set_scatterer(self, row, scatterer):
+
+        atm, *xyz, occ, Uiso = scatterer
+        xyz = ['{:.4f}'.format(val) for val in xyz]
+        occ = '{:.4f}'.format(occ)
+        Uiso = '{:.4f}'.format(Uiso)
+        self.atm_table.setItem(row, 0, QTableWidgetItem(atm))
+        self.atm_table.setItem(row, 1, QTableWidgetItem(xyz[0]))
+        self.atm_table.setItem(row, 2, QTableWidgetItem(xyz[1]))
+        self.atm_table.setItem(row, 3, QTableWidgetItem(xyz[2]))
+        self.atm_table.setItem(row, 4, QTableWidgetItem(occ))
+        self.atm_table.setItem(row, 5, QTableWidgetItem(Uiso))
+
+    def get_scatterer(self):
+
+        row = self.atm_table.currentRow()
+        if row is not None:
+            return self.get_atom_site(row)
+
+    def get_atom_site(self, row):
+
+        atm = self.atm_table.item(row, 0).text()
+        x = self.atm_table.item(row, 1).text()
+        y = self.atm_table.item(row, 2).text()
+        z = self.atm_table.item(row, 3).text()
+        occ = self.atm_table.item(row, 4).text()
+        Uiso = self.atm_table.item(row, 5).text()
+        scatterer = [atm, *[float(val) for val in [x, y, z, occ, Uiso]]]
+
+        return scatterer
+
+    def get_scatterers(self):
+
+        n = self.atm_table.getRowCount()
+
+        scatterers = []
+        for row in range(n):
+            scatterer = self.get_atom_site(row)
+            scatterers.append(scatterer)
+
+        return scatterers
+
+    def set_atom(self, scatterer):
+
+        self.atm_button.setText(scatterer[0])
+        self.x_line.setText(str(scatterer[1]))
+        self.y_line.setText(str(scatterer[2]))
+        self.z_line.setText(str(scatterer[3]))
+        self.occ_line.setText(str(scatterer[4]))
+        self.Uiso_line.setText(str(scatterer[5]))
+
+    def set_atom_table(self):
+
+        row = self.atm_table.currentRow()
+
+        params = self.x_line, self.y_line, self.z_line, \
+                 self.occ_line, self.Uiso_line
+
+        valid_params = all([param.hasAcceptableInput() for param in params])
+
+        if valid_params and row:
+
+            scatterer = [self.atm_button.text(), \
+                         *[float(param.text()) for param in params]]
+
+            self.set_scatterer(row, scatterer)
+
+    def set_formula_z(self, chemical_formula, z_parameter):
+
+        self.chem_line.setText(chemical_formula)
+        self.Z_line.setText(str(z_parameter))
 
     def get_minimum_d_spacing(self):
 
@@ -453,7 +582,6 @@ class StructureFactorCalculatorView(QWidget):
 
     def add_atoms(self, atom_dict):
 
-        self.plotter.clear()
         self.plotter.clear_actors()
 
         T = np.eye(4)
@@ -462,31 +590,96 @@ class StructureFactorCalculatorView(QWidget):
 
         sphere = pv.Icosphere(radius=1, nsub=1)
 
+        atm_ind = 0
+
         for ind, atom in enumerate(atom_dict.keys()):
-            
+
             color = colors[atom]
             radius = radii[atom][0]
-            
+
             coordinates, opacities, indices = atom_dict[atom]
 
-            for coord, occ in zip(coordinates, opacities):
+            for i_atm, (coord, occ) in enumerate(zip(coordinates, opacities)):
                 T[0,0] = T[1,1] = T[2,2] = radius
                 T[:3,3] = coord
                 atm = sphere.copy().transform(T)
-                atm['scalars'] = np.full(sphere.n_points, ind)
+                atm['scalars'] = np.full(sphere.n_cells, ind+1.)
                 geoms.append(atm)
+                self.indexing[atm_ind] = atom
+                atm_ind += 1
 
-            cmap.append(matplotlib.colors.rgb2hex(color))
+            cmap.append(color)
+
+        cmap = matplotlib.colors.ListedColormap(cmap)
 
         multiblock = pv.MultiBlock(geoms)
 
         _, mapper = self.plotter.add_composite(multiblock,
-                                               scalars='scalars',
-                                               style='surface',
                                                cmap=cmap,
-                                               show_scalar_bar=False,
-                                               smooth_shading=True)
+                                               smooth_shading=True,
+                                               show_scalar_bar=False)
 
-        self.plotter.enable_depth_peeling()
+        self.mapper = mapper
+
+        self.plotter.enable_block_picking(callback=self.highlight,
+                                          side='left')
+        self.plotter.enable_block_picking(callback=self.highlight,
+                                          side='right')
 
         self.change_proj()
+
+    def highlight(self, index, dataset):
+
+        color = self.mapper.block_attr[index].color
+
+        if color == 'pink':
+            color, select = None, False
+        else:
+            color, select = 'pink', True
+
+        self.mapper.block_attr[index].color = color
+        
+        print('atom = {}'.format(self.indexing[index]))
+
+        return self.indexing[index], select
+
+    def set_factors(self, hkls, ds, F2s):
+
+        self.f2_table.setRowCount(0)
+        self.f2_table.setRowCount(len(hkls))
+
+        for row, (hkl, d, F2) in enumerate(zip(hkls, ds, F2s)):
+            hkl = ['{:.0f}'.format(val) for val in hkl]
+            d = '{:.4f}'.format(d)
+            F2 = '{:.2f}'.format(F2)
+            self.f2_table.setItem(row, 0, QTableWidgetItem(hkl[0]))
+            self.f2_table.setItem(row, 1, QTableWidgetItem(hkl[1]))
+            self.f2_table.setItem(row, 2, QTableWidgetItem(hkl[2]))
+            self.f2_table.setItem(row, 3, QTableWidgetItem(d))
+            self.f2_table.setItem(row, 4, QTableWidgetItem(F2))
+
+    def get_hkl(self):
+
+        params = self.h_line, self.k_line, self.l_line
+
+        valid_params = all([param.hasAcceptableInput() for param in params])
+
+        if valid_params:
+
+            return [float(param.text()) for param in params]
+
+    def set_equivalents(self, hkls, d, F2):
+
+        self.f2_table.setRowCount(0)
+        self.f2_table.setRowCount(len(hkls))
+
+        d = '{:.4f}'.format(d)
+        F2 = '{:.2f}'.format(F2)
+
+        for row, hkl in enumerate(hkls):
+            hkl = ['{:.0f}'.format(val) for val in hkl]
+            self.f2_table.setItem(row, 0, QTableWidgetItem(hkl[0]))
+            self.f2_table.setItem(row, 1, QTableWidgetItem(hkl[1]))
+            self.f2_table.setItem(row, 2, QTableWidgetItem(hkl[2]))
+            self.f2_table.setItem(row, 3, QTableWidgetItem(d))
+            self.f2_table.setItem(row, 4, QTableWidgetItem(F2))

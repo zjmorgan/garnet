@@ -14,7 +14,6 @@ from PyQt5.QtCore import Qt
 
 import numpy as np
 import pyvista as pv
-
 from pyvistaqt import QtInteractor
 
 class ReciprocalSpaceViewerView(QWidget):
@@ -112,6 +111,8 @@ class ReciprocalSpaceViewerView(QWidget):
 
     def add_peaks(self, peak_dict):
 
+        self.plotter.clear_actors()
+
         transforms = peak_dict['transforms']
         intensities = peak_dict['intensities']
         numbers = peak_dict['numbers']
@@ -156,7 +157,7 @@ class ReciprocalSpaceViewerView(QWidget):
             color, select = 'pink', True
 
         self.mapper.block_attr[index].color = color
-        
+
         print('peak_no = {}'.format(self.indexing[index]))
 
         return self.indexing[index], select

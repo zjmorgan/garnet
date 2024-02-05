@@ -113,6 +113,8 @@ class UBTools():
             vals = logs.getvalue()
             vals = [val for val in vals.split('\n') if val.startswith('Form')]
 
+            return vals
+
     def transform_cell(self, transform, tol=0.1):
 
         hkl_trans = ','.join(['{},{},{}'.format(*row) for row in transform])
