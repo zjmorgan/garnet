@@ -14,6 +14,16 @@ from mantid.simpleapi import (SetGoniometer,
 
 import numpy as np
 
+refl_cond_dict = {'P': 'Primitive', 
+                  'I': 'Body centred',
+                  'F': 'All-face centred',
+                  'R': 'Rhombohderally centred, obverse',
+                  'R(obv)': 'Rhombohderally centred, obverse',
+                  'R(rev)': 'Rhombohderally centred, reverse',
+                  'A': 'A-face centred',
+                  'B': 'B-face centred',
+                  'C': 'C-face centred'}
+
 class PeakTools():
 
     def __init__(self):
@@ -31,7 +41,7 @@ class PeakTools():
         if self.laue:
             self.wl_min, self.wl_max = wl
         else:
-            self.wl_min, self.wl_max = wl*0.975, wl*1.025
+            self.wl_min, self.wl_max = wl*0.99, wl*1.01
 
         gon_axis_names = inst_params.get('GoniometerAxisNames')
         gon = inst_params.get('Goniometer')
@@ -97,7 +107,7 @@ class PeakTools():
                          FixQAxis=True,
                          FixMajorAxisLength=False,
                          UseCentroid=True,
-                         MaxIterations=10,
+                         MaxIterations=3,
                          RelaceIntensity=True,
                          IntegrateIfOnEdge=True,
                          AdaptiveQBackground=False,
@@ -135,7 +145,7 @@ class PeakTools():
                      WavelengthMax=self.wl_max,
                      MinDSpacing=d_min,
                      MaxDSpacing=d_max,
-                     ReflectionCondition=refl_cond,
+                     ReflectionCondition=refl_cond_dict[refl_cond],
                      RoundHKL=True,
                      EdgePixels=self.edge_pixels,
                      OutputWorkspace='predict')

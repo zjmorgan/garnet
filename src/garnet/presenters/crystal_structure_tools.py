@@ -56,7 +56,10 @@ class CrystalStructure:
 
         params = self.view.get_lattice_constants()
         params = self.model.update_parameters(params)
+        self.model.update_lattice_parameters(*params)
         self.view.set_lattice_constants(params)
+        vol = self.model.get_unit_cell_volume()
+        self.view.set_unit_cell_volume(vol)
 
     def update_labels(self):
 
@@ -190,9 +193,9 @@ class CrystalStructure:
             hkls, ds, F2s = self.model.generate_F2(d_min)
 
             self.view.set_factors(hkls, ds, F2s)
-    
+
     def calculate_hkl(self):
-        
+
         hkl = self.view.get_hkl()
         
         if hkl is not None:

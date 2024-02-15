@@ -168,6 +168,10 @@ class CrystalStructureModel():
 
         return params
 
+    def get_unit_cell_volume(self):
+
+        return mtd['crystal'].sample().getOrientedLattice().volume()
+
     def get_scatterers(self):
 
         cryst_struct = mtd['crystal'].sample().getCrystalStructure()

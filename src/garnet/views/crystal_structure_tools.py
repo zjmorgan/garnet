@@ -123,6 +123,10 @@ class CrystalStructureView(QWidget):
         self.space_group_combo = QComboBox(self)
         self.setting_combo = QComboBox(self)
 
+        self.crystal_system_combo.setEnabled(False)
+        self.space_group_combo.setEnabled(False)
+        self.setting_combo.setEnabled(False)
+
         self.load_CIF_button = QPushButton('Load CIF', self)
 
         crystal_layout.addWidget(self.crystal_system_combo)
@@ -140,7 +144,6 @@ class CrystalStructureView(QWidget):
         self.atm_table.setRowCount(0)
         self.atm_table.setColumnCount(6)
 
-        self.atm_table.horizontalHeader().setStretchLastSection(True)
         self.atm_table.horizontalHeader().setSectionResizeMode(stretch)
         self.atm_table.setHorizontalHeaderLabels(['atm','x','y','z','occ','U'])
         self.atm_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -184,6 +187,10 @@ class CrystalStructureView(QWidget):
         self.chem_line = QLineEdit()
         self.Z_line = QLineEdit()
         self.V_line = QLineEdit()
+
+        self.chem_line.setReadOnly(True)
+        self.Z_line.setReadOnly(True)
+        self.V_line.setReadOnly(True)
 
         Z_label = QLabel('Z')
         V_label = QLabel('Ω')
@@ -232,7 +239,6 @@ class CrystalStructureView(QWidget):
         self.f2_table.setRowCount(0)
         self.f2_table.setColumnCount(5)
 
-        self.f2_table.horizontalHeader().setStretchLastSection(True)
         self.f2_table.horizontalHeader().setSectionResizeMode(stretch)
         self.f2_table.setHorizontalHeaderLabels(['h','k','l','d','F²'])
         self.f2_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -267,7 +273,7 @@ class CrystalStructureView(QWidget):
         factors_layout.addLayout(indivdual_layout)
 
         return factors_layout
-    
+
     def __init_viewer(self):
 
         self.proj_box = QCheckBox('Parallel Projection', self)
@@ -473,6 +479,10 @@ class CrystalStructureView(QWidget):
         if valid_params:
 
             return [float(param.text()) for param in params]
+
+    def set_unit_cell_volume(self, vol):
+
+        self.V_line.setText('{:.4f}'.format(vol))
 
     def set_scatterers(self, scatterers):
 

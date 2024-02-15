@@ -24,6 +24,10 @@ from PyQt5.QtCore import Qt
 import pyvista as pv
 from pyvistaqt import QtInteractor
 
+from matplotlib.backends.backend_qtagg import FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+from matplotlib.figure import Figure
+
 from garnet.config.atoms import colors, radii
 
 class SampleView(QWidget):
@@ -34,16 +38,21 @@ class SampleView(QWidget):
 
         sample_layout = self.__init_sample()
         viewer_layout = self.__init_viewer()
-        #factors_layout = self.__init_factors()
+        peaks_layout = self.__init_peaks()
 
-        vert_sep = QFrame()
-        vert_sep.setFrameShape(QFrame.VLine)
+        vert_sep_left = QFrame()
+        vert_sep_right = QFrame()
+
+        vert_sep_left.setFrameShape(QFrame.VLine)
+        vert_sep_right.setFrameShape(QFrame.VLine)
 
         layout = QHBoxLayout()
 
         layout.addLayout(sample_layout)
-        layout.addWidget(vert_sep)
+        layout.addWidget(vert_sep_left)
         layout.addLayout(viewer_layout)
+        layout.addWidget(vert_sep_right)
+        layout.addLayout(peaks_layout)
 
         self.setLayout(layout)
 
@@ -54,35 +63,41 @@ class SampleView(QWidget):
         self.sample_combo.addItem('Cylinder')
         self.sample_combo.addItem('Plate')
 
+        self.add_sample_button = QPushButton('Add Sample', self)
+        self.copy_material_button = QPushButton('Copy Material', self)
+
         notation = QDoubleValidator.StandardNotation
 
         validator = QDoubleValidator(0, 100, 5, notation=notation)
 
-        self.param1_label = QLabel('width', self)
-        self.param2_label = QLabel('height', self)
-        self.param3_label = QLabel('thickness', self)
+        param1_label = QLabel('Width', self)
+        param2_label = QLabel('Height', self)
+        param3_label = QLabel('Thickness', self)
 
         unit_label = QLabel('cm', self)
 
-        self.param1_line = QLineEdit()
-        self.param2_line = QLineEdit()
-        self.param3_line = QLineEdit()
+        self.param1_line = QLineEdit('0.05')
+        self.param2_line = QLineEdit('0.05')
+        self.param3_line = QLineEdit('0.05')
 
         self.param1_line.setValidator(validator)
         self.param2_line.setValidator(validator)
         self.param3_line.setValidator(validator)
 
         param_layout = QHBoxLayout()
+        generate_layout = QHBoxLayout()
 
-        param_layout.addWidget(self.sample_combo)
+        generate_layout.addWidget(self.sample_combo)
+        generate_layout.addWidget(self.copy_material_button)
+        generate_layout.addWidget(self.add_sample_button)
     
-        param_layout.addWidget(self.param1_label)
+        param_layout.addWidget(param1_label)
         param_layout.addWidget(self.param1_line)
 
-        param_layout.addWidget(self.param2_label)
+        param_layout.addWidget(param2_label)
         param_layout.addWidget(self.param2_line)
 
-        param_layout.addWidget(self.param3_label)
+        param_layout.addWidget(param3_label)
         param_layout.addWidget(self.param3_line)
 
         param_layout.addWidget(unit_label)
@@ -104,14 +119,14 @@ class SampleView(QWidget):
         material_layout.addWidget(self.V_line, 1, 3)
         material_layout.addWidget(uc_vol_label, 1, 4)
 
-        abs_layout = QGridLayout()
+        cryst_layout = QGridLayout()
 
         scattering_label = QLabel('Scattering', self)
         absorption_label = QLabel('Absorption', self)
 
         sigma_label = QLabel('σ', self)
         mu_label = QLabel('μ', self)
-       
+
         sigma_unit_label = QLabel('barn', self)
         mu_unit_label = QLabel('1/cm', self)
 
@@ -121,20 +136,24 @@ class SampleView(QWidget):
         self.mu_a_line = QLineEdit()
         self.mu_s_line = QLineEdit()
 
-        abs_layout.addWidget(scattering_label, 0, 1, Qt.AlignCenter)
-        abs_layout.addWidget(absorption_label, 0, 2, Qt.AlignCenter)
+        self.sigma_a_line.setEnabled(False)
+        self.sigma_s_line.setEnabled(False)
 
-        abs_layout.addWidget(sigma_label, 1, 0)
-        abs_layout.addWidget(self.sigma_a_line, 1, 1)
-        abs_layout.addWidget(self.sigma_s_line, 1, 2)
-        abs_layout.addWidget(sigma_unit_label, 1, 3)
+        self.mu_a_line.setEnabled(False)
+        self.mu_s_line.setEnabled(False)
 
-        abs_layout.addWidget(mu_label, 2, 0)
-        abs_layout.addWidget(self.mu_a_line, 2, 1)
-        abs_layout.addWidget(self.mu_s_line, 2, 2)
-        abs_layout.addWidget(mu_unit_label, 2, 3)
+        cryst_layout.addWidget(scattering_label, 0, 1, Qt.AlignCenter)
+        cryst_layout.addWidget(absorption_label, 0, 2, Qt.AlignCenter)
 
-        cryst_layout = QGridLayout()
+        cryst_layout.addWidget(sigma_label, 1, 0)
+        cryst_layout.addWidget(self.sigma_a_line, 1, 1)
+        cryst_layout.addWidget(self.sigma_s_line, 1, 2)
+        cryst_layout.addWidget(sigma_unit_label, 1, 3)
+
+        cryst_layout.addWidget(mu_label, 2, 0)
+        cryst_layout.addWidget(self.mu_a_line, 2, 1)
+        cryst_layout.addWidget(self.mu_s_line, 2, 2)
+        cryst_layout.addWidget(mu_unit_label, 2, 3)
 
         N_label = QLabel('N', self)
         M_label = QLabel('M', self)
@@ -145,7 +164,7 @@ class SampleView(QWidget):
 
         N_unit_label = QLabel('atoms', self)
         M_unit_label = QLabel('g/mol', self)
-        n_unit_label = QLabel('1/A^3', self)
+        n_unit_label = QLabel('1/Å^3', self)
         rho_unit_label = QLabel('g/cm^3', self)
         V_unit_label = QLabel('cm^3', self)
         m_unit_label = QLabel('g', self)
@@ -157,42 +176,109 @@ class SampleView(QWidget):
         self.V_line = QLineEdit()
         self.m_line = QLineEdit()
 
-        cryst_layout.addWidget(N_label, 0, 0)
-        cryst_layout.addWidget(self.N_line, 0, 1)
-        cryst_layout.addWidget(N_unit_label, 0, 2)
+        self.N_line.setEnabled(False)
+        self.M_line.setEnabled(False)
+        self.n_line.setEnabled(False)
+        self.rho_line.setEnabled(False)
+        self.V_line.setEnabled(False)
+        self.m_line.setEnabled(False)
 
-        cryst_layout.addWidget(M_label, 1, 0)
-        cryst_layout.addWidget(self.M_line, 1, 1)
-        cryst_layout.addWidget(M_unit_label, 1, 2)
+        cryst_layout.addWidget(N_label, 3, 0)
+        cryst_layout.addWidget(self.N_line, 3, 1, 1, 2)
+        cryst_layout.addWidget(N_unit_label, 3, 3)
 
-        cryst_layout.addWidget(n_label, 2, 0)
-        cryst_layout.addWidget(self.n_line, 2, 1)
-        cryst_layout.addWidget(n_unit_label, 2, 2)
+        cryst_layout.addWidget(M_label, 4, 0)
+        cryst_layout.addWidget(self.M_line, 4, 1, 1, 2)
+        cryst_layout.addWidget(M_unit_label, 4, 3)
 
-        cryst_layout.addWidget(rho_label, 3, 0)
-        cryst_layout.addWidget(self.rho_line, 3, 1)
-        cryst_layout.addWidget(rho_unit_label, 3, 2)
+        cryst_layout.addWidget(n_label, 5, 0)
+        cryst_layout.addWidget(self.n_line, 5, 1, 1, 2)
+        cryst_layout.addWidget(n_unit_label, 5, 3)
 
-        cryst_layout.addWidget(V_label, 4, 0)
-        cryst_layout.addWidget(self.V_line, 4, 1)
-        cryst_layout.addWidget(V_unit_label, 4, 2)
+        cryst_layout.addWidget(rho_label, 6, 0)
+        cryst_layout.addWidget(self.rho_line, 6, 1, 1, 2)
+        cryst_layout.addWidget(rho_unit_label, 6, 3)
 
-        cryst_layout.addWidget(m_label, 5, 0)
-        cryst_layout.addWidget(self.m_line, 5, 1)
-        cryst_layout.addWidget(m_unit_label, 5, 2)
+        cryst_layout.addWidget(V_label, 7, 0)
+        cryst_layout.addWidget(self.V_line, 7, 1, 1, 2)
+        cryst_layout.addWidget(V_unit_label, 7, 3)
+
+        cryst_layout.addWidget(m_label, 8, 0)
+        cryst_layout.addWidget(self.m_line, 8, 1, 1, 2)
+        cryst_layout.addWidget(m_unit_label, 8, 3)
 
         sample_layout = QVBoxLayout()
 
+        a_star_label = QLabel('a*', self)
+        b_star_label = QLabel('b*', self)
+        c_star_label = QLabel('c*', self)
+       
+        face_index_label = QLabel('Face Index', self)
+        u_label = QLabel('Along Thickness:', self)
+        v_label = QLabel('In-plane Lateral:', self)
+
+        self.hu_line = QLineEdit('0')
+        self.ku_line = QLineEdit('0')
+        self.lu_line = QLineEdit('1')
+
+        self.hv_line = QLineEdit('1')
+        self.kv_line = QLineEdit('0')
+        self.lv_line = QLineEdit('0')
+
+        orient_layout = QGridLayout()
+
+        orient_layout.addWidget(face_index_label, 0, 0, Qt.AlignCenter)
+        orient_layout.addWidget(a_star_label, 0, 1, Qt.AlignCenter)
+        orient_layout.addWidget(b_star_label, 0, 2, Qt.AlignCenter)
+        orient_layout.addWidget(c_star_label, 0, 3, Qt.AlignCenter)
+
+        orient_layout.addWidget(u_label, 1, 0)
+        orient_layout.addWidget(self.hu_line, 1, 1)
+        orient_layout.addWidget(self.ku_line, 1, 2)
+        orient_layout.addWidget(self.lu_line, 1, 3)
+        orient_layout.addWidget(v_label, 2, 0)
+        orient_layout.addWidget(self.hv_line, 2, 1)
+        orient_layout.addWidget(self.kv_line, 2, 2)
+        orient_layout.addWidget(self.lv_line, 2, 3)
+
+        sample_layout.addLayout(generate_layout)
         sample_layout.addLayout(param_layout)
+        sample_layout.addStretch(1)
+        sample_layout.addLayout(orient_layout)
         sample_layout.addStretch(1)
         sample_layout.addLayout(material_layout)
         sample_layout.addStretch(1)
-        sample_layout.addLayout(abs_layout)
-        sample_layout.addStretch(1)
         sample_layout.addLayout(cryst_layout)
-        sample_layout.addStretch(1)
 
         return sample_layout
+
+    def __init_peaks(self):
+
+        peaks_layout = QVBoxLayout()
+
+        stretch = QHeaderView.Stretch
+
+        self.peaks_table = QTableWidget()
+
+        self.peaks_table.setRowCount(0)
+        self.peaks_table.setColumnCount(6)
+
+        self.peaks_table.horizontalHeader().setSectionResizeMode(stretch)
+        self.peaks_table.setHorizontalHeaderLabels(['h','k','l','d','λ','T'])
+        self.peaks_table.setEditTriggers(QTableWidget.NoEditTriggers)
+
+        plot_layout = QVBoxLayout()
+
+        self.canvas = FigureCanvas(Figure())
+
+        plot_layout.addLayout(plot_layout)
+        plot_layout.addWidget(NavigationToolbar2QT(self.canvas, self))
+        plot_layout.addWidget(self.canvas)
+
+        peaks_layout.addWidget(self.peaks_table)
+        peaks_layout.addLayout(plot_layout)
+
+        return peaks_layout
 
     def __init_viewer(self):
 
@@ -323,7 +409,7 @@ class SampleView(QWidget):
         self.plotter.reset_camera()
         self.plotter.view_isometric()
 
-    def add_atoms(self, atom_dict):
+    def add_sample(self, atom_dict):
 
         self.plotter.clear_actors()
 

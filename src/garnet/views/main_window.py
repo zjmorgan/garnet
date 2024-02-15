@@ -12,13 +12,13 @@ pyvista.set_plot_theme('document')
 
 from mantidqt.widgets.algorithmprogress import AlgorithmProgressWidget
 
-# from garnet.models.reciprocal_space_viewer import ReciprocalSpaceViewerModel
-# from garnet.views.reciprocal_space_viewer import ReciprocalSpaceViewerView
-# from garnet.presenters.reciprocal_space_viewer import ReciprocalSpaceViewer
+from garnet.models.reciprocal_space_viewer import ReciprocalSpaceViewerModel
+from garnet.views.reciprocal_space_viewer import ReciprocalSpaceViewerView
+from garnet.presenters.reciprocal_space_viewer import ReciprocalSpaceViewer
 
-# from garnet.models.reciprocal_space_slicer import ReciprocalSpaceSlicerModel
-# from garnet.views.reciprocal_space_slicer import ReciprocalSpaceSlicerView
-# from garnet.presenters.reciprocal_space_slicer import ReciprocalSpaceSlicer
+from garnet.models.reciprocal_space_slicer import ReciprocalSpaceSlicerModel
+from garnet.views.reciprocal_space_slicer import ReciprocalSpaceSlicerView
+from garnet.presenters.reciprocal_space_slicer import ReciprocalSpaceSlicer
 
 # from garnet.models.satellite_peak_indexer import SatellitePeakIndexerModel
 # from garnet.views.satellite_peak_indexer import SatellitePeakIndexerView

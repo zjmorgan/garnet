@@ -158,27 +158,27 @@ class IntrumentExperimentData(QWidget):
         parameters_layout.addLayout(grouping_layout)
         parameters_layout.addStretch()
 
-        generate_layout = QGridLayout()
+        # generate_layout = QGridLayout()
 
-        label = QLabel('Experiment Name', self)
+        # label = QLabel('Experiment Name', self)
 
-        self.save_button = QPushButton('Save', self)
-        self.load_button = QPushButton('Load', self)
-        self.create_button = QPushButton('Create', self)
-        self.remove_button = QPushButton('Remove', self)
+        # self.save_button = QPushButton('Save', self)
+        # self.load_button = QPushButton('Load', self)
+        # self.create_button = QPushButton('Create', self)
+        # self.remove_button = QPushButton('Remove', self)
 
-        self.plan_line = QLineEdit(self)
-        self.plan_combo = QComboBox(self)
+        # self.plan_line = QLineEdit(self)
+        # self.plan_combo = QComboBox(self)
 
-        generate_layout.addWidget(label, 0, 0, 1, 2)
-        generate_layout.addWidget(self.plan_line, 0, 2)
-        generate_layout.addWidget(self.save_button, 0, 3)
-        generate_layout.addWidget(self.create_button, 1, 0)
-        generate_layout.addWidget(self.remove_button, 1, 1)
-        generate_layout.addWidget(self.plan_combo, 1, 2)
-        generate_layout.addWidget(self.load_button, 1, 3)
+        # generate_layout.addWidget(label, 0, 0, 1, 2)
+        # generate_layout.addWidget(self.plan_line, 0, 2)
+        # generate_layout.addWidget(self.save_button, 0, 3)
+        # generate_layout.addWidget(self.create_button, 1, 0)
+        # generate_layout.addWidget(self.remove_button, 1, 1)
+        # generate_layout.addWidget(self.plan_combo, 1, 2)
+        # generate_layout.addWidget(self.load_button, 1, 3)
 
-        parameters_layout.addLayout(generate_layout)
+        # parameters_layout.addLayout(generate_layout)
 
         layout = QHBoxLayout()
 

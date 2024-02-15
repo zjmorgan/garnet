@@ -91,7 +91,7 @@ class SampleModel():
                     'M': M, # g/mol
                     'n': n, # 1/A^3
                     'rho': rho, # g/cm^3
-                    'V': V, #cm^3 
+                    'V': V, # cm^3 
                     'm': m} # g
 
         return abs_dict
