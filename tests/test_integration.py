@@ -1,7 +1,9 @@
 import os
+
 # import pytest
 # import tempfile
 import shutil
+
 # import subprocess
 import cProfile
 
@@ -15,7 +17,7 @@ from garnet.reduction.integration import Integration, PeakEllipsoid
 
 # benchmark = 'shared/benchmark'
 
-config_file = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan.yaml'
+config_file = "/SNS/CORELLI/shared/benchmark/test/CORELLI_plan.yaml"
 
 # rp = ReductionPlan()
 # rp.load_plan(config_file)
@@ -219,6 +221,7 @@ config_file = '/SNS/CORELLI/shared/benchmark/test/CORELLI_plan.yaml'
 #     assert np.isclose(mu, Q0, atol=0.01).all()
 #     assert np.isclose(s, sigma, atol=0.001).all() assert np.allclose
 
+
 def test_ellipsoid_methods():
 
     ellipsoid = PeakEllipsoid()
@@ -231,25 +234,25 @@ def test_ellipsoid_methods():
 
     d_inv_S = ellipsoid.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
 
-    inv_S1 = ellipsoid.inv_S_matrix(r0+delta, r1, r2, u0, u1, u2)
-    print (np.allclose(d_inv_S[0], (inv_S1-inv_S0)/delta))
+    inv_S1 = ellipsoid.inv_S_matrix(r0 + delta, r1, r2, u0, u1, u2)
+    print(np.allclose(d_inv_S[0], (inv_S1 - inv_S0) / delta))
 
-    inv_S1 = ellipsoid.inv_S_matrix(r0, r1+delta, r2, u0, u1, u2)
-    print (np.allclose(d_inv_S[1], (inv_S1-inv_S0)/delta))
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1 + delta, r2, u0, u1, u2)
+    print(np.allclose(d_inv_S[1], (inv_S1 - inv_S0) / delta))
 
-    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2+delta, u0, u1, u2)
-    print (np.allclose(d_inv_S[2], (inv_S1-inv_S0)/delta))
-    
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2 + delta, u0, u1, u2)
+    print(np.allclose(d_inv_S[2], (inv_S1 - inv_S0) / delta))
+
     d_inv_S = ellipsoid.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
 
-    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0+delta, u1, u2)
-    print (np.allclose(d_inv_S[0], (inv_S1-inv_S0)/delta))
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0 + delta, u1, u2)
+    print(np.allclose(d_inv_S[0], (inv_S1 - inv_S0) / delta))
 
-    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1+delta, u2)
-    print (np.allclose(d_inv_S[1], (inv_S1-inv_S0)/delta))
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1 + delta, u2)
+    print(np.allclose(d_inv_S[1], (inv_S1 - inv_S0) / delta))
 
-    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1, u2+delta)
-    print (np.allclose(d_inv_S[2], (inv_S1-inv_S0)/delta))
+    inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1, u2 + delta)
+    print(np.allclose(d_inv_S[2], (inv_S1 - inv_S0) / delta))
 
 
 test_ellipsoid_methods()

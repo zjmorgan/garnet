@@ -7,13 +7,14 @@ import numpy as np
 from garnet.reduction.plan import ReductionPlan
 from garnet.reduction.determination import Determination
 
-benchmark = 'shared/benchmark/ref'
+benchmark = "shared/benchmark/ref"
 
-@pytest.mark.skipif(not os.path.exists('/SNS/TOPAZ/'), reason='file mount')
+
+@pytest.mark.skipif(not os.path.exists("/SNS/TOPAZ/"), reason="file mount")
 def test_topaz():
 
-    config_file = 'topaz_reduction_plan.yaml'
-    reduction_plan = os.path.abspath(os.path.join('./tests/data', config_file))
+    config_file = "topaz_reduction_plan.yaml"
+    reduction_plan = os.path.abspath(os.path.join("./tests/data", config_file))
 
     with tempfile.TemporaryDirectory() as tmpdir:
 
@@ -55,13 +56,6 @@ def test_topaz():
 
         # vals = det.list_possible_conventional_cells(0.2, True)
 
-        det.predict_peaks('C', 
-                          0.5,
-                          0.5,
-                          3.5,
-                          None,
-                          [0,0,0],
-                          [0,0,0],
-                          [0,0,0],
-                          1,
-                          False)
+        det.predict_peaks(
+            "C", 0.5, 0.5, 3.5, None, [0, 0, 0], [0, 0, 0], [0, 0, 0], 1, False
+        )

@@ -1,44 +1,49 @@
-from mantid.simpleapi import (FindPeaksMD,
-                              PredictPeaks,
-                              PredictSatellitePeaks,
-                              CentroidPeaksMD,
-                              IntegratePeaksMD,
-                              BinMD,
-                              PeakIntensityVsRadius,
-                              FilterPeaks,
-                              SortPeaksWorkspace,
-                              DeleteWorkspace,
-                              ExtractSingleSpectrum,
-                              CombinePeaksWorkspaces,
-                              CreatePeaksWorkspace,
-                              ConvertPeaksWorkspace,
-                              CopySample,
-                              CloneWorkspace,
-                              SaveNexus,
-                              LoadNexus,
-                              AddPeakHKL,
-                              HasUB,
-                              SetUB,
-                              mtd)
+from mantid.simpleapi import (
+    FindPeaksMD,
+    PredictPeaks,
+    PredictSatellitePeaks,
+    CentroidPeaksMD,
+    IntegratePeaksMD,
+    BinMD,
+    PeakIntensityVsRadius,
+    FilterPeaks,
+    SortPeaksWorkspace,
+    DeleteWorkspace,
+    ExtractSingleSpectrum,
+    CombinePeaksWorkspaces,
+    CreatePeaksWorkspace,
+    ConvertPeaksWorkspace,
+    CopySample,
+    CloneWorkspace,
+    SaveNexus,
+    LoadNexus,
+    AddPeakHKL,
+    HasUB,
+    SetUB,
+    mtd,
+)
 
 from mantid.kernel import V3D
 from mantid.dataobjects import PeakShapeEllipsoid, NoShape
 
 from mantid import config
 
-config['Q.convention'] = 'Crystallography'
+config["Q.convention"] = "Crystallography"
 
 import numpy as np
 
-centering_reflection = {'P': 'Primitive',
-                        'I': 'Body centred',
-                        'F': 'All-face centred',
-                        'R': 'Rhombohedrally centred', # rhomb/hex axes
-                        'R(obv)': 'Rhombohedrally centred, obverse', # hex axes
-                        'R(rev)': 'Rhombohedrally centred, reverse', # hex axes
-                        'A': 'A-face centred',
-                        'B': 'B-face centred',
-                        'C': 'C-face centred'}
+centering_reflection = {
+    "P": "Primitive",
+    "I": "Body centred",
+    "F": "All-face centred",
+    "R": "Rhombohedrally centred",  # rhomb/hex axes
+    "R(obv)": "Rhombohedrally centred, obverse",  # hex axes
+    "R(rev)": "Rhombohedrally centred, reverse",  # hex axes
+    "A": "A-face centred",
+    "B": "B-face centred",
+    "C": "C-face centred",
+}
+
 
 class PeaksModel:
 
@@ -46,11 +51,7 @@ class PeaksModel:
 
         self.edge_pixels = 0
 
-    def find_peaks(self, md,
-                         peaks,
-                         max_d,
-                         density=1000,
-                         max_peaks=50):
+    def find_peaks(self, md, peaks, max_d, density=1000, max_peaks=50):
         """
         Harvest strong peak locations from Q-sample into a peaks table.
 
@@ -69,13 +70,15 @@ class PeaksModel:
 
         """
 
-        FindPeaksMD(InputWorkspace=md,
-                    PeakDistanceThreshold=2*np.pi/max_d,
-                    MaxPeaks=max_peaks,
-                    PeakFindingStrategy='VolumeNormalization',
-                    DensityThresholdFactor=density,
-                    EdgePixels=self.edge_pixels,
-                    OutputWorkspace=peaks)
+        FindPeaksMD(
+            InputWorkspace=md,
+            PeakDistanceThreshold=2 * np.pi / max_d,
+            MaxPeaks=max_peaks,
+            PeakFindingStrategy="VolumeNormalization",
+            DensityThresholdFactor=density,
+            EdgePixels=self.edge_pixels,
+            OutputWorkspace=peaks,
+        )
 
     def centroid_peaks(self, md, peaks, peak_radius):
         """
@@ -92,19 +95,24 @@ class PeaksModel:
 
         """
 
-        CentroidPeaksMD(InputWorkspace=md,
-                        PeakRadius=peak_radius,
-                        PeaksWorkspace=peaks,
-                        OutputWorkspace=peaks)
+        CentroidPeaksMD(
+            InputWorkspace=md,
+            PeakRadius=peak_radius,
+            PeaksWorkspace=peaks,
+            OutputWorkspace=peaks,
+        )
 
-    def integrate_peaks(self, md,
-                              peaks,
-                              peak_radius,
-                              radius_scale=0,
-                              background_inner_fact=1,
-                              background_outer_fact=1.5,
-                              method='sphere',
-                              centroid=True):
+    def integrate_peaks(
+        self,
+        md,
+        peaks,
+        peak_radius,
+        radius_scale=0,
+        background_inner_fact=1,
+        background_outer_fact=1.5,
+        method="sphere",
+        centroid=True,
+    ):
         """
         Integrate peaks using spherical or ellipsoidal regions.
         Ellipsoid integration adapts itself to the peak distribution.
@@ -133,31 +141,33 @@ class PeaksModel:
         # d = np.array(mtd[peaks].column(8))
         # r = peak_radius+radius_scale*2*np.pi/d
 
-        background_inner_radius = peak_radius*background_inner_fact
-        background_outer_radius = peak_radius*background_outer_fact
+        background_inner_radius = peak_radius * background_inner_fact
+        background_outer_radius = peak_radius * background_outer_fact
 
         adaptive = True if radius_scale else False
 
-        if method == 'sphere' and centroid:
+        if method == "sphere" and centroid:
             self.centroid_peaks(md, peaks, peak_radius)
 
-        IntegratePeaksMD(InputWorkspace=md,
-                         PeaksWorkspace=peaks,
-                         PeakRadius=peak_radius,
-                         BackgroundInnerRadius=background_inner_radius,
-                         BackgroundOuterRadius=background_outer_radius,
-                         UseOnePercentBackgroundCorrection=True,
-                         Ellipsoid=True if method == 'ellipsoid' else False,
-                         FixQAxis=True,
-                         FixMajorAxisLength=True,
-                         UseCentroid=centroid,
-                         MaxIterations=15,
-                         ReplaceIntensity=True,
-                         IntegrateIfOnEdge=True,
-                         AdaptiveQBackground=adaptive,
-                         AdaptiveQMultiplier=radius_scale,
-                         MaskEdgeTubes=True,
-                         OutputWorkspace=peaks)
+        IntegratePeaksMD(
+            InputWorkspace=md,
+            PeaksWorkspace=peaks,
+            PeakRadius=peak_radius,
+            BackgroundInnerRadius=background_inner_radius,
+            BackgroundOuterRadius=background_outer_radius,
+            UseOnePercentBackgroundCorrection=True,
+            Ellipsoid=True if method == "ellipsoid" else False,
+            FixQAxis=True,
+            FixMajorAxisLength=True,
+            UseCentroid=centroid,
+            MaxIterations=15,
+            ReplaceIntensity=True,
+            IntegrateIfOnEdge=True,
+            AdaptiveQBackground=adaptive,
+            AdaptiveQMultiplier=radius_scale,
+            MaskEdgeTubes=True,
+            OutputWorkspace=peaks,
+        )
 
         for peak in mtd[peaks]:
 
@@ -167,48 +177,53 @@ class PeaksModel:
 
             shape_dict = eval(shape.toJSON())
 
-            if 'translation0' in shape_dict.keys():
+            if "translation0" in shape_dict.keys():
 
-                Q0 += shape_dict['translation0']
-                Q1 += shape_dict['translation1']
-                Q2 += shape_dict['translation2']
+                Q0 += shape_dict["translation0"]
+                Q1 += shape_dict["translation1"]
+                Q2 += shape_dict["translation2"]
 
                 R = peak.getGoniometerMatrix()
 
                 Q = np.array([Q0, Q1, Q2])
                 Qx, Qy, Qz = R @ Q
 
-                if -4*np.pi*Qz/np.linalg.norm(Q)**2 > 0:
+                if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
 
                     peak.setQSampleFrame(V3D(Q0, Q1, Q2))
 
-        if method == 'ellipsoid':
+        if method == "ellipsoid":
 
-            IntegratePeaksMD(InputWorkspace=md,
-                             PeaksWorkspace=peaks,
-                             PeakRadius=peak_radius,
-                             BackgroundInnerRadius=background_inner_radius,
-                             BackgroundOuterRadius=background_outer_radius,
-                             UseOnePercentBackgroundCorrection=True,
-                             Ellipsoid=True,
-                             FixQAxis=True,
-                             FixMajorAxisLength=True,
-                             UseCentroid=False,
-                             MaxIterations=15,
-                             ReplaceIntensity=True,
-                             IntegrateIfOnEdge=True,
-                             AdaptiveQBackground=adaptive,
-                             AdaptiveQMultiplier=radius_scale,
-                             MaskEdgeTubes=True,
-                             OutputWorkspace=peaks)
+            IntegratePeaksMD(
+                InputWorkspace=md,
+                PeaksWorkspace=peaks,
+                PeakRadius=peak_radius,
+                BackgroundInnerRadius=background_inner_radius,
+                BackgroundOuterRadius=background_outer_radius,
+                UseOnePercentBackgroundCorrection=True,
+                Ellipsoid=True,
+                FixQAxis=True,
+                FixMajorAxisLength=True,
+                UseCentroid=False,
+                MaxIterations=15,
+                ReplaceIntensity=True,
+                IntegrateIfOnEdge=True,
+                AdaptiveQBackground=adaptive,
+                AdaptiveQMultiplier=radius_scale,
+                MaskEdgeTubes=True,
+                OutputWorkspace=peaks,
+            )
 
-    def intensity_vs_radius(self, md,
-                                  peaks,
-                                  peak_radius,
-                                  background_inner_fact=1,
-                                  background_outer_fact=1.5,
-                                  steps=51,
-                                  fix=False):
+    def intensity_vs_radius(
+        self,
+        md,
+        peaks,
+        peak_radius,
+        background_inner_fact=1,
+        background_outer_fact=1.5,
+        steps=51,
+        fix=False,
+    ):
         """
         Integrate peak intensity with radius varying from zero to cut off.
 
@@ -241,49 +256,51 @@ class PeaksModel:
 
         """
 
-        background_inner_rad = background_inner_fact*peak_radius if fix else 0
-        background_outer_rad = background_outer_fact*peak_radius if fix else 0
+        background_inner_rad = background_inner_fact * peak_radius if fix else 0
+        background_outer_rad = background_outer_fact * peak_radius if fix else 0
 
         background_inner_fact = 0 if fix else background_inner_fact
         background_outer_fact = 0 if fix else background_outer_fact
 
-        PeakIntensityVsRadius(InputWorkspace=md,
-                              PeaksWorkspace=peaks,
-                              RadiusStart=0.0,
-                              RadiusEnd=peak_radius,
-                              NumSteps=steps,
-                              BackgroundInnerFactor=background_inner_fact,
-                              BackgroundOuterFactor=background_outer_fact,
-                              BackgroundInnerRadius=background_inner_rad,
-                              BackgroundOuterRadius=background_outer_rad,
-                              OutputWorkspace=peaks+'_intens_vs_rad',
-                              OutputWorkspace2=peaks+'_sig/noise_vs_rad')
+        PeakIntensityVsRadius(
+            InputWorkspace=md,
+            PeaksWorkspace=peaks,
+            RadiusStart=0.0,
+            RadiusEnd=peak_radius,
+            NumSteps=steps,
+            BackgroundInnerFactor=background_inner_fact,
+            BackgroundOuterFactor=background_outer_fact,
+            BackgroundInnerRadius=background_inner_rad,
+            BackgroundOuterRadius=background_outer_rad,
+            OutputWorkspace=peaks + "_intens_vs_rad",
+            OutputWorkspace2=peaks + "_sig/noise_vs_rad",
+        )
 
-        n = mtd[peaks+'_sig/noise_vs_rad'].getNumberHistograms()
+        n = mtd[peaks + "_sig/noise_vs_rad"].getNumberHistograms()
 
-        ExtractSingleSpectrum(InputWorkspace=peaks+'_sig/noise_vs_rad',
-                              OutputWorkspace=peaks+'_sig/noise_vs_rad/strong',
-                              WorkspaceIndex=n-1)
+        ExtractSingleSpectrum(
+            InputWorkspace=peaks + "_sig/noise_vs_rad",
+            OutputWorkspace=peaks + "_sig/noise_vs_rad/strong",
+            WorkspaceIndex=n - 1,
+        )
 
-        peak_radius = mtd[peaks+'_sig/noise_vs_rad/strong'].extractX().ravel()
-        sig_noise = mtd[peaks+'_sig/noise_vs_rad/strong'].extractY().ravel()
+        peak_radius = mtd[peaks + "_sig/noise_vs_rad/strong"].extractX().ravel()
+        sig_noise = mtd[peaks + "_sig/noise_vs_rad/strong"].extractY().ravel()
 
         # ol = mtd['peaks'].sample().getOrientedLattice()
         # hkls = mtd[peaks+'_intens_vs_rad'].getAxis(1).extractValues()
         # hkls = [np.array(hkl.split(' ')).astype(float) for hkl in hkls]
-        lamda = np.array([peak.getWavelength() for peak in mtd['peaks']])
+        lamda = np.array([peak.getWavelength() for peak in mtd["peaks"]])
 
-        y = mtd[peaks+'_intens_vs_rad'].extractY()
-        x = mtd[peaks+'_intens_vs_rad'].extractX()
-        e = mtd[peaks+'_intens_vs_rad'].extractE()
+        y = mtd[peaks + "_intens_vs_rad"].extractY()
+        x = mtd[peaks + "_intens_vs_rad"].extractX()
+        e = mtd[peaks + "_intens_vs_rad"].extractE()
 
         return peak_radius, sig_noise, x, y, e, lamda
 
-    def intensity_profile(self, md,
-                                peaks,
-                                peak_radius,
-                                background_inner_fact=1,
-                                background_outer_fact=1.5):
+    def intensity_profile(
+        self, md, peaks, peak_radius, background_inner_fact=1, background_outer_fact=1.5
+    ):
         """
         Integrate peak intensity as profile.
 
@@ -312,35 +329,35 @@ class PeaksModel:
 
         """
 
-        background_inner_radius = peak_radius*background_inner_fact
-        background_outer_radius = peak_radius*background_outer_fact
+        background_inner_radius = peak_radius * background_inner_fact
+        background_outer_radius = peak_radius * background_outer_fact
 
-        length = 4*peak_radius
+        length = 4 * peak_radius
 
-        IntegratePeaksMD(InputWorkspace=md,
-                         PeakRadius=peak_radius,
-                         BackgroundInnerRadius=background_inner_radius,
-                         BackgroundOuterRadius=background_outer_radius,
-                         UseOnePercentBackgroundCorrection=True,
-                         Cylinder=True,
-                         CylinderLength=length,
-                         PercentBackground=15,
-                         ProfileFunction='NoFit',
-                         PeaksWorkspace=peaks,
-                         OutputWorkspace=peaks+'_profile')
+        IntegratePeaksMD(
+            InputWorkspace=md,
+            PeakRadius=peak_radius,
+            BackgroundInnerRadius=background_inner_radius,
+            BackgroundOuterRadius=background_outer_radius,
+            UseOnePercentBackgroundCorrection=True,
+            Cylinder=True,
+            CylinderLength=length,
+            PercentBackground=15,
+            ProfileFunction="NoFit",
+            PeaksWorkspace=peaks,
+            OutputWorkspace=peaks + "_profile",
+        )
 
-        lamda = np.array(mtd['peaks'].column(5))
+        lamda = np.array(mtd["peaks"].column(5))
 
-        x = ((mtd['ProfilesData'].extractX()+1)/100-0.5)*length
-        y = mtd['ProfilesData'].extractY()
+        x = ((mtd["ProfilesData"].extractX() + 1) / 100 - 0.5) * length
+        y = mtd["ProfilesData"].extractY()
 
         return x, y, lamda
 
-    def intensity_projection(self, md,
-                                   peaks,
-                                   peak_radius,
-                                   background_inner_fact=1,
-                                   background_outer_fact=1.5):
+    def intensity_projection(
+        self, md, peaks, peak_radius, background_inner_fact=1, background_outer_fact=1.5
+    ):
         """
         Integrate peak intensity as profile.
 
@@ -369,26 +386,28 @@ class PeaksModel:
 
         """
 
-        background_inner_radius = peak_radius*background_inner_fact
-        background_outer_radius = peak_radius*background_outer_fact
+        background_inner_radius = peak_radius * background_inner_fact
+        background_outer_radius = peak_radius * background_outer_fact
 
-        IntegratePeaksMD(InputWorkspace=md,
-                         PeakRadius=peak_radius,
-                         BackgroundInnerRadius=background_inner_radius,
-                         BackgroundOuterRadius=background_outer_radius,
-                         UseOnePercentBackgroundCorrection=True,
-                         Ellipsoid=True,
-                         FixQAxis=True,
-                         FixMajorAxisLength=False,
-                         MaxIterations=3,
-                         PeaksWorkspace=peaks,
-                         OutputWorkspace=peaks+'_projection')
+        IntegratePeaksMD(
+            InputWorkspace=md,
+            PeakRadius=peak_radius,
+            BackgroundInnerRadius=background_inner_radius,
+            BackgroundOuterRadius=background_outer_radius,
+            UseOnePercentBackgroundCorrection=True,
+            Ellipsoid=True,
+            FixQAxis=True,
+            FixMajorAxisLength=False,
+            MaxIterations=3,
+            PeaksWorkspace=peaks,
+            OutputWorkspace=peaks + "_projection",
+        )
 
         two_theta = []
         radius = []
         intensity = []
 
-        for peak in mtd[peaks+'_projection']:
+        for peak in mtd[peaks + "_projection"]:
 
             tt = peak.getScattering()
             I = peak.getIntensity()
@@ -396,22 +415,22 @@ class PeaksModel:
 
             shape_dict = eval(peak.getPeakShape().toJSON())
 
-            v0 = [float(val) for val in shape_dict['direction0'].split(' ')]
-            v1 = [float(val) for val in shape_dict['direction1'].split(' ')]
-            v2 = [float(val) for val in shape_dict['direction2'].split(' ')]
+            v0 = [float(val) for val in shape_dict["direction0"].split(" ")]
+            v1 = [float(val) for val in shape_dict["direction1"].split(" ")]
+            v2 = [float(val) for val in shape_dict["direction2"].split(" ")]
 
-            r0 = shape_dict['radius0']
-            r1 = shape_dict['radius1']
-            r2 = shape_dict['radius2']
+            r0 = shape_dict["radius0"]
+            r1 = shape_dict["radius1"]
+            r2 = shape_dict["radius2"]
 
             W = np.column_stack([v0, v1, v2])
             V = np.diag([r0**2, r1**2, r2**2])
 
             A = (W @ V) @ W.T
 
-            n = Q/np.linalg.norm(Q)
+            n = Q / np.linalg.norm(Q)
 
-            P = np.eye(3)-np.outer(n, n)
+            P = np.eye(3) - np.outer(n, n)
 
             A_proj = P @ A @ P
 
@@ -422,7 +441,7 @@ class PeaksModel:
             radius.append(np.sqrt(np.linalg.eigvals(cov).max()))
             intensity.append(I)
 
-        theta = np.array(two_theta)/2
+        theta = np.array(two_theta) / 2
         y = np.array(intensity)
         x = np.array(radius)
 
@@ -440,38 +459,48 @@ class PeaksModel:
             Q = peak.getQSampleFrame()
             lamda = peak.getWavelength()
 
-            extents = [Q[0]-r_cut, Q[0]+r_cut,
-                       Q[1]-r_cut, Q[1]+r_cut,
-                       Q[2]-r_cut, Q[2]+r_cut]
+            extents = [
+                Q[0] - r_cut,
+                Q[0] + r_cut,
+                Q[1] - r_cut,
+                Q[1] + r_cut,
+                Q[2] - r_cut,
+                Q[2] + r_cut,
+            ]
 
-            BinMD(InputWorkspace=md,
-                  AxisAligned=False,
-                  BasisVector0='Q_sample_x,Angstrom^-1,1.0,0.0,0.0',
-                  BasisVector1='Q_sample_y,Angstrom^-1,0.0,1.0,0.0',
-                  BasisVector2='Q_sample_z,Angstrom^-1,0.0,0.0,1.0',
-                  OutputExtents=extents,
-                  OutputBins=[n_bins,n_bins,n_bins],
-                  OutputWorkspace='_md_bin')
+            BinMD(
+                InputWorkspace=md,
+                AxisAligned=False,
+                BasisVector0="Q_sample_x,Angstrom^-1,1.0,0.0,0.0",
+                BasisVector1="Q_sample_y,Angstrom^-1,0.0,1.0,0.0",
+                BasisVector2="Q_sample_z,Angstrom^-1,0.0,0.0,1.0",
+                OutputExtents=extents,
+                OutputBins=[n_bins, n_bins, n_bins],
+                OutputWorkspace="_md_bin",
+            )
 
-            signal = mtd['_md_bin'].getSignalArray().copy()
-            weight = 1/mtd['_md_bin'].getErrorSquaredArray()
+            signal = mtd["_md_bin"].getSignalArray().copy()
+            weight = 1 / mtd["_md_bin"].getErrorSquaredArray()
 
-            dims = [mtd['_md_bin'].getDimension(i)\
-                    for i in range(mtd['_md_bin'].getNumDims())]
+            dims = [
+                mtd["_md_bin"].getDimension(i)
+                for i in range(mtd["_md_bin"].getNumDims())
+            ]
 
-            xs = [np.linspace(dim.getMinimum(),
-                              dim.getMaximum(),
-                              dim.getNBoundaries()) for dim in dims]
+            xs = [
+                np.linspace(dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries())
+                for dim in dims
+            ]
 
-            xs = [0.5*(x[1:]+x[:-1])-Q[i] for i, x in enumerate(xs)]
+            xs = [0.5 * (x[1:] + x[:-1]) - Q[i] for i, x in enumerate(xs)]
 
-            x, y, z = np.meshgrid(*xs, indexing='ij')
+            x, y, z = np.meshgrid(*xs, indexing="ij")
 
             mask = (signal > 0) & np.isfinite(weight)
 
             if mask.sum() > 5:
 
-                d2s.append(x[mask]**2+y[mask]**2+z[mask]**2)
+                d2s.append(x[mask] ** 2 + y[mask] ** 2 + z[mask] ** 2)
                 lamdas.append(lamda)
 
                 signals.append(signal[mask])
@@ -497,7 +526,7 @@ class PeaksModel:
 
         if HasUB(Workspace=ws):
 
-            if hasattr(mtd[ws], 'sample'):
+            if hasattr(mtd[ws], "sample"):
                 ol = mtd[ws].sample().getOrientedLattice()
             else:
                 for i in range(mtd[ws].getNumExperimentInfo()):
@@ -527,7 +556,7 @@ class PeaksModel:
 
         if HasUB(Workspace=ws):
 
-            if hasattr(mtd[ws], 'sample'):
+            if hasattr(mtd[ws], "sample"):
                 ol = mtd[ws].sample().getOrientedLattice()
             else:
                 ol = mtd[ws].getExperimentInfo(0).sample().getOrientedLattice()
@@ -579,45 +608,49 @@ class PeaksModel:
 
         refl_cond = centering_reflection[centering]
 
-        if centering == 'R': # obverse/reverse
-            obv_rev = ['R(obv)', 'R(rev)']
+        if centering == "R":  # obverse/reverse
+            obv_rev = ["R(obv)", "R(rev)"]
             refl_conds = [centering_reflection[rc] for rc in obv_rev]
         else:
             refl_conds = [centering_reflection[centering]]
 
         for i, refl_cond in enumerate(refl_conds):
 
-            peaks_cond = peaks+'_{}'.format(refl_cond)
+            peaks_cond = peaks + "_{}".format(refl_cond)
 
-            PredictPeaks(InputWorkspace=ws,
-                         WavelengthMin=lamda_min,
-                         WavelengthMax=lamda_max,
-                         MinDSpacing=d_min,
-                         MaxDSpacing=d_max*1.2,
-                         ReflectionCondition=refl_cond,
-                         RoundHKL=True,
-                         EdgePixels=self.edge_pixels,
-                         OutputWorkspace=peaks_cond)
+            PredictPeaks(
+                InputWorkspace=ws,
+                WavelengthMin=lamda_min,
+                WavelengthMax=lamda_max,
+                MinDSpacing=d_min,
+                MaxDSpacing=d_max * 1.2,
+                ReflectionCondition=refl_cond,
+                RoundHKL=True,
+                EdgePixels=self.edge_pixels,
+                OutputWorkspace=peaks_cond,
+            )
 
             if i == 0:
-                CloneWorkspace(InputWorkspace=peaks_cond,
-                               OutputWorkspace=peaks)
+                CloneWorkspace(InputWorkspace=peaks_cond, OutputWorkspace=peaks)
             else:
-                CombinePeaksWorkspaces(LHSWorkspace=peaks,
-                                       RHSWorkspace=peaks_cond,
-                                       OutputWorkspace=peaks)
+                CombinePeaksWorkspaces(
+                    LHSWorkspace=peaks, RHSWorkspace=peaks_cond, OutputWorkspace=peaks
+                )
 
         self.remove_duplicate_peaks(peaks)
 
-    def predict_modulated_peaks(self, peaks,
-                                      d_min,
-                                      lamda_min,
-                                      lamda_max,
-                                      mod_vec_1=[0,0,0],
-                                      mod_vec_2=[0,0,0],
-                                      mod_vec_3=[0,0,0],
-                                      max_order=0,
-                                      cross_terms=False):
+    def predict_modulated_peaks(
+        self,
+        peaks,
+        d_min,
+        lamda_min,
+        lamda_max,
+        mod_vec_1=[0, 0, 0],
+        mod_vec_2=[0, 0, 0],
+        mod_vec_3=[0, 0, 0],
+        max_order=0,
+        cross_terms=False,
+    ):
         """
         Predict the modulated peak positions based on main peaks.
 
@@ -644,38 +677,43 @@ class PeaksModel:
 
         d_max = self.get_max_d_spacing(peaks)
 
-        sat_peaks = peaks+'_sat'
+        sat_peaks = peaks + "_sat"
 
-        PredictSatellitePeaks(Peaks=peaks,
-                              SatellitePeaks=sat_peaks,
-                              ModVector1=mod_vec_1,
-                              ModVector2=mod_vec_2,
-                              ModVector3=mod_vec_3,
-                              MaxOrder=max_order,
-                              CrossTerms=cross_terms,
-                              IncludeIntegerHKL=False,
-                              IncludeAllPeaksInRange=True,
-                              WavelengthMin=lamda_min,
-                              WavelengthMax=lamda_max,
-                              MinDSpacing=d_min,
-                              MaxDSpacing=d_max*10)
+        PredictSatellitePeaks(
+            Peaks=peaks,
+            SatellitePeaks=sat_peaks,
+            ModVector1=mod_vec_1,
+            ModVector2=mod_vec_2,
+            ModVector3=mod_vec_3,
+            MaxOrder=max_order,
+            CrossTerms=cross_terms,
+            IncludeIntegerHKL=False,
+            IncludeAllPeaksInRange=True,
+            WavelengthMin=lamda_min,
+            WavelengthMax=lamda_max,
+            MinDSpacing=d_min,
+            MaxDSpacing=d_max * 10,
+        )
 
-        CombinePeaksWorkspaces(LHSWorkspace=peaks,
-                               RHSWorkspace=sat_peaks,
-                               OutputWorkspace=peaks)
+        CombinePeaksWorkspaces(
+            LHSWorkspace=peaks, RHSWorkspace=sat_peaks, OutputWorkspace=peaks
+        )
 
         DeleteWorkspace(Workspace=sat_peaks)
 
-    def predict_satellite_peaks(self, peaks_ws,
-                                      data_ws,
-                                      lamda_min,
-                                      lamda_max,
-                                      d_min,
-                                      mod_vec_1=[0,0,0],
-                                      mod_vec_2=[0,0,0],
-                                      mod_vec_3=[0,0,0],
-                                      max_order=0,
-                                      cross_terms=False):
+    def predict_satellite_peaks(
+        self,
+        peaks_ws,
+        data_ws,
+        lamda_min,
+        lamda_max,
+        d_min,
+        mod_vec_1=[0, 0, 0],
+        mod_vec_2=[0, 0, 0],
+        mod_vec_3=[0, 0, 0],
+        max_order=0,
+        cross_terms=False,
+    ):
         """
         Locate satellite peaks from goniometer angles.
 
@@ -706,15 +744,17 @@ class PeaksModel:
 
             self.set_goniometer(peaks_ws, R)
 
-            self.predict_modulated_peaks(peaks_ws,
-                                         d_min,
-                                         lamda_min,
-                                         lamda_max,
-                                         mod_vec_1,
-                                         mod_vec_2,
-                                         mod_vec_3,
-                                         max_order,
-                                         cross_terms)
+            self.predict_modulated_peaks(
+                peaks_ws,
+                d_min,
+                lamda_min,
+                lamda_max,
+                mod_vec_1,
+                mod_vec_2,
+                mod_vec_3,
+                max_order,
+                cross_terms,
+            )
 
             self.remove_duplicate_peaks(peaks_ws)
 
@@ -729,14 +769,16 @@ class PeaksModel:
 
         """
 
-        columns = ['l', 'k', 'h']
+        columns = ["l", "k", "h"]
 
         for col in columns:
 
-            SortPeaksWorkspace(InputWorkspace=peaks,
-                               ColumnNameToSortBy=col,
-                               SortAscending=False,
-                               OutputWorkspace=peaks)
+            SortPeaksWorkspace(
+                InputWorkspace=peaks,
+                ColumnNameToSortBy=col,
+                SortAscending=False,
+                OutputWorkspace=peaks,
+            )
 
     def sort_peaks_by_d(self, peaks):
         """
@@ -749,10 +791,12 @@ class PeaksModel:
 
         """
 
-        SortPeaksWorkspace(InputWorkspace=peaks,
-                           ColumnNameToSortBy='DSpacing',
-                           SortAscending=False,
-                           OutputWorkspace=peaks)
+        SortPeaksWorkspace(
+            InputWorkspace=peaks,
+            ColumnNameToSortBy="DSpacing",
+            SortAscending=False,
+            OutputWorkspace=peaks,
+        )
 
     def remove_duplicate_peaks(self, peaks):
         """
@@ -768,18 +812,21 @@ class PeaksModel:
 
         self.sort_peaks_by_hkl(peaks)
 
-        for no in range(mtd[peaks].getNumberPeaks()-1,0,-1):
+        for no in range(mtd[peaks].getNumberPeaks() - 1, 0, -1):
 
-            if (mtd[peaks].getPeak(no).getHKL()-\
-                mtd[peaks].getPeak(no-1).getHKL()).norm2() == 0:
+            if (
+                mtd[peaks].getPeak(no).getHKL() - mtd[peaks].getPeak(no - 1).getHKL()
+            ).norm2() == 0:
 
                 mtd[peaks].getPeak(no).setRunNumber(-1)
 
-        FilterPeaks(InputWorkspace=peaks,
-                    OutputWorkspace=peaks,
-                    FilterVariable='RunNumber',
-                    FilterValue=-1,
-                    Operator='!=')
+        FilterPeaks(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
+            FilterVariable="RunNumber",
+            FilterValue=-1,
+            Operator="!=",
+        )
 
     def get_all_goniometer_matrices(self, ws):
         """
@@ -830,10 +877,10 @@ class PeaksModel:
 
             R = peak.getGoniometerMatrix()
 
-            ind = np.isclose(Rs, R).all(axis=(1,2))
+            ind = np.isclose(Rs, R).all(axis=(1, 2))
             i = -1 if not np.any(ind) else ind.tolist().index(True)
 
-            peak.setRunNumber(i+1)
+            peak.setRunNumber(i + 1)
 
     def load_peaks(self, filename, peaks):
         """
@@ -848,8 +895,7 @@ class PeaksModel:
 
         """
 
-        LoadNexus(Filename=filename,
-                  OutputWorkspace=peaks)
+        LoadNexus(Filename=filename, OutputWorkspace=peaks)
 
     def save_peaks(self, filename, peaks):
         """
@@ -864,8 +910,7 @@ class PeaksModel:
 
         """
 
-        SaveNexus(Filename=filename,
-                  InputWorkspace=peaks)
+        SaveNexus(Filename=filename, InputWorkspace=peaks)
 
     def convert_peaks(self, peaks):
         """
@@ -878,8 +923,7 @@ class PeaksModel:
 
         """
 
-        ConvertPeaksWorkspace(PeakWorkspace=peaks,
-                              OutputWorkspace=peaks)
+        ConvertPeaksWorkspace(PeakWorkspace=peaks, OutputWorkspace=peaks)
 
         for i in range(mtd[peaks].getNumberPeaks()):
             mtd[peaks].getPeak(i).setPeakShape(NoShape())
@@ -899,26 +943,37 @@ class PeaksModel:
 
         if not mtd.doesExist(merge):
 
-            CloneWorkspace(InputWorkspace=peaks,
-                           OutputWorkspace=merge)
+            CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=merge)
 
         else:
 
-            CombinePeaksWorkspaces(LHSWorkspace=merge,
-                                   RHSWorkspace=peaks,
-                                   OutputWorkspace=merge)
+            CombinePeaksWorkspaces(
+                LHSWorkspace=merge, RHSWorkspace=peaks, OutputWorkspace=merge
+            )
 
             merge_run = mtd[merge].run()
             peaks_run = mtd[peaks].run()
 
-            keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                    'vol', 'bkg', 'bkg_err', 'intens', 'sig']
+            keys = [
+                "run",
+                "h",
+                "k",
+                "l",
+                "m",
+                "n",
+                "p",
+                "vol",
+                "bkg",
+                "bkg_err",
+                "intens",
+                "sig",
+            ]
 
             for key in keys:
-                log = 'peaks_{}'.format(key)
+                log = "peaks_{}".format(key)
                 peaks_list = np.array(peaks_run.getLogData(log).value).tolist()
                 merge_list = np.array(merge_run.getLogData(log).value).tolist()
-                merge_run[log] = merge_list+peaks_list
+                merge_run[log] = merge_list + peaks_list
 
     def delete_peaks(self, peaks):
         """
@@ -948,13 +1003,15 @@ class PeaksModel:
 
         """
 
-        FilterPeaks(InputWorkspace=peaks,
-                    OutputWorkspace=peaks,
-                    FilterVariable='Signal/Noise',
-                    FilterValue=sig_noise,
-                    Operator='>',
-                    Criterion='!=',
-                    BankName='None')
+        FilterPeaks(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
+            FilterVariable="Signal/Noise",
+            FilterValue=sig_noise,
+            Operator=">",
+            Criterion="!=",
+            BankName="None",
+        )
 
     def remove_peaks_by_d_tolerance(self, peaks, tol=0.05):
         """
@@ -977,14 +1034,16 @@ class PeaksModel:
                 peak = mtd[peaks].getPeak(no)
                 d = peak.getDspacing()
                 d0 = ol.d(*peak.peak.getHKL())
-                if np.abs(d/d0-1) < tol:
+                if np.abs(d / d0 - 1) < tol:
                     peak.setRunNumber(-1)
 
-            FilterPeaks(InputWorkspace=peaks,
-                        OutputWorkspace=peaks,
-                        FilterVariable='RunNumber',
-                        FilterValue=-1,
-                        Operator='!=')
+            FilterPeaks(
+                InputWorkspace=peaks,
+                OutputWorkspace=peaks,
+                FilterVariable="RunNumber",
+                FilterValue=-1,
+                Operator="!=",
+            )
 
     def remove_unindexed_peaks(self, peaks):
         """
@@ -997,13 +1056,15 @@ class PeaksModel:
 
         """
 
-        FilterPeaks(InputWorkspace=peaks,
-                    OutputWorkspace=peaks,
-                    FilterVariable='h^2+k^2+l^2',
-                    FilterValue=0,
-                    Operator='>',
-                    Criterion='!=',
-                    BankName='None')
+        FilterPeaks(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
+            FilterVariable="h^2+k^2+l^2",
+            FilterValue=0,
+            Operator=">",
+            Criterion="!=",
+            BankName="None",
+        )
 
     def create_peaks(self, ws, peaks):
         """
@@ -1016,16 +1077,18 @@ class PeaksModel:
 
         """
 
-        CreatePeaksWorkspace(InstrumentWorkspace=ws,
-                             NumberOfPeaks=0,
-                             OutputWorkspace=peaks)
+        CreatePeaksWorkspace(
+            InstrumentWorkspace=ws, NumberOfPeaks=0, OutputWorkspace=peaks
+        )
 
-        CopySample(InputWorkspace=ws,
-                   OutputWorkspace=peaks,
-                   CopyName=False,
-                   CopyMaterial=False,
-                   CopyEnvironment=False,
-                   CopyShape=False)
+        CopySample(
+            InputWorkspace=ws,
+            OutputWorkspace=peaks,
+            CopyName=False,
+            CopyMaterial=False,
+            CopyEnvironment=False,
+            CopyShape=False,
+        )
 
     def add_peak(self, peaks, hkl):
         """
@@ -1072,7 +1135,7 @@ class PeaksModel:
 
         run = peak.getRunNumber()
 
-        name = 'peaks_run#{}'
+        name = "peaks_run#{}"
         return name.format(run)
 
 
@@ -1244,13 +1307,25 @@ class PeakModel:
         run_info = mtd[self.peaks].run()
         run_info_keys = run_info.keys()
 
-        keys = ['run', 'h', 'k', 'l', 'm', 'n', 'p',
-                'vol', 'bkg', 'bkg_err', 'intens', 'sig']
+        keys = [
+            "run",
+            "h",
+            "k",
+            "l",
+            "m",
+            "n",
+            "p",
+            "vol",
+            "bkg",
+            "bkg_err",
+            "intens",
+            "sig",
+        ]
 
-        vals = [run, h, k, l, m, n, p]+values
+        vals = [run, h, k, l, m, n, p] + values
 
         for key, val in zip(keys, vals):
-            log = 'peaks_{}'.format(key)
+            log = "peaks_{}".format(key)
             if log not in run_info_keys:
                 run_info[log] = [val]
             else:
@@ -1287,14 +1362,16 @@ class PeakModel:
             mod_2 = ol.getModVec(1)
             mod_3 = ol.getModVec(2)
             h, k, l, m, n, p = *hkl, *mnp
-            dh, dk, dl = m*np.array(mod_1)+n*np.array(mod_2)+p*np.array(mod_3)
-            d = ol.d(V3D(h+dh,k+dk,l+dl))
+            dh, dk, dl = m * np.array(mod_1) + n * np.array(mod_2) + p * np.array(mod_3)
+            d = ol.d(V3D(h + dh, k + dk, l + dl))
         else:
             d = peak.getDSpacing()
 
-        name = 'peak_d={:.4f}_({:d},{:d},{:d})'+\
-                            '_({:d},{:d},{:d})_lambda={:.4f}_run#{:d}'
-        return name.format(d,*hkl,*mnp,lamda,run)
+        name = (
+            "peak_d={:.4f}_({:d},{:d},{:d})"
+            + "_({:d},{:d},{:d})_lambda={:.4f}_run#{:d}"
+        )
+        return name.format(d, *hkl, *mnp, lamda, run)
 
     def get_hkl(self, no):
         """
@@ -1336,21 +1413,21 @@ class PeakModel:
 
         c0, c1, c2 = Q0, Q1, Q2
 
-        if shape.shapeName() == 'ellipsoid':
+        if shape.shapeName() == "ellipsoid":
 
             shape_dict = eval(shape.toJSON())
 
-            c0 = Q0+shape_dict['translation0']
-            c1 = Q1+shape_dict['translation1']
-            c2 = Q2+shape_dict['translation2']
+            c0 = Q0 + shape_dict["translation0"]
+            c1 = Q1 + shape_dict["translation1"]
+            c2 = Q2 + shape_dict["translation2"]
 
-            v0 = [float(val) for val in shape_dict['direction0'].split(' ')]
-            v1 = [float(val) for val in shape_dict['direction1'].split(' ')]
-            v2 = [float(val) for val in shape_dict['direction2'].split(' ')]
+            v0 = [float(val) for val in shape_dict["direction0"].split(" ")]
+            v1 = [float(val) for val in shape_dict["direction1"].split(" ")]
+            v2 = [float(val) for val in shape_dict["direction2"].split(" ")]
 
-            r0 = shape_dict['radius0']
-            r1 = shape_dict['radius1']
-            r2 = shape_dict['radius2']
+            r0 = shape_dict["radius0"]
+            r1 = shape_dict["radius1"]
+            r2 = shape_dict["radius2"]
 
             r0 = r0 if r0 < r_cut else r_cut
             r1 = r1 if r1 < r_cut else r_cut
@@ -1387,16 +1464,13 @@ class PeakModel:
 
         radii = [0, 0, 0]
 
-        if -4*np.pi*Qz/np.linalg.norm(Q)**2 > 0:
+        if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
 
             mtd[self.peaks].getPeak(no).setQSampleFrame(V3D(c0, c1, c2))
 
             radii = [r0, r1, r2]
 
-        shape = PeakShapeEllipsoid([V3D(*v0), V3D(*v1), V3D(*v2)],
-                                   radii,
-                                   radii,
-                                   radii)
+        shape = PeakShapeEllipsoid([V3D(*v0), V3D(*v1), V3D(*v2)], radii, radii, radii)
 
         mtd[self.peaks].getPeak(no).setPeakShape(shape)
 
@@ -1458,20 +1532,19 @@ class PeaksStatisticsModel(PeaksModel):
 
         super(PeaksModel, self).__init__(peaks)
 
-        self.peaks = peaks+'_stats'
+        self.peaks = peaks + "_stats"
 
-        CloneWorkspace(InputWorkspace=peaks,
-                       OutputWorkspace=self.peaks)
+        CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=self.peaks)
 
-    def set_scale(self, scale='auto'):
+    def set_scale(self, scale="auto"):
 
-        if scale == 'auto':
+        if scale == "auto":
             scale = 1
             if mtd[self.peaks].getNumberPeaks() > 1:
-                I_max = max(mtd[self.peaks].column('Intens'))
+                I_max = max(mtd[self.peaks].column("Intens"))
                 if I_max > 0:
-                    scale = 1e4/I_max
+                    scale = 1e4 / I_max
 
         for peak in mtd[self.peaks]:
-            peak.setIntensity(scale*peak.getIntensity())
-            peak.setSigmaIntensity(scale*peak.getSigmaIntensity())
+            peak.setIntensity(scale * peak.getIntensity())
+            peak.setSigmaIntensity(scale * peak.getSigmaIntensity())

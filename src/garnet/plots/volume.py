@@ -2,11 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from matplotlib.transforms import Affine2D
+
 # from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
 import scipy.linalg
 
 from garnet.plots.base import BasePlot
+
 
 class SlicePlot(BasePlot):
 
@@ -37,25 +39,27 @@ class SlicePlot(BasePlot):
         self.z_label = labels[slice_ind]
         self.slice_ind = slice_ind
 
-        v = scipy.linalg.cholesky(self.V[ind][:,ind], lower=False)
-        v /= v[0,0]
+        v = scipy.linalg.cholesky(self.V[ind][:, ind], lower=False)
+        v /= v[0, 0]
 
         T = np.eye(3)
-        T[:2,:2] = v
+        T[:2, :2] = v
 
         _, aspect, _ = np.diag(T).copy()
-        T[1,1] = 1
-        T[0,2] = -T[0,1]*y.min()
+        T[1, 1] = 1
+        T[0, 2] = -T[0, 1] * y.min()
 
-        transform = Affine2D(T)+self.ax.transData
+        transform = Affine2D(T) + self.ax.transData
 
-        self.im = self.ax.pcolormesh(x,
-                                     y,
-                                     x+y[:,np.newaxis]+1,
-                                     norm='log',
-                                     shading='nearest',
-                                     transform=transform,
-                                     rasterized=True)
+        self.im = self.ax.pcolormesh(
+            x,
+            y,
+            x + y[:, np.newaxis] + 1,
+            norm="log",
+            shading="nearest",
+            transform=transform,
+            rasterized=True,
+        )
 
         self.ax.set_aspect(aspect)
         self.ax.set_xlabel(xlabel)
@@ -72,16 +76,16 @@ class SlicePlot(BasePlot):
 
     def make_slice(self, signal, value):
 
-        i = np.argmin(np.abs(self.z-value))
+        i = np.argmin(np.abs(self.z - value))
 
         if self.slice_ind == 0:
-            data = signal[i,:,:].T
+            data = signal[i, :, :].T
         elif self.slice_ind == 1:
-            data = signal[:,i,:].T
+            data = signal[:, i, :].T
         else:
-            data = signal[:,:,i].T
+            data = signal[:, :, i].T
 
-        self.ax.set_title(self.z_label+'$={:.3f}$'.format(self.z[i]))
+        self.ax.set_title(self.z_label + "$={:.3f}$".format(self.z[i]))
 
         data[data <= 0] = np.nan
         data[~np.isfinite(data)] = np.nan
@@ -92,7 +96,7 @@ class SlicePlot(BasePlot):
             if np.isclose(vmax, 0):
                 vmin, vmax = 0.01, 1.0
             else:
-                vmin = vmax/100
+                vmin = vmax / 100
         elif np.isnan(vmin) or np.isnan(vmax):
             vmin, vmax = 0.01, 1.0
 

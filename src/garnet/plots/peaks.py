@@ -1,10 +1,12 @@
 import numpy as np
 
 import matplotlib
-matplotlib.use('agg')
+
+matplotlib.use("agg")
 
 import matplotlib.style
-matplotlib.style.use('fast')
+
+matplotlib.style.use("fast")
 
 import matplotlib.pyplot as plt
 
@@ -18,18 +20,18 @@ import scipy.special
 
 from garnet.plots.base import BasePlot
 
+
 class RadiusPlot(BasePlot):
 
     def __init__(self, r, y, y_fit):
 
         super(RadiusPlot, self).__init__()
 
-        plt.close('all')
+        plt.close("all")
 
-        self.fig, self.ax = plt.subplots(1,
-                                         3,
-                                         figsize=(6.4*3, 4.8),
-                                         layout='constrained')
+        self.fig, self.ax = plt.subplots(
+            1, 3, figsize=(6.4 * 3, 4.8), layout="constrained"
+        )
 
         self.add_radius_fit(r, y, y_fit)
 
@@ -37,68 +39,71 @@ class RadiusPlot(BasePlot):
 
         ax = self.ax[0]
 
-        ax.plot(r, y, 'o', color='C0')
-        ax.plot(r, y_fit, '.', color='C1')
+        ax.plot(r, y, "o", color="C0")
+        ax.plot(r, y_fit, ".", color="C1")
         ax.minorticks_on()
-        ax.set_xlabel(r'$r$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$r$ [$\AA^{-1}$]")
 
     def add_sphere(self, r_cut, A, sigma):
 
-        self.ax[0].axvline(x=r_cut, color='k', linestyle='--')
+        self.ax[0].axvline(x=r_cut, color="k", linestyle="--")
 
         xlim = list(self.ax[0].get_xlim())
         xlim[0] = 0
 
         x = np.linspace(*xlim, 256)
 
-        z = x/sigma
+        z = x / sigma
 
-        y = A*(scipy.special.erf(z/np.sqrt(2))-\
-               np.sqrt(2/np.pi)*z*np.exp(-0.5*z**2))
+        y = A * (
+            scipy.special.erf(z / np.sqrt(2))
+            - np.sqrt(2 / np.pi) * z * np.exp(-0.5 * z**2)
+        )
 
-        self.ax[0].plot(x, y, '-', color='C1')
-        self.ax[0].set_ylabel(r'# [$I/\sigma=10$]')
+        self.ax[0].plot(x, y, "-", color="C1")
+        self.ax[0].set_ylabel(r"# [$I/\sigma=10$]")
 
     def add_profile(self, hist, r, l):
 
         ax = self.ax[1]
 
-        cmap = plt.get_cmap('turbo')
+        cmap = plt.get_cmap("turbo")
 
         norm = plt.Normalize(vmin=np.min(l), vmax=np.max(l))
 
         for i, vals in enumerate(hist):
-            ax.plot(r, vals, 'o-', color=cmap(norm(l[i])))
+            ax.plot(r, vals, "o-", color=cmap(norm(l[i])))
 
-        ax.set_xlabel(r'$|\Delta{Q}|$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$|\Delta{Q}|$ [$\AA^{-1}$]")
         ax.minorticks_on()
 
         im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         cb = self.fig.colorbar(im, ax=ax)
-        cb.ax.set_ylabel(r'$\lambda$ [$\AA$]')
+        cb.ax.set_ylabel(r"$\lambda$ [$\AA$]")
         cb.ax.minorticks_on()
 
     def add_projection(self, hist, r, t):
 
         ax = self.ax[2]
 
-        cmap = plt.get_cmap('copper')
+        cmap = plt.get_cmap("copper")
 
         norm = plt.Normalize(vmin=np.min(t), vmax=np.max(t))
 
         for i, vals in enumerate(hist):
-            ax.plot(r, vals, 'o', color=cmap(norm(t[i])))
-            ax.step(r, vals, where='mid', color=cmap(norm(t[i])))
+            ax.plot(r, vals, "o", color=cmap(norm(t[i])))
+            ax.step(r, vals, where="mid", color=cmap(norm(t[i])))
 
-        ax.set_xlabel(r'$\Delta{Q}_r$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$\Delta{Q}_r$ [$\AA^{-1}$]")
         ax.minorticks_on()
 
         im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         cb = self.fig.colorbar(im, ax=ax)
-        cb.ax.set_ylabel(r'$\theta$')
+        cb.ax.set_ylabel(r"$\theta$")
         cb.ax.minorticks_on()
-        tick_labels = ['${:.1f}^\circ$'.format(t) for t in cb.get_ticks()]
+        tick_labels = ["${:.1f}^\circ$".format(t) for t in cb.get_ticks()]
         cb.set_ticklabels(tick_labels)
+
 
 class PeakPlot(BasePlot):
 
@@ -106,44 +111,36 @@ class PeakPlot(BasePlot):
 
         super(PeakPlot, self).__init__()
 
-        plt.close('all')
+        plt.close("all")
 
-        self.fig = plt.figure(figsize=(6.4*2, 4.8*1.5), layout='constrained')
+        self.fig = plt.figure(figsize=(6.4 * 2, 4.8 * 1.5), layout="constrained")
 
         # sp = GridSpec(3, 1, figure=self.fig, height_ratios=[1,1,0.5])
-        sp = GridSpec(2, 2, figure=self.fig, height_ratios=[1,0.5])
+        sp = GridSpec(2, 2, figure=self.fig, height_ratios=[1, 0.5])
 
         self.gs = []
 
-        gs = GridSpecFromSubplotSpec(2,
-                                     3,
-                                     height_ratios=[1,1],
-                                     width_ratios=[1,1,1],
-                                     subplot_spec=sp[0,1])
+        gs = GridSpecFromSubplotSpec(
+            2, 3, height_ratios=[1, 1], width_ratios=[1, 1, 1], subplot_spec=sp[0, 1]
+        )
 
         self.gs.append(gs)
 
-        gs = GridSpecFromSubplotSpec(1,
-                                     1,
-                                     height_ratios=[1],
-                                     width_ratios=[1],
-                                     subplot_spec=sp[0,0])
+        gs = GridSpecFromSubplotSpec(
+            1, 1, height_ratios=[1], width_ratios=[1], subplot_spec=sp[0, 0]
+        )
 
         self.gs.append(gs)
 
-        gs = GridSpecFromSubplotSpec(1,
-                                     3,
-                                     height_ratios=[1],
-                                     width_ratios=[1,1,1],
-                                     subplot_spec=sp[1,0])
+        gs = GridSpecFromSubplotSpec(
+            1, 3, height_ratios=[1], width_ratios=[1, 1, 1], subplot_spec=sp[1, 0]
+        )
 
         self.gs.append(gs)
 
-        gs = GridSpecFromSubplotSpec(1,
-                                     2,
-                                     height_ratios=[1],
-                                     width_ratios=[1,1],
-                                     subplot_spec=sp[1,1])
+        gs = GridSpecFromSubplotSpec(
+            1, 2, height_ratios=[1], width_ratios=[1, 1], subplot_spec=sp[1, 1]
+        )
 
         self.gs.append(gs)
 
@@ -161,116 +158,117 @@ class PeakPlot(BasePlot):
 
         x = np.arange(5)
         y = np.arange(6)
-        z = y+y.size*x[:,np.newaxis]
+        z = y + y.size * x[:, np.newaxis]
 
         gs = self.gs[0]
 
-        ax = self.fig.add_subplot(gs[0,0])
+        ax = self.fig.add_subplot(gs[0, 0])
 
         self.ellip.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest')
+        im = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
 
         self.ellip_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
         ax.xaxis.set_ticklabels([])
-        ax.set_ylabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.ellip_el.append(el)
         self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
 
-        ax = self.fig.add_subplot(gs[1,0])
+        ax = self.fig.add_subplot(gs[1, 0])
 
         self.ellip.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest',
-                       cmap='viridis')
+        im = ax.imshow(
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            cmap="viridis",
+        )
 
         self.ellip_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
-        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
+        ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.ellip_el.append(el)
         self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
 
-        ax = self.fig.add_subplot(gs[0,1])
+        ax = self.fig.add_subplot(gs[0, 1])
 
         self.ellip.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest')
+        im = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
 
         self.ellip_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
         ax.xaxis.set_ticklabels([])
-        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+        ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.ellip_el.append(el)
         self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
 
-        ax = self.fig.add_subplot(gs[1,1])
+        ax = self.fig.add_subplot(gs[1, 1])
 
         self.ellip.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest',
-                       cmap='viridis')
+        im = ax.imshow(
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            cmap="viridis",
+        )
 
         self.ellip_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
-        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
+        ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.ellip_el.append(el)
         self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
 
-        ax = self.fig.add_subplot(gs[0,2])
+        ax = self.fig.add_subplot(gs[0, 2])
 
         self.ellip.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest')
+        im = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
 
         self.ellip_im.append(im)
 
@@ -280,34 +278,36 @@ class PeakPlot(BasePlot):
         ax.yaxis.set_ticklabels([])
         # ax.set_ylabel(r'$Q_z$ [$\AA^{-1}$]')
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.ellip_el.append(el)
         self.ellip_sp.append(sp)
 
         # line = self._draw_intersecting_line(ax, 2.5, 3)
         # self.ellip_pt.append(line)
 
-        ax = self.fig.add_subplot(gs[1,2])
+        ax = self.fig.add_subplot(gs[1, 2])
 
         self.ellip.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest',
-                       cmap='viridis')
+        im = ax.imshow(
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            cmap="viridis",
+        )
 
         self.ellip_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
-        ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
         ax.yaxis.set_ticklabels([])
         # ax.set_ylabel(r'$Q_z$ [$\AA^{-1}$]')
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.ellip_el.append(el)
         self.ellip_sp.append(sp)
 
@@ -328,20 +328,20 @@ class PeakPlot(BasePlot):
         ax = self.fig.add_subplot(gs[0])
 
         ax.minorticks_on()
-        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
-        x = np.arange(10)-5
-        y = -2*x**2+50
+        x = np.arange(10) - 5
+        y = -2 * x**2 + 50
         e = np.sqrt(np.abs(y))
 
-        self.error_cont = ax.errorbar(x, y, e, fmt='o', color='C0')
-        self.step_line = ax.step(x, y, where='mid', color='C1')
+        self.error_cont = ax.errorbar(x, y, e, fmt="o", color="C0")
+        self.step_line = ax.step(x, y, where="mid", color="C1")
 
         self.profile = ax
 
     def __init_projection(self):
 
-        self.proj = []   
+        self.proj = []
         self.proj_surf = []
 
         gs = self.gs[3]
@@ -350,16 +350,15 @@ class PeakPlot(BasePlot):
         y = np.linspace(-5, 5, 100)
 
         x, y = np.meshgrid(x, y)
-        z = np.sin(np.sqrt(x**2+y**2))
+        z = np.sin(np.sqrt(x**2 + y**2))
 
         ax = self.fig.add_subplot(gs[0])
-        ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
-        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
+        ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        surf = ax.imshow(z.T,
-                         extent=(0, 5, 0, 6),
-                         origin='lower',
-                         interpolation='nearest')
+        surf = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
         ax.set_aspect(1)
         ax.minorticks_on()
 
@@ -367,13 +366,12 @@ class PeakPlot(BasePlot):
         self.proj_surf.append(surf)
 
         ax = self.fig.add_subplot(gs[1])
-        ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
         # ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
 
-        surf = ax.imshow(z.T,
-                         extent=(0, 5, 0, 6),
-                         origin='lower',
-                         interpolation='nearest')
+        surf = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
         ax.set_aspect(1)
         ax.minorticks_on()
 
@@ -383,9 +381,7 @@ class PeakPlot(BasePlot):
         norm = Normalize(0, 29)
         im = ScalarMappable(norm=norm)
 
-        self.cb_surf = self.fig.colorbar(im,
-                                         ax=self.proj,
-                                         orientation='vertical')
+        self.cb_surf = self.fig.colorbar(im, ax=self.proj, orientation="vertical")
         self.cb_surf.ax.minorticks_on()
         self.cb_surf.formatter.set_powerlimits((0, 0))
         self.cb_surf.formatter.set_useMathText(True)
@@ -399,64 +395,61 @@ class PeakPlot(BasePlot):
 
         x = np.arange(5)
         y = np.arange(6)
-        z = y+y.size*x[:,np.newaxis]
+        z = y + y.size * x[:, np.newaxis]
 
         gs = self.gs[2]
 
-        ax = self.fig.add_subplot(gs[0,0])
+        ax = self.fig.add_subplot(gs[0, 0])
 
         self.norm.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest')
+        im = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
 
         self.norm_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
         # ax.xaxis.set_ticklabels([])
-        ax.set_ylabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.norm_el.append(el)
         self.norm_sp.append(sp)
 
-        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
-        ax = self.fig.add_subplot(gs[0,1])
+        ax = self.fig.add_subplot(gs[0, 1])
 
         self.norm.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest')
+        im = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
 
         self.norm_im.append(im)
 
         ax.minorticks_on()
         ax.set_aspect(1)
         # ax.xaxis.set_ticklabels([])
-        ax.set_ylabel(r'$\Delta{Q}_2$ [$\AA^{-1}$]')
+        ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.norm_el.append(el)
         self.norm_sp.append(sp)
 
-        ax.set_xlabel(r'$|Q|$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
-        ax = self.fig.add_subplot(gs[0,2])
+        ax = self.fig.add_subplot(gs[0, 2])
 
         self.norm.append(ax)
 
-        im = ax.imshow(z.T,
-                       extent=(0, 5, 0, 6),
-                       origin='lower',
-                       interpolation='nearest')
+        im = ax.imshow(
+            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+        )
 
         self.norm_im.append(im)
 
@@ -465,19 +458,17 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.yaxis.set_ticklabels([])
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, 'r')
+        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
+        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
         self.norm_el.append(el)
         self.norm_sp.append(sp)
 
-        ax.set_xlabel(r'$\Delta{Q}_1$ [$\AA^{-1}$]')
+        ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
         norm = Normalize(0, 29)
         im = ScalarMappable(norm=norm)
 
-        self.cb_norm = self.fig.colorbar(im,
-                                         ax=self.norm,
-                                         orientation='vertical')
+        self.cb_norm = self.fig.colorbar(im, ax=self.norm, orientation="vertical")
         self.cb_norm.ax.minorticks_on()
         self.cb_norm.formatter.set_powerlimits((0, 0))
         self.cb_norm.formatter.set_useMathText(True)
@@ -489,14 +480,13 @@ class PeakPlot(BasePlot):
         lines, caps, bars = self.error_cont
         lines.set_data(x, y)
 
-        barsy, = bars
+        (barsy,) = bars
 
-        yb, yt = y-e, y+e
+        yb, yt = y - e, y + e
 
         n = len(x)
 
-        segments = [np.array([[x[i], yt[i]],
-                              [x[i], yb[i]]]) for i in range(n)]
+        segments = [np.array([[x[i], yt[i]], [x[i], yb[i]]]) for i in range(n)]
 
         barsy.set_segments(segments)
 
@@ -512,11 +502,11 @@ class PeakPlot(BasePlot):
         mask = np.isfinite(y)
         y_fit[~mask] = np.nan
 
-        d0 = 0.5*(x0[1,0]-x0[0,0])
-        d1 = 0.5*(x1[0,1]-x1[0,0])
+        d0 = 0.5 * (x0[1, 0] - x0[0, 0])
+        d1 = 0.5 * (x1[0, 1] - x1[0, 0])
 
-        x0_min, x0_max = x0[0,0]-d0, x0[-1,0]+d0
-        x1_min, x1_max = x1[0,0]-d1, x1[0,-1]+d1
+        x0_min, x0_max = x0[0, 0] - d0, x0[-1, 0] + d0
+        x1_min, x1_max = x1[0, 0] - d1, x1[0, -1] + d1
 
         vmin, vmax = np.nanmin(y), np.nanmax(y)
 
@@ -536,7 +526,7 @@ class PeakPlot(BasePlot):
         self.cb_surf.ax.minorticks_on()
         self.cb_surf.formatter.set_powerlimits((0, 0))
         self.cb_surf.formatter.set_useMathText(True)
-        
+
     def add_data_norm_fit(self, xye, params):
 
         axes, bins, y = xye
@@ -554,21 +544,21 @@ class PeakPlot(BasePlot):
         if mask.sum() == 0:
             mask = np.ones_like(mask, dtype=bool)
 
-        s0 = 0.5*(x0[1,0,0]-x0[0,0,0])
-        s1 = 0.5*(x1[0,1,0]-x1[0,0,0])
-        s2 = 0.5*(x2[0,0,1]-x2[0,0,0])
+        s0 = 0.5 * (x0[1, 0, 0] - x0[0, 0, 0])
+        s1 = 0.5 * (x1[0, 1, 0] - x1[0, 0, 0])
+        s2 = 0.5 * (x2[0, 0, 1] - x2[0, 0, 0])
 
-        x0min, x0max = x0[mask].min()-s0*1, x0[mask].max()+s0*1
-        x1min, x1max = x1[mask].min()-s1*1, x1[mask].max()+s1*1
-        x2min, x2max = x2[mask].min()-s2*1, x2[mask].max()+s2*1
+        x0min, x0max = x0[mask].min() - s0 * 1, x0[mask].max() + s0 * 1
+        x1min, x1max = x1[mask].min() - s1 * 1, x1[mask].max() + s1 * 1
+        x2min, x2max = x2[mask].min() - s2 * 1, x2[mask].max() + s2 * 1
 
-        x0_min, x0_max = x0[0,0,0]-s0, x0[-1,0,0]+s0
-        x1_min, x1_max = x1[0,0,0]-s1, x1[0,-1,0]+s1
-        x2_min, x2_max = x2[0,0,0]-s2, x2[0,0,-1]+s2
+        x0_min, x0_max = x0[0, 0, 0] - s0, x0[-1, 0, 0] + s0
+        x1_min, x1_max = x1[0, 0, 0] - s1, x1[0, -1, 0] + s1
+        x2_min, x2_max = x2[0, 0, 0] - s2, x2[0, 0, -1] + s2
 
-        mask_0 = np.isfinite(y0) #& (y0 > 0)
-        mask_1 = np.isfinite(y1) #& (y1 > 0)
-        mask_2 = np.isfinite(y2) #& (y2 > 0)
+        mask_0 = np.isfinite(y0)  # & (y0 > 0)
+        mask_1 = np.isfinite(y1)  # & (y1 > 0)
+        mask_2 = np.isfinite(y2)  # & (y2 > 0)
 
         y0[~mask_0] = np.nan
         y1[~mask_1] = np.nan
@@ -607,12 +597,12 @@ class PeakPlot(BasePlot):
         self.cb_norm.formatter.set_powerlimits((0, 0))
         self.cb_norm.formatter.set_useMathText(True)
 
-        I = r'$I={}$'
-        I_sig = '$I/\sigma={:.1f}$'
-        B = r'$B={}$'
+        I = r"$I={}$"
+        I_sig = "$I/\sigma={:.1f}$"
+        B = r"$B={}$"
 
         self.norm[0].set_title(I.format(self._sci_notation(params[0])))
-        self.norm[1].set_title(I_sig.format(params[0]/params[1]))
+        self.norm[1].set_title(I_sig.format(params[0] / params[1]))
         self.norm[2].set_title(B.format(self._sci_notation(params[2])))
 
     def _color_limits(self, y):
@@ -684,13 +674,13 @@ class PeakPlot(BasePlot):
         # p1[np.isclose(p1, 0)] = np.nan
         # p2[np.isclose(p2, 0)] = np.nan
 
-        d0 = 0.5*(x0[1,0,0]-x0[0,0,0])
-        d1 = 0.5*(x1[0,1,0]-x1[0,0,0])
-        d2 = 0.5*(x2[0,0,1]-x2[0,0,0])
+        d0 = 0.5 * (x0[1, 0, 0] - x0[0, 0, 0])
+        d1 = 0.5 * (x1[0, 1, 0] - x1[0, 0, 0])
+        d2 = 0.5 * (x2[0, 0, 1] - x2[0, 0, 0])
 
-        x0_min, x0_max = x0[0,0,0]-d0, x0[-1,0,0]+d0
-        x1_min, x1_max = x1[0,0,0]-d1, x1[0,-1,0]+d1
-        x2_min, x2_max = x2[0,0,0]-d2, x2[0,0,-1]+d2
+        x0_min, x0_max = x0[0, 0, 0] - d0, x0[-1, 0, 0] + d0
+        x1_min, x1_max = x1[0, 0, 0] - d1, x1[0, -1, 0] + d1
+        x2_min, x2_max = x2[0, 0, 0] - d2, x2[0, 0, -1] + d2
 
         vmin, vmax = self._color_limits(y2)
 
@@ -748,9 +738,7 @@ class PeakPlot(BasePlot):
 
         r = np.sqrt(np.diag(S))
 
-        rho = [S[1,2]/r[1]/r[2],
-               S[0,2]/r[0]/r[2],
-               S[0,1]/r[0]/r[1]]
+        rho = [S[1, 2] / r[1] / r[2], S[0, 2] / r[0] / r[2], S[0, 1] / r[0] / r[1]]
 
         for el, ax in zip(self.ellip_el[0:2], self.ellip[0:2]):
             self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
@@ -797,8 +785,8 @@ class PeakPlot(BasePlot):
         if not np.isfinite(rho):
             rho = 0
 
-        ellipse.width = 2*np.sqrt(1+rho)
-        ellipse.height = 2*np.sqrt(1-rho)
+        ellipse.width = 2 * np.sqrt(1 + rho)
+        ellipse.height = 2 * np.sqrt(1 - rho)
 
         if np.isclose(rx, 0):
             rx = 1
@@ -808,9 +796,9 @@ class PeakPlot(BasePlot):
         trans = Affine2D()
         trans.rotate_deg(45).scale(rx, ry).translate(cx, cy)
 
-        ellipse.set_transform(trans+ax.transData)
+        ellipse.set_transform(trans + ax.transData)
 
-    def _draw_ellipse(self, ax, cx, cy, rx, ry, rho, color='w'):
+    def _draw_ellipse(self, ax, cx, cy, rx, ry, rho, color="w"):
         """
         Draw ellipse with center, size, and orientation.
 
@@ -827,14 +815,16 @@ class PeakPlot(BasePlot):
 
         """
 
-        peak = Ellipse((0, 0),
-                       width=2*np.sqrt(1+rho),
-                       height=2*np.sqrt(1-rho),
-                       linestyle='-',
-                       edgecolor=color,
-                       facecolor='none',
-                       rasterized=False,
-                       zorder=100)
+        peak = Ellipse(
+            (0, 0),
+            width=2 * np.sqrt(1 + rho),
+            height=2 * np.sqrt(1 - rho),
+            linestyle="-",
+            edgecolor=color,
+            facecolor="none",
+            rasterized=False,
+            zorder=100,
+        )
 
         self._update_ellipse(peak, ax, cx, cy, rx, ry, rho)
 
@@ -848,14 +838,14 @@ class PeakPlot(BasePlot):
         y_min, y_max = ax.get_ylim()
 
         if x0 != 0:
-            slope = y0/x0
+            slope = y0 / x0
         else:
             slope = np.inf
 
-        y_at_x_min = slope*(x_min-x0)+y0 if slope != np.inf else y_min
-        y_at_x_max = slope*(x_max-x0)+y0 if slope != np.inf else y_max
-        x_at_y_min = (y_min-y0)/slope+x0 if slope != 0 else x_min
-        x_at_y_max = (y_max-y0)/slope+x0 if slope != 0 else x_max
+        y_at_x_min = slope * (x_min - x0) + y0 if slope != np.inf else y_min
+        y_at_x_max = slope * (x_max - x0) + y0 if slope != np.inf else y_max
+        x_at_y_min = (y_min - y0) / slope + x0 if slope != 0 else x_min
+        x_at_y_max = (y_max - y0) / slope + x0 if slope != 0 else x_max
 
         points = []
         if y_min <= y_at_x_min <= y_max:
@@ -889,7 +879,7 @@ class PeakPlot(BasePlot):
 
         """
 
-        line, = ax.plot([], [], color='k', linestyle='--')
+        (line,) = ax.plot([], [], color="k", linestyle="--")
 
         self._update_intersecting_line(line, ax, x0, y0)
 
@@ -915,11 +905,11 @@ class PeakPlot(BasePlot):
             val = np.floor(np.log10(abs(x)))
             if np.isfinite(val):
                 exp = int(val)
-                return '{:.2f}\\times 10^{{{}}}'.format(x / 10**exp, exp)
+                return "{:.2f}\\times 10^{{{}}}".format(x / 10**exp, exp)
             else:
-                return '\\infty'
+                return "\\infty"
         else:
-            return '\\infty'
+            return "\\infty"
 
     def add_peak_info(self, wavelength, angles, gon):
         """
@@ -938,10 +928,10 @@ class PeakPlot(BasePlot):
 
         ellip = self.ellip
 
-        ellip[2].set_title(r'$\lambda={:.4f}$ [$\AA$]'.format(wavelength))
-        ellip[3].set_title(r'$({:.1f},{:.1f},{:.1f})^\circ$'.format(*gon))
-        ellip[4].set_title(r'$2\theta={:.2f}^\circ$'.format(angles[0]))
-        ellip[5].set_title(r'$\phi={:.2f}^\circ$'.format(angles[1]))
+        ellip[2].set_title(r"$\lambda={:.4f}$ [$\AA$]".format(wavelength))
+        ellip[3].set_title(r"$({:.1f},{:.1f},{:.1f})^\circ$".format(*gon))
+        ellip[4].set_title(r"$2\theta={:.2f}^\circ$".format(angles[0]))
+        ellip[5].set_title(r"$\phi={:.2f}^\circ$".format(angles[1]))
 
     def add_peak_stats(self, redchi2):
         """
@@ -954,7 +944,6 @@ class PeakPlot(BasePlot):
 
         """
 
-        self.profile.set_title(r'$\chi^2_\nu={:.1f}$'.format(redchi2[0]))
-        self.proj[1].set_title(r'$\chi^2_\nu={:.1f}$'.format(redchi2[1]))
-        self.ellip[1].set_title(r'$\chi^2_\nu={:.1f}$'.format(redchi2[2]))
-        
+        self.profile.set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[0]))
+        self.proj[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1]))
+        self.ellip[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[2]))

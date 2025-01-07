@@ -4,10 +4,11 @@ import subprocess
 
 import garnet.workflow
 
+
 def test_template():
 
-    script = os.path.abspath('./src/garnet/workflow.py')
-    command = ['python', script]
+    script = os.path.abspath("./src/garnet/workflow.py")
+    command = ["python", script]
 
     with tempfile.TemporaryDirectory() as tmpdir:
 
@@ -15,7 +16,7 @@ def test_template():
 
         for inst in garnet.workflow.inst_dict.keys():
 
-            fname = inst+'.yaml'
-            subprocess.run(command+[fname, 'temp', inst])
+            fname = inst + ".yaml"
+            subprocess.run(command + [fname, "temp", inst])
 
             assert os.path.exists(os.path.join(tmpdir, fname))

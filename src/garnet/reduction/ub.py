@@ -1,19 +1,21 @@
-from mantid.simpleapi import (SelectCellWithForm,
-                              ShowPossibleCells,
-                              TransformHKL,
-                              CalculatePeaksHKL,
-                              IndexPeaks,
-                              FindUBUsingFFT,
-                              FindUBUsingLatticeParameters,
-                              FindUBUsingIndexedPeaks,
-                              OptimizeLatticeForCellType,
-                              CalculateUMatrix,
-                              HasUB,
-                              SetUB,
-                              LoadIsawUB,
-                              SaveIsawUB,
-                              CopySample,
-                              mtd)
+from mantid.simpleapi import (
+    SelectCellWithForm,
+    ShowPossibleCells,
+    TransformHKL,
+    CalculatePeaksHKL,
+    IndexPeaks,
+    FindUBUsingFFT,
+    FindUBUsingLatticeParameters,
+    FindUBUsingIndexedPeaks,
+    OptimizeLatticeForCellType,
+    CalculateUMatrix,
+    HasUB,
+    SetUB,
+    LoadIsawUB,
+    SaveIsawUB,
+    CopySample,
+    mtd,
+)
 
 from mantid.geometry import PointGroupFactory
 
@@ -24,13 +26,16 @@ import numpy as np
 import scipy.spatial
 import scipy.optimize
 
-lattice_group = {'Triclinic': '-1',
-                 'Monoclinic': '2/m',
-                 'Orthorhombic': 'mmm',
-                 'Tetragonal': '4/mmm',
-                 'Rhombohedral': '-3m',
-                 'Hexagonal': '6/mmm',
-                 'Cubic': 'm-3m'}
+lattice_group = {
+    "Triclinic": "-1",
+    "Monoclinic": "2/m",
+    "Orthorhombic": "mmm",
+    "Tetragonal": "4/mmm",
+    "Rhombohedral": "-3m",
+    "Hexagonal": "6/mmm",
+    "Cubic": "m-3m",
+}
+
 
 class UBModel:
 
@@ -81,8 +86,9 @@ class UBModel:
 
         """
 
-        LoadIsawUB(InputWorkspace=self.peaks,
-                   Filename=filename.replace('*', str(run_number)))
+        LoadIsawUB(
+            InputWorkspace=self.peaks, Filename=filename.replace("*", str(run_number))
+        )
 
     def determine_UB_with_niggli_cell(self, min_d, max_d, tol=0.1):
         """
@@ -99,18 +105,11 @@ class UBModel:
 
         """
 
-        FindUBUsingFFT(PeaksWorkspace=self.peaks,
-                       MinD=min_d,
-                       MaxD=max_d,
-                       Tolerance=tol)
+        FindUBUsingFFT(PeaksWorkspace=self.peaks, MinD=min_d, MaxD=max_d, Tolerance=tol)
 
-    def determine_UB_with_lattice_parameters(self, a,
-                                                   b,
-                                                   c,
-                                                   alpha,
-                                                   beta,
-                                                   gamma,
-                                                   tol=0.1):
+    def determine_UB_with_lattice_parameters(
+        self, a, b, c, alpha, beta, gamma, tol=0.1
+    ):
         """
         Determine UB with prior known lattice parameters.
 
@@ -125,14 +124,16 @@ class UBModel:
 
         """
 
-        FindUBUsingLatticeParameters(PeaksWorkspace=self.peaks,
-                                     a=a,
-                                     b=b,
-                                     c=c,
-                                     alpha=alpha,
-                                     beta=beta,
-                                     gamma=gamma,
-                                     Tolerance=tol)
+        FindUBUsingLatticeParameters(
+            PeaksWorkspace=self.peaks,
+            a=a,
+            b=b,
+            c=c,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            Tolerance=tol,
+        )
 
     def refine_UB_without_constraints(self, tol=0.1, sat_tol=None):
         """
@@ -149,9 +150,9 @@ class UBModel:
 
         tol_for_sat = sat_tol if sat_tol is not None else tol
 
-        FindUBUsingIndexedPeaks(PeaksWorkspace=self.peaks,
-                                Tolerance=tol,
-                                ToleranceForSatellite=tol_for_sat)
+        FindUBUsingIndexedPeaks(
+            PeaksWorkspace=self.peaks, Tolerance=tol, ToleranceForSatellite=tol_for_sat
+        )
 
     def refine_UB_with_constraints(self, cell, tol=0.1):
         """
@@ -184,10 +185,9 @@ class UBModel:
 
         """
 
-        OptimizeLatticeForCellType(PeaksWorkspace=self.peaks,
-                                   CellType=cell,
-                                   Apply=True,
-                                   Tolerance=tol)
+        OptimizeLatticeForCellType(
+            PeaksWorkspace=self.peaks, CellType=cell, Apply=True, Tolerance=tol
+        )
 
     def refine_U_only(self, a, b, c, alpha, beta, gamma):
         """
@@ -202,13 +202,15 @@ class UBModel:
 
         """
 
-        CalculateUMatrix(PeaksWorkspace=self.peaks,
-                         a=a,
-                         b=b,
-                         c=c,
-                         alpha=alpha,
-                         beta=beta,
-                         gamma=gamma)
+        CalculateUMatrix(
+            PeaksWorkspace=self.peaks,
+            a=a,
+            b=b,
+            c=c,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+        )
 
     def select_cell(self, number, tol=0.1):
         """
@@ -223,10 +225,9 @@ class UBModel:
 
         """
 
-        SelectCellWithForm(PeaksWorkspace=self.peaks,
-                           FormNumber=number,
-                           Apply=True,
-                           Tolerance=tol)
+        SelectCellWithForm(
+            PeaksWorkspace=self.peaks, FormNumber=number, Apply=True, Tolerance=tol
+        )
 
     def possible_conventional_cells(self, max_error=0.2, permutations=True):
         """
@@ -246,10 +247,12 @@ class UBModel:
 
         """
 
-        result = ShowPossibleCells(PeaksWorkspace=self.peaks,
-                                   MaxScalarError=max_error,
-                                   AllowPermutations=permutations,
-                                   BestOnly=False)
+        result = ShowPossibleCells(
+            PeaksWorkspace=self.peaks,
+            MaxScalarError=max_error,
+            AllowPermutations=permutations,
+            BestOnly=False,
+        )
 
         vals = [json.loads(cell) for cell in result.Cells]
 
@@ -268,11 +271,9 @@ class UBModel:
 
         """
 
-        hkl_trans = ','.join(['{},{},{}'.format(*row) for row in transform])
+        hkl_trans = ",".join(["{},{},{}".format(*row) for row in transform])
 
-        TransformHKL(PeaksWorkspace=self.peaks,
-                     Tolerance=tol,
-                     HKLTransform=hkl_trans)
+        TransformHKL(PeaksWorkspace=self.peaks, Tolerance=tol, HKLTransform=hkl_trans)
 
     def generate_lattice_transforms(self, cell):
         """
@@ -300,18 +301,21 @@ class UBModel:
         for symop in pg.getSymmetryOperations():
             T = np.column_stack([symop.transformHKL(vec) for vec in coords])
             if np.linalg.det(T) > 0:
-                name = '{}: '.format(symop.getOrder())+symop.getIdentifier()
+                name = "{}: ".format(symop.getOrder()) + symop.getIdentifier()
                 transform[name] = T.tolist()
 
-        return {key:transform[key] for key in sorted(transform.keys())}
+        return {key: transform[key] for key in sorted(transform.keys())}
 
-    def index_peaks(self, tol=0.1,
-                          sat_tol=None,
-                          mod_vec_1=[0,0,0],
-                          mod_vec_2=[0,0,0],
-                          mod_vec_3=[0,0,0],
-                          max_order=0,
-                          cross_terms=False):
+    def index_peaks(
+        self,
+        tol=0.1,
+        sat_tol=None,
+        mod_vec_1=[0, 0, 0],
+        mod_vec_2=[0, 0, 0],
+        mod_vec_3=[0, 0, 0],
+        max_order=0,
+        cross_terms=False,
+    ):
         """
         Index the peaks and calculate the lattice parameter uncertainties.
 
@@ -338,17 +342,19 @@ class UBModel:
         tol_for_sat = sat_tol if sat_tol is not None else tol
         save_info = True if max_order > 0 else False
 
-        indexing = IndexPeaks(PeaksWorkspace=self.peaks,
-                              Tolerance=tol,
-                              ToleranceForSatellite=tol_for_sat,
-                              RoundHKLs=True,
-                              CommonUBForAll=True,
-                              ModVector1=mod_vec_1,
-                              ModVector2=mod_vec_2,
-                              ModVector3=mod_vec_3,
-                              MaxOrder=max_order,
-                              CrossTerms=cross_terms,
-                              SaveModulationInfo=save_info)
+        indexing = IndexPeaks(
+            PeaksWorkspace=self.peaks,
+            Tolerance=tol,
+            ToleranceForSatellite=tol_for_sat,
+            RoundHKLs=True,
+            CommonUBForAll=True,
+            ModVector1=mod_vec_1,
+            ModVector2=mod_vec_2,
+            ModVector3=mod_vec_3,
+            MaxOrder=max_order,
+            CrossTerms=cross_terms,
+            SaveModulationInfo=save_info,
+        )
 
         return indexing
 
@@ -358,8 +364,7 @@ class UBModel:
 
         """
 
-        CalculatePeaksHKL(PeaksWorkspace=self.peaks,
-                          OverWrite=True)
+        CalculatePeaksHKL(PeaksWorkspace=self.peaks, OverWrite=True)
 
     def copy_UB(self, workspace):
         """
@@ -372,12 +377,14 @@ class UBModel:
 
         """
 
-        CopySample(InputWorkspace=self.peaks,
-                   OutputWorkspace=workspace,
-                   CopyName=False,
-                   CopyMaterial=False,
-                   CopyEnvironment=False,
-                   CopyShape=False)
+        CopySample(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=workspace,
+            CopyName=False,
+            CopyMaterial=False,
+            CopyEnvironment=False,
+            CopyShape=False,
+        )
 
 
 class Optimization:
@@ -397,7 +404,7 @@ class Optimization:
 
         self.peaks = peaks
 
-        ub_inv = np.linalg.inv(self.get_UB())/(2*np.pi)
+        ub_inv = np.linalg.inv(self.get_UB()) / (2 * np.pi)
 
         Qs, hkls = [], []
 
@@ -410,7 +417,7 @@ class Optimization:
 
             if mod_Q > 0:
 
-                diff_hkl = np.abs(hkl-np.dot(ub_inv, Q))
+                diff_hkl = np.abs(hkl - np.dot(ub_inv, Q))
 
                 if (diff_hkl < tol).all():
 
@@ -477,11 +484,11 @@ class Optimization:
 
             U = mtd[self.peaks].sample().getOrientedLattice().getU()
 
-            omega = np.arccos((np.trace(U)-1)/2)
+            omega = np.arccos((np.trace(U) - 1) / 2)
 
             val, vec = np.linalg.eig(U)
 
-            ux, uy, uz = vec[:,np.argwhere(np.isclose(val, 1))[0][0]].real
+            ux, uy, uz = vec[:, np.argwhere(np.isclose(val, 1))[0][0]].real
 
             theta = np.arccos(uz)
             phi = np.arctan2(uy, ux)
@@ -490,11 +497,11 @@ class Optimization:
 
     def U_matrix(self, phi, theta, omega):
 
-        u0 = np.cos(phi)*np.sin(theta)
-        u1 = np.sin(phi)*np.sin(theta)
+        u0 = np.cos(phi) * np.sin(theta)
+        u1 = np.sin(phi) * np.sin(theta)
         u2 = np.cos(theta)
 
-        w = omega*np.array([u0, u1, u2])
+        w = omega * np.array([u0, u1, u2])
 
         U = scipy.spatial.transform.Rotation.from_rotvec(w).as_matrix()
 
@@ -504,9 +511,13 @@ class Optimization:
 
         alpha, beta, gamma = np.deg2rad([alpha, beta, gamma])
 
-        G = np.array([[a**2, a*b*np.cos(gamma), a*c*np.cos(beta)],
-                      [b*a*np.cos(gamma), b**2, b*c*np.cos(alpha)],
-                      [c*a*np.cos(beta), c*b*np.cos(alpha), c**2]])
+        G = np.array(
+            [
+                [a**2, a * b * np.cos(gamma), a * c * np.cos(beta)],
+                [b * a * np.cos(gamma), b**2, b * c * np.cos(alpha)],
+                [c * a * np.cos(beta), c * b * np.cos(alpha), c**2],
+            ]
+        )
 
         B = scipy.linalg.cholesky(np.linalg.inv(G), lower=False)
 
@@ -581,9 +592,9 @@ class Optimization:
         B = self.B_matrix(a, b, c, alpha, beta, gamma)
         U = self.U_matrix(phi, theta, omega)
 
-        UB = np.dot(U,B)
+        UB = np.dot(U, B)
 
-        return (np.einsum('ij,lj->li', UB, hkl)*2*np.pi-Q).flatten()
+        return (np.einsum("ij,lj->li", UB, hkl) * 2 * np.pi - Q).flatten()
 
     def optimize_lattice(self, cell):
         """
@@ -602,21 +613,25 @@ class Optimization:
 
             phi, theta, omega = self.get_orientation_angles()
 
-            fun_dict = {'Cubic': self.cubic,
-                        'Rhombohedral': self.rhombohedral,
-                        'Tetragonal': self.tetragonal,
-                        'Hexagonal': self.hexagonal,
-                        'Orthorhombic': self.orthorhombic,
-                        'Monoclinic': self.monoclinic,
-                        'Triclinic': self.triclinic}
+            fun_dict = {
+                "Cubic": self.cubic,
+                "Rhombohedral": self.rhombohedral,
+                "Tetragonal": self.tetragonal,
+                "Hexagonal": self.hexagonal,
+                "Orthorhombic": self.orthorhombic,
+                "Monoclinic": self.monoclinic,
+                "Triclinic": self.triclinic,
+            }
 
-            x0_dict = {'Cubic': (a, ),
-                       'Rhombohedral': (a, alpha),
-                       'Tetragonal': (a, c),
-                       'Hexagonal': (a, c),
-                       'Orthorhombic': (a, b, c),
-                       'Monoclinic': (a, b, c, beta),
-                       'Triclinic': (a, b, c, alpha, beta, gamma)}
+            x0_dict = {
+                "Cubic": (a,),
+                "Rhombohedral": (a, alpha),
+                "Tetragonal": (a, c),
+                "Hexagonal": (a, c),
+                "Orthorhombic": (a, b, c),
+                "Monoclinic": (a, b, c, beta),
+                "Triclinic": (a, b, c, alpha, beta, gamma),
+            }
 
             fun = fun_dict[cell]
             x0 = x0_dict[cell]
@@ -624,9 +639,7 @@ class Optimization:
             x0 += (phi, theta, omega)
             args = (self.hkl, self.Q, fun)
 
-            sol = scipy.optimize.least_squares(self.residual,
-                                               x0=x0,
-                                               args=args)
+            sol = scipy.optimize.least_squares(self.residual, x0=x0, args=args)
 
             a, b, c, alpha, beta, gamma, phi, theta, omega = fun(sol.x)
 
@@ -638,7 +651,7 @@ class Optimization:
             J = sol.jac
             cov = np.linalg.inv(J.T.dot(J))
 
-            chi2dof = np.sum(sol.fun**2)/(sol.fun.size-sol.x.size)
+            chi2dof = np.sum(sol.fun**2) / (sol.fun.size - sol.x.size)
             cov *= chi2dof
 
             sig = np.sqrt(np.diagonal(cov))
@@ -661,9 +674,6 @@ class Optimization:
 
             SetUB(Workspace=self.peaks, UB=UB)
 
-            mtd[self.peaks].sample().getOrientedLattice().setError(sig_a,
-                                                                   sig_b,
-                                                                   sig_c,
-                                                                   sig_alpha,
-                                                                   sig_beta,
-                                                                   sig_gamma)
+            mtd[self.peaks].sample().getOrientedLattice().setError(
+                sig_a, sig_b, sig_c, sig_alpha, sig_beta, sig_gamma
+            )
