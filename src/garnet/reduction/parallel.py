@@ -2,17 +2,17 @@ import os
 import sys
 import traceback
 
-import multiprocess as multiprocessing
-
-multiprocessing.set_start_method("spawn", force=True)
+import multiprocessing
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
-# np.seterr(all="ignore", invalid="ignore")
-
 from mantid import config
+
+np.seterr(all="ignore", invalid="ignore")
+
+multiprocessing.set_start_method("spawn", force=True)
 
 config["Q.convention"] = "Crystallography"
 config.setLogLevel(2, quiet=False)
@@ -96,9 +96,13 @@ class ParallelProcessor:
         self.n_proc = n_proc
 
     def process_dict(self, data, func):
+        self.function = func
         if self.n_proc > 1:
             with ProcessPoolExecutor(max_workers=self.n_proc) as executor:
-                futures = [executor.submit(func, kv) for kv in data.items()]
+                futures = [
+                    executor.submit(self.safe_function_wrapper, kv)
+                    for kv in data.items()
+                ]
                 results = {}
                 for future in as_completed(futures):
                     try:
@@ -110,3 +114,11 @@ class ParallelProcessor:
         else:
             results = {k: func((k, v)) for k, v in data.items()}
         return results
+
+    def safe_function_wrapper(self, *args, **kwargs):
+        try:
+            return self.function(*args, **kwargs)
+        except Exception as e:
+            print("Exception in worker function: {}".format(e))
+            traceback.print_exc()
+            raise
