@@ -26,6 +26,7 @@ src/garnet/reduction/parallel.py
 src/garnet/reduction/peaks.py
 src/garnet/reduction/plan.py
 src/garnet/reduction/ub.py
+src/garnet/utilities/reflections.py
 tests/test_data.py
 tests/test_determination.py
 tests/test_integration.py
