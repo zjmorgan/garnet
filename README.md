@@ -1,3 +1,1 @@
-# ![](https://github.com/zjmorgan/garnet_reduction/blob/main/garnet.svg)
-
-
+# ![](https://github.com/zjmorgan/garnet/blob/main/garnet.svg)
