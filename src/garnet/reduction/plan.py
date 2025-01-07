@@ -10,7 +10,9 @@ from garnet.config.instruments import beamlines
 
 class Dumper(yaml.Dumper):
     def represent_list(self, data):
-        return self.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+        return self.represent_sequence(
+            "tag:yaml.org,2002:seq", data, flow_style=True
+        )
 
 
 Dumper.add_representer(list, Dumper.represent_list)
@@ -30,7 +32,6 @@ def save_YAML(output, filename):
     """
 
     with open(filename, "w") as f:
-
         yaml.dump(output, f, Dumper=Dumper, sort_keys=False)
 
 
@@ -48,7 +49,6 @@ def save_JSON(output, filename):
     """
 
     with open(filename, "w") as f:
-
         json.dump(output, f, indent=4)
 
 
@@ -65,21 +65,20 @@ def delete_directory(path):
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         for root, dirs, files in os.walk(path, topdown=False):
-            executor.map(os.remove, [os.path.join(root, name) for name in files])
+            executor.map(
+                os.remove, [os.path.join(root, name) for name in files]
+            )
         shutil.rmtree(path, ignore_errors=True)
 
 
 class SubPlan:
-
     def __init__(self, plan):
-
         self.plan = plan
         self.output = "test"
         self.proc = 0
         self.n_proc = 1
 
     def create_directories(self):
-
         output = self.get_output_path()
         if not os.path.exists(output):
             os.mkdir(output)
@@ -179,7 +178,9 @@ class SubPlan:
 
         """
 
-        diagnostics = self.append_name(self.plan["OutputName"]) + "_diagnostics"
+        diagnostics = (
+            self.append_name(self.plan["OutputName"]) + "_diagnostics"
+        )
 
         return os.path.join(self.plan["OutputPath"], self.output, diagnostics)
 
@@ -203,13 +204,10 @@ class SubPlan:
 
 
 class ReductionPlan:
-
     def __init__(self):
-
         self.plan = None
 
     def validate_file(self, fname, ext):
-
         try:
             assert os.path.exists(fname)
         except AssertionError:
@@ -225,7 +223,6 @@ class ReductionPlan:
             sys.exit(1)
 
     def validate_plan(self):
-
         assert self.plan["Instrument"] in beamlines.keys()
 
         if self.plan.get("UBFile") is not None:
@@ -233,7 +230,12 @@ class ReductionPlan:
             for run in self.runs_string_to_list(self.plan["Runs"]):
                 self.validate_file(UB.replace("*", str(run)), ".mat")
 
-        nxs_items = ["VanadiumFile", "FluxFile", "TubeCalibration", "BackgroundFile"]
+        nxs_items = [
+            "VanadiumFile",
+            "FluxFile",
+            "TubeCalibration",
+            "BackgroundFile",
+        ]
 
         for item in nxs_items:
             if self.plan.get(item) is not None:
@@ -282,7 +284,6 @@ class ReductionPlan:
         """
 
         with open(filename, "r") as f:
-
             self.plan = yaml.safe_load(f)
 
         self.validate_plan()
@@ -306,7 +307,6 @@ class ReductionPlan:
         """
 
         if self.plan is not None:
-
             self.set_output(filename)
             runs = self.plan["Runs"]
             if type(runs) is list:

@@ -65,7 +65,6 @@ config["Q.convention"] = "Crystallography"
 
 
 def DataModel(instrument_config):
-
     if type(instrument_config["Wavelength"]) is list:
         return LaueData(instrument_config)
     else:
@@ -73,9 +72,7 @@ def DataModel(instrument_config):
 
 
 class BaseDataModel:
-
     def __init__(self, instrument_config):
-
         self.elastic = None
         self.grouping = None
 
@@ -102,11 +99,15 @@ class BaseDataModel:
         for i, name in enumerate(gon_axis_names):
             axis = axes[i][1]
             if name is not None:
-                self.gon_axis[gon_ind] = ",".join(5 * ["{}"]).format(name, *axis)
+                self.gon_axis[gon_ind] = ",".join(5 * ["{}"]).format(
+                    name, *axis
+                )
                 gon_ind += 1
 
         wl = instrument_config["Wavelength"]
-        self.wavelength_band = wl if type(wl) is list else [0.98 * wl, 1.02 * wl]
+        self.wavelength_band = (
+            wl if type(wl) is list else [0.98 * wl, 1.02 * wl]
+        )
         self.wavelength = np.mean(wl) if type(wl) is list else wl
 
         self.k_min = 2 * np.pi / np.max(self.wavelength_band)
@@ -138,13 +139,14 @@ class BaseDataModel:
         self.time_offset = None
 
         if plan.get("RawFile") is not None:
-
             facility = self.instrument_config["Facility"]
             name = self.instrument_config["Name"]
             iptspath = "IPTS-{}"
             rawfile = plan["RawFile"]
 
-            raw_file_path = os.path.join("/", facility, name, iptspath, rawfile)
+            raw_file_path = os.path.join(
+                "/", facility, name, iptspath, rawfile
+            )
 
             self.raw_file_path = raw_file_path
 
@@ -199,7 +201,9 @@ class BaseDataModel:
         """
 
         ClearUB(Workspace=ws)
-        LoadIsawUB(InputWorkspace=ws, Filename=filename.replace("*", str(run_number)))
+        LoadIsawUB(
+            InputWorkspace=ws, Filename=filename.replace("*", str(run_number))
+        )
 
     def save_UB(self, filename, ws):
         """
@@ -327,7 +331,6 @@ class BaseDataModel:
         """
 
         if bins > 1:
-
             step = (xmax - xmin) / (bins - 1)
 
             min_bin = xmin - 0.5 * step
@@ -336,7 +339,6 @@ class BaseDataModel:
             return min_bin, max_bin, step
 
         else:
-
             return xmin, xmax, xmax - xmin
 
     def calculate_binning_from_step(xmin, xmax, step):
@@ -364,7 +366,6 @@ class BaseDataModel:
         """
 
         if step < xmax - xmin:
-
             bins = np.ceil((xmax - xmin) / step) + 1
 
             min_bin = xmin - 0.5 * step
@@ -373,7 +374,6 @@ class BaseDataModel:
             return min_bin, max_bin, bins
 
         else:
-
             return xmin, xmax, 1
 
     def extract_bin_info(self, ws):
@@ -402,7 +402,9 @@ class BaseDataModel:
         dims = [mtd[ws].getDimension(i) for i in range(mtd[ws].getNumDims())]
 
         xs = [
-            np.linspace(dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries())
+            np.linspace(
+                dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries()
+            )
             for dim in dims
         ]
 
@@ -462,7 +464,9 @@ class BaseDataModel:
         titles = [dim.name + " " + dim.getUnits() for dim in dims]
 
         xs = [
-            np.linspace(dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries())
+            np.linspace(
+                dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries()
+            )
             for dim in dims
         ]
 
@@ -482,7 +486,6 @@ class BaseDataModel:
         """
 
         if mtd.doesExist(ws):
-
             DeleteWorkspace(Workspace=ws)
 
     def combine_histograms(self, ws, merge):
@@ -499,11 +502,9 @@ class BaseDataModel:
         """
 
         if not mtd.doesExist(merge):
-
             CloneWorkspace(InputWorkspace=ws, OutputWorkspace=merge)
 
         else:
-
             PlusMD(LHSWorkspace=merge, RHSWorkspace=ws, OutputWorkspace=merge)
 
             DeleteWorkspace(Workspace=ws)
@@ -642,9 +643,11 @@ class BaseDataModel:
         LoadIsawUB(InputWorkspace="ubw", Filename=ub_file)
 
         if mtd.doesExist(ws):
-
             AddSampleLog(
-                Workspace=ws, LogName="W_MATRIX", LogText=W_MATRIX, LogType="String"
+                Workspace=ws,
+                LogName="W_MATRIX",
+                LogText=W_MATRIX,
+                LogType="String",
             )
 
             run = mtd[ws].getExperimentInfo(0).run()
@@ -680,18 +683,23 @@ class BaseDataModel:
         """
 
         if mtd.doesExist(ws) and mtd.doesExist(peaks):
-
             v0, v1, v2 = projections
 
             (x0_min, x0_max), (x1_min, x1_max), (x2_min, x2_max) = extents
 
             n0, n1, n2 = bins
 
-            x0_min, x0_max, _ = self.calculate_binning_from_bins(x0_min, x0_max, n0)
+            x0_min, x0_max, _ = self.calculate_binning_from_bins(
+                x0_min, x0_max, n0
+            )
 
-            x1_min, x1_max, _ = self.calculate_binning_from_bins(x1_min, x1_max, n1)
+            x1_min, x1_max, _ = self.calculate_binning_from_bins(
+                x1_min, x1_max, n1
+            )
 
-            x2_min, Q2_max, _ = self.calculate_binning_from_bins(x2_min, x2_max, n2)
+            x2_min, Q2_max, _ = self.calculate_binning_from_bins(
+                x2_min, x2_max, n2
+            )
 
             bins = [n0, n1, n2]
             extents = [x0_min, x0_max, x1_min, x1_max, x2_min, x2_max]
@@ -725,8 +733,12 @@ class BaseDataModel:
 
         """
 
-        dQ_dt = 4 * np.pi / lamda * np.cos(np.deg2rad(two_theta) * 0.5) * self.dt
-        dQ_dl = 4 * np.pi / lamda**2 * np.sin(np.deg2rad(two_theta) * 0.5) * 0.01
+        dQ_dt = (
+            4 * np.pi / lamda * np.cos(np.deg2rad(two_theta) * 0.5) * self.dt
+        )
+        dQ_dl = (
+            4 * np.pi / lamda**2 * np.sin(np.deg2rad(two_theta) * 0.5) * 0.01
+        )
 
         return np.min([dQ_dl, dQ_dt])
 
@@ -748,7 +760,6 @@ class BaseDataModel:
         """
 
         if mtd.doesExist(md):
-
             extents = np.array(extents).flatten().tolist()
 
             u0, u1, u2 = projections
@@ -772,9 +783,7 @@ class BaseDataModel:
 
 
 class MonochromaticData(BaseDataModel):
-
     def __init__(self, instrument_config):
-
         super(MonochromaticData, self).__init__(instrument_config)
 
         self.laue = False
@@ -813,7 +822,9 @@ class MonochromaticData(BaseDataModel):
 
         else:
             LoadWANDSCD(
-                Filename=filenames, Grouping=grouping, OutputWorkspace=histo_name
+                Filename=filenames,
+                Grouping=grouping,
+                OutputWorkspace=histo_name,
             )
             run = mtd[histo_name].getExperimentInfo(0).run()
             self.scale = run.getProperty("duration").value
@@ -845,7 +856,6 @@ class MonochromaticData(BaseDataModel):
         """
 
         if mtd.doesExist(histo_name):
-
             Q_min_vals, Q_max_vals = self.get_min_max_values()
 
             ConvertHFIRSCDtoMDE(
@@ -872,7 +882,6 @@ class MonochromaticData(BaseDataModel):
         """
 
         if not mtd.doesExist("van"):
-
             if self.instrument == "DEMAND":
                 HB3AAdjustSampleNorm(
                     Filename=filename,
@@ -884,13 +893,13 @@ class MonochromaticData(BaseDataModel):
 
             else:
                 LoadWANDSCD(
-                    Filename=filename, Grouping=self.grouping, OutputWorkspace="van"
+                    Filename=filename,
+                    Grouping=self.grouping,
+                    OutputWorkspace="van",
                 )
 
             if histo_name is not None:
-
                 if mtd.doesExist(histo_name):
-
                     ws_name = "{}_van".format(histo_name)
 
                     ReplicateMD(
@@ -922,7 +931,6 @@ class MonochromaticData(BaseDataModel):
         """
 
         if not mtd.doesExist("bkg") and filename is not None:
-
             if self.instrument == "DEMAND":
                 HB3AAdjustSampleNorm(
                     Filename=filename,
@@ -936,19 +944,18 @@ class MonochromaticData(BaseDataModel):
 
             else:
                 LoadWANDSCD(
-                    Filename=filename, Grouping=self.grouping, OutputWorkspace="bkg"
+                    Filename=filename,
+                    Grouping=self.grouping,
+                    OutputWorkspace="bkg",
                 )
                 run = mtd["bkg"].getExperimentInfo(0).run()
                 scale = run.getProperty("duration").value
 
             if histo_name is not None:
-
                 if mtd.doesExist(histo_name):
-
                     ws_name = "{}_bkg".format(histo_name)
 
                     if not mtd.doesExist(ws_name):
-
                         ReplicateMD(
                             ShapeWorkspace=histo_name,
                             DataWorkspace="bkg",
@@ -958,7 +965,9 @@ class MonochromaticData(BaseDataModel):
                         self.set_goniometer(ws_name)
 
                         signal = mtd[ws_name].getSignalArray().copy()
-                        mtd[ws_name].setSignalArray(signal * self.scale / scale)
+                        mtd[ws_name].setSignalArray(
+                            signal * self.scale / scale
+                        )
 
     def normalize_to_hkl(self, ws, projections, extents, bins, symmetry=None):
         """
@@ -980,18 +989,23 @@ class MonochromaticData(BaseDataModel):
         """
 
         if mtd.doesExist(ws) and mtd.doesExist("van"):
-
             v0, v1, v2 = projections
 
             (Q0_min, Q0_max), (Q1_min, Q1_max), (Q2_min, Q2_max) = extents
 
             nQ0, nQ1, nQ2 = bins
 
-            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(Q0_min, Q0_max, nQ0)
+            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(
+                Q0_min, Q0_max, nQ0
+            )
 
-            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(Q1_min, Q1_max, nQ1)
+            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(
+                Q1_min, Q1_max, nQ1
+            )
 
-            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(Q2_min, Q2_max, nQ2)
+            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(
+                Q2_min, Q2_max, nQ2
+            )
 
             bkg_ws = ws + "_bkg" if mtd.doesExist(ws + "_bkg") else None
 
@@ -1001,8 +1015,12 @@ class MonochromaticData(BaseDataModel):
             _data = ws + "_data" if mtd.doesExist(ws + "_data") else None
             _norm = ws + "_norm" if mtd.doesExist(ws + "_norm") else None
 
-            __data = ws + "_bkg_data" if mtd.doesExist(ws + "_bkg_data") else None
-            __norm = ws + "_bkg_norm" if mtd.doesExist(ws + "_bkg_norm") else None
+            __data = (
+                ws + "_bkg_data" if mtd.doesExist(ws + "_bkg_data") else None
+            )
+            __norm = (
+                ws + "_bkg_norm" if mtd.doesExist(ws + "_bkg_norm") else None
+            )
 
             ConvertWANDSCDtoQ(
                 InputWorkspace=ws,
@@ -1033,9 +1051,7 @@ class MonochromaticData(BaseDataModel):
 
 
 class LaueData(BaseDataModel):
-
     def __init__(self, instrument_config):
-
         super(LaueData, self).__init__(instrument_config)
 
         self.laue = True
@@ -1080,11 +1096,12 @@ class LaueData(BaseDataModel):
         #                 OutputWorkspace=event_name)
 
         MaskDetectorsIf(
-            InputWorkspace=event_name, Operator="LessEqual", OutputWorkspace=event_name
+            InputWorkspace=event_name,
+            Operator="LessEqual",
+            OutputWorkspace=event_name,
         )
 
         if self.elastic == True and self.time_offset is not None:
-
             CopyInstrumentParameters(
                 InputWorkspace=self.ref_inst, OutputWorkspace=event_name
             )
@@ -1098,11 +1115,9 @@ class LaueData(BaseDataModel):
         self.set_goniometer(event_name)
 
         if self.grouping is not None and grouping is not None:
-
             self.create_grouping(grouping)
 
         if self.grouping is not None:
-
             self.group_pixels(event_name)
 
     def calculate_maximum_Q(self):
@@ -1133,22 +1148,25 @@ class LaueData(BaseDataModel):
         """
 
         if tube_calibration is not None:
-
             if not mtd.doesExist("tube_table"):
+                LoadNexus(
+                    Filename=tube_calibration, OutputWorkspace="tube_table"
+                )
 
-                LoadNexus(Filename=tube_calibration, OutputWorkspace="tube_table")
-
-            ApplyCalibration(Workspace=event_name, CalibrationTable="tube_table")
+            ApplyCalibration(
+                Workspace=event_name, CalibrationTable="tube_table"
+            )
 
         if detector_calibration is not None:
-
             if os.path.splitext(detector_calibration)[1] == ".xml":
-
-                LoadParameterFile(Workspace=event_name, Filename=detector_calibration)
+                LoadParameterFile(
+                    Workspace=event_name, Filename=detector_calibration
+                )
 
             else:
-
-                LoadIsawDetCal(InputWorkspace=event_name, Filename=detector_calibration)
+                LoadIsawDetCal(
+                    InputWorkspace=event_name, Filename=detector_calibration
+                )
 
     def preprocess_detectors(self, ws=None):
         """
@@ -1165,10 +1183,11 @@ class LaueData(BaseDataModel):
             ws = self.instrument
 
         if not mtd.doesExist("detectors") and mtd.doesExist(ws):
-
             ExtractMonitors(InputWorkspace=ws, DetectorWorkspace=ws)
 
-            PreprocessDetectorsToMD(InputWorkspace=ws, OutputWorkspace="detectors")
+            PreprocessDetectorsToMD(
+                InputWorkspace=ws, OutputWorkspace="detectors"
+            )
 
             two_theta = mtd["detectors"].column("TwoTheta")
 
@@ -1190,7 +1209,6 @@ class LaueData(BaseDataModel):
         """
 
         if detector_mask is not None and not mtd.doesExist("mask"):
-
             LoadMask(
                 Instrument=self.ref_inst,
                 InputFile=detector_mask,
@@ -1199,11 +1217,9 @@ class LaueData(BaseDataModel):
             )
 
         if mtd.doesExist("sa_mask"):
-
             MaskDetectors(Workspace=event_name, MaskedWorkspace="sa_mask")
 
         if mtd.doesExist("mask"):
-
             MaskDetectors(Workspace=event_name, MaskedWorkspace="mask")
 
     def create_grouping(self, grouping):
@@ -1253,9 +1269,10 @@ class LaueData(BaseDataModel):
         """
 
         if self.grouping is not None:
-
             GroupDetectors(
-                InputWorkspace=ws, GroupingPattern=self.grouping, OutputWorkspace=ws
+                InputWorkspace=ws,
+                GroupingPattern=self.grouping,
+                OutputWorkspace=ws,
             )
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
@@ -1278,7 +1295,6 @@ class LaueData(BaseDataModel):
         self.calculate_maximum_Q()
 
         if mtd.doesExist(event_name):
-
             Q_min_vals, Q_max_vals = self.get_min_max_values()
 
             ConvertToMD(
@@ -1316,7 +1332,6 @@ class LaueData(BaseDataModel):
         self.calculate_maximum_Q()
 
         if mtd.doesExist(event_name):
-
             Q_min_vals, Q_max_vals = self.get_min_max_values()
 
             ConvertToMD(
@@ -1344,7 +1359,6 @@ class LaueData(BaseDataModel):
         """
 
         if not mtd.doesExist("sa"):
-
             LoadNexus(Filename=vanadium_file, OutputWorkspace="sa")
 
             RemoveLogs(Workspace="sa")
@@ -1356,7 +1370,6 @@ class LaueData(BaseDataModel):
             ExtractMask(InputWorkspace="sa", OutputWorkspace="sa_mask")
 
         if not mtd.doesExist("flux"):
-
             LoadNexus(Filename=flux_file, OutputWorkspace="flux")
 
             RemoveLogs(Workspace="flux")
@@ -1381,11 +1394,12 @@ class LaueData(BaseDataModel):
         """
 
         if not mtd.doesExist("spectra"):
-
             LoadNexus(Filename=spectra_file, OutputWorkspace="spectra")
 
             ConvertUnits(
-                InputWorkspace="spectra", OutputWorkspace="spectra", Target="Wavelength"
+                InputWorkspace="spectra",
+                OutputWorkspace="spectra",
+                Target="Wavelength",
             )
 
             RemoveLogs(Workspace="spectra")
@@ -1424,7 +1438,6 @@ class LaueData(BaseDataModel):
         """
 
         if not mtd.doesExist("efficiency"):
-
             LoadNexus(Filename=efficiency_file, OutputWorkspace="efficiency")
 
             ConvertUnits(
@@ -1444,7 +1457,8 @@ class LaueData(BaseDataModel):
             RemoveLogs(Workspace="efficiency")
 
             CreateDetectorTable(
-                InputWorkspace="efficiency", DetectorTableWorkspace="efficiency_det"
+                InputWorkspace="efficiency",
+                DetectorTableWorkspace="efficiency_det",
             )
 
             det_ids = mtd["efficiency_det"].column(2)
@@ -1458,9 +1472,7 @@ class LaueData(BaseDataModel):
                     self.efficiency_dict[ind] = i
 
     def calculate_correction_factor(self):
-
         if not mtd.doesExist("factor"):
-
             params = [
                 mtd["spectra"].getXDimension().getMinimum(),
                 mtd["spectra"].getXDimension().getBinWidth(),
@@ -1489,7 +1501,9 @@ class LaueData(BaseDataModel):
 
                 if ind_ef is not None and ind_sp is not None:
                     y = y_ef[ind_ef] * y_sp[ind_sp]
-                    L = lamda[ind_ef] ** 4 / (2 * np.sin(0.5 * two_theta[i]) ** 2)
+                    L = lamda[ind_ef] ** 4 / (
+                        2 * np.sin(0.5 * two_theta[i]) ** 2
+                    )
                     mtd["factor"].setY(i, y * L)
 
     def crop_for_normalization(self, event_name):
@@ -1502,13 +1516,16 @@ class LaueData(BaseDataModel):
         """
 
         if mtd.doesExist(event_name):
-
             ConvertUnits(
-                InputWorkspace=event_name, OutputWorkspace=event_name, Target="Momentum"
+                InputWorkspace=event_name,
+                OutputWorkspace=event_name,
+                Target="Momentum",
             )
 
             CompressEvents(
-                InputWorkspace=event_name, OutputWorkspace=event_name, Tolerance=0.0001
+                InputWorkspace=event_name,
+                OutputWorkspace=event_name,
+                Tolerance=0.0001,
             )
 
             CropWorkspaceForMDNorm(
@@ -1529,16 +1546,21 @@ class LaueData(BaseDataModel):
 
         """
 
-        NormaliseByCurrent(InputWorkspace=event_name, OutputWorkspace=event_name)
+        NormaliseByCurrent(
+            InputWorkspace=event_name, OutputWorkspace=event_name
+        )
 
         ConvertUnits(
-            InputWorkspace=event_name, OutputWorkspace=event_name, Target="Wavelength"
+            InputWorkspace=event_name,
+            OutputWorkspace=event_name,
+            Target="Wavelength",
         )
 
         if mtd.doesExist("bkg"):
-
             Minus(
-                LHSWorkspace=event_name, RHSWorkspace="bkg", OutputWorkspace=event_name
+                LHSWorkspace=event_name,
+                RHSWorkspace="bkg",
+                OutputWorkspace=event_name,
             )
 
         Divide(
@@ -1563,17 +1585,19 @@ class LaueData(BaseDataModel):
         """
 
         if not mtd.doesExist("bkg_md") and filename is not None:
-
             if not mtd.doesExist("bkg"):
-
                 Load(Filename=filename, OutputWorkspace="bkg")
 
                 ConvertUnits(
-                    InputWorkspace="bkg", OutputWorkspace="bkg", Target="Momentum"
+                    InputWorkspace="bkg",
+                    OutputWorkspace="bkg",
+                    Target="Momentum",
                 )
 
                 CompressEvents(
-                    InputWorkspace="bkg", OutputWorkspace="bkg", Tolerance=0.0001
+                    InputWorkspace="bkg",
+                    OutputWorkspace="bkg",
+                    Tolerance=0.0001,
                 )
 
                 CropWorkspaceForMDNorm(
@@ -1584,25 +1608,24 @@ class LaueData(BaseDataModel):
                 )
 
                 if self.grouping is not None:
-
                     self.group_pixels("bkg")
 
                 if mtd.doesExist("sa_mask"):
-
                     MaskDetectors(Workspace="bkg", MaskedWorkspace="sa_mask")
 
                 if mtd.doesExist("mask"):
-
                     MaskDetectors(Workspace="bkg", MaskedWorkspace="mask")
 
                 if not mtd["bkg"].run().hasProperty("NormalizationFactor"):
-
-                    NormaliseByCurrent(InputWorkspace="bkg", OutputWorkspace="bkg")
+                    NormaliseByCurrent(
+                        InputWorkspace="bkg", OutputWorkspace="bkg"
+                    )
 
                 if mtd.doesExist("spectra"):
-
                     ConvertUnits(
-                        InputWorkspace="bkg", OutputWorkspace="bkg", Target="Wavelength"
+                        InputWorkspace="bkg",
+                        OutputWorkspace="bkg",
+                        Target="Wavelength",
                     )
 
                 #     Divide(LHSWorkspace='bkg',
@@ -1621,13 +1644,16 @@ class LaueData(BaseDataModel):
                 #             AllowDifferentNumberSpectra=True)
 
             if not mtd.doesExist("spectra"):
-
                 pc = mtd["bkg"].run().getProperty("gd_prtn_chrg").value
 
-                CreateSingleValuedWorkspace(DataValue=pc, OutputWorkspace="pc_scale")
+                CreateSingleValuedWorkspace(
+                    DataValue=pc, OutputWorkspace="pc_scale"
+                )
 
                 Multiply(
-                    LHSWorkspace="bkg", RHSWorkspace="pc_scale", OutputWorkspace="bkg"
+                    LHSWorkspace="bkg",
+                    RHSWorkspace="pc_scale",
+                    OutputWorkspace="bkg",
                 )
 
                 Q_min_vals, Q_max_vals = self.get_min_max_values()
@@ -1665,18 +1691,23 @@ class LaueData(BaseDataModel):
         """
 
         if mtd.doesExist(md) and mtd.doesExist("sa") and mtd.doesExist("flux"):
-
             v0, v1, v2 = projections
 
             (Q0_min, Q0_max), (Q1_min, Q1_max), (Q2_min, Q2_max) = extents
 
             nQ0, nQ1, nQ2 = bins
 
-            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(Q0_min, Q0_max, nQ0)
+            Q0_min, Q0_max, dQ0 = self.calculate_binning_from_bins(
+                Q0_min, Q0_max, nQ0
+            )
 
-            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(Q1_min, Q1_max, nQ1)
+            Q1_min, Q1_max, dQ1 = self.calculate_binning_from_bins(
+                Q1_min, Q1_max, nQ1
+            )
 
-            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(Q2_min, Q2_max, nQ2)
+            Q2_min, Q2_max, dQ2 = self.calculate_binning_from_bins(
+                Q2_min, Q2_max, nQ2
+            )
 
             bkg_ws = "bkg_md" if mtd.doesExist("bkg_md") else None
 
@@ -1686,8 +1717,12 @@ class LaueData(BaseDataModel):
             _data = md + "_data" if mtd.doesExist(md + "_data") else None
             _norm = md + "_norm" if mtd.doesExist(md + "_norm") else None
 
-            __data = md + "_bkg_data" if mtd.doesExist(md + "_bkg_data") else None
-            __norm = md + "_bkg_norm" if mtd.doesExist(md + "_bkg_norm") else None
+            __data = (
+                md + "_bkg_data" if mtd.doesExist(md + "_bkg_data") else None
+            )
+            __norm = (
+                md + "_bkg_norm" if mtd.doesExist(md + "_bkg_norm") else None
+            )
 
             MDNorm(
                 InputWorkspace="md",

@@ -75,7 +75,11 @@ beamlines = {
             "BL11B:Mot:chi": [0, 0, 1, 1],
             "BL11B:Mot:phi": [0, 1, 0, 1],
         },
-        "GoniometerAxisNames": ["BL11B:Mot:omega", "BL11B:Mot:chi", "BL11B:Mot:phi"],
+        "GoniometerAxisNames": [
+            "BL11B:Mot:omega",
+            "BL11B:Mot:chi",
+            "BL11B:Mot:phi",
+        ],
         "GoniometerEntry": "metadata.entry.daslogs",
         "Scale": "metadata.entry.proton_charge",
         "Title": "metadata.entry.title",

@@ -29,7 +29,12 @@ for i, peak in enumerate(mtd["peaks"]):
     row = peak.getRow()
     col = peak.getCol()
 
-    if row <= row_lim[0] or row >= row_lim[1] or col <= col_lim[0] or col >= col_lim[1]:
+    if (
+        row <= row_lim[0]
+        or row >= row_lim[1]
+        or col <= col_lim[0]
+        or col >= col_lim[1]
+    ):
         peak.setIntensity(peak.getIntensity())
         peak.setSigmaIntensity(peak.getIntensity())
 
@@ -39,7 +44,9 @@ for i, peak in enumerate(mtd["peaks"]):
         peak.setIntensity(peak.getIntensity())
         peak.setSigmaIntensity(peak.getIntensity())
 
-    elif shape["radius0"] == 0 or shape["radius1"] == 0 or shape["radius2"] == 0:
+    elif (
+        shape["radius0"] == 0 or shape["radius1"] == 0 or shape["radius2"] == 0
+    ):
         peak.setIntensity(peak.getIntensity())
         peak.setSigmaIntensity(peak.getIntensity())
 
@@ -85,7 +92,6 @@ def AbsorptionCorrection(
     params=[0.1, 0.2, 0.4],
     shape="plate",
 ):
-
     if shape == "sphere":
         assert type(params) is float
     elif shape == "cylinder":
@@ -143,7 +149,12 @@ def AbsorptionCorrection(
         </cuboid> \
         <algebra val="cuboid" /> \
       '.format(
-            params[0] / 100, params[1] / 100, params[2] / 100, alpha, beta, gamma
+            params[0] / 100,
+            params[1] / 100,
+            params[2] / 100,
+            alpha,
+            beta,
+            gamma,
         )
 
     shape_dict = {"Shape": "CSG", "Value": shape}
@@ -177,7 +188,6 @@ def AbsorptionCorrection(
     }
 
     for i, run in enumerate(runs):
-
         FilterPeaks(
             InputWorkspace=ws,
             FilterVariable="RunNumber",
@@ -189,7 +199,9 @@ def AbsorptionCorrection(
         R = mtd["tmp"].getPeak(0).getGoniometerMatrix()
 
         mtd["tmp"].run().getGoniometer().setR(R)
-        omega, chi, phi = mtd["tmp"].run().getGoniometer().getEulerAngles("YZY")
+        omega, chi, phi = (
+            mtd["tmp"].run().getGoniometer().getEulerAngles("YZY")
+        )
 
         SetGoniometer(
             Workspace="tmp",
@@ -200,7 +212,9 @@ def AbsorptionCorrection(
 
         SetSample(InputWorkspace="tmp", Geometry=shape_dict, Material=mat_dict)
 
-        AddAbsorptionWeightedPathLengths(InputWorkspace="tmp", ApplyCorrection=False)
+        AddAbsorptionWeightedPathLengths(
+            InputWorkspace="tmp", ApplyCorrection=False
+        )
 
         if i == 0:
             CloneWorkspace(InputWorkspace="tmp", OutputWorkspace=ws + "_corr")
@@ -250,7 +264,6 @@ def AbsorptionCorrection(
     print("mass: {:.4f} mg\n".format(m))
 
     for peak in mtd[ws + "_corr"]:
-
         wl = peak.getWavelength()
         tbar = peak.getAbsorptionWeightedPathLength()
 
@@ -303,7 +316,9 @@ def AbsorptionCorrection(
 #             ax.view_init(vertical_axis='y', elev=27, azim=50)
 #             fig.show()
 
-AbsorptionCorrection("peaks", "Yb3 Al5 O12", 8, [1, 0, 0], [0, 1, 0], 0.3, "sphere")
+AbsorptionCorrection(
+    "peaks", "Yb3 Al5 O12", 8, [1, 0, 0], [0, 1, 0], 0.3, "sphere"
+)
 
 # CloneWorkspace(InputWorkspace='peaks',
 #                OutputWorkspace='peaks_corr')

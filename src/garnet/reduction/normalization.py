@@ -16,9 +16,7 @@ from garnet.config.instruments import beamlines
 
 
 class Normalization(SubPlan):
-
     def __init__(self, plan):
-
         super(Normalization, self).__init__(plan)
 
         self.params = plan["Normalization"]
@@ -27,11 +25,9 @@ class Normalization(SubPlan):
         self.validate_params()
 
     def validate_params(self):
-
         symbols = list(space_point.keys()) + list(point_laue.keys())
 
         if self.params.get("Symmetry") is not None:
-
             symmetry = self.params["Symmetry"].replace(" ", "")
             assert symmetry in symbols
             if space_point.get(symmetry) is not None:
@@ -52,7 +48,6 @@ class Normalization(SubPlan):
 
     @staticmethod
     def normalize_parallel(plan, runs, proc):
-
         plan["Runs"] = runs
         plan["ProcName"] = "_p{}".format(proc)
 
@@ -62,19 +57,16 @@ class Normalization(SubPlan):
         return instance.normalize()
 
     def normalize(self):
-
         data = DataModel(beamlines[self.plan["Instrument"]])
         data.update_raw_path(self.plan)
 
         runs = self.plan["Runs"]
 
         if data.laue:
-
             self.run = 0
             self.runs = len(runs)
 
             for run in runs:
-
                 self.run += 1
 
                 data.load_data(
@@ -114,18 +106,17 @@ class Normalization(SubPlan):
                 )
 
         else:
-
             if self.plan["Instrument"] == "WAND²":
-
                 self.runs = 1
                 self.runs += 1
 
-                data.load_data("md", self.plan["IPTS"], runs, self.plan.get("Grouping"))
+                data.load_data(
+                    "md", self.plan["IPTS"], runs, self.plan.get("Grouping")
+                )
 
                 data.load_generate_normalization(self.plan["VanadiumFile"])
 
                 if self.plan["UBFile"] is not None:
-
                     data.load_clear_UB(self.plan["UBFile"], "md")
 
                 data.load_background(self.plan.get("BackgroundFile"), "md")
@@ -139,9 +130,7 @@ class Normalization(SubPlan):
                 )
 
             else:
-
                 for run in runs:
-
                     self.runs += 1
 
                     data.load_data(
@@ -151,7 +140,6 @@ class Normalization(SubPlan):
                     data.load_generate_normalization(self.plan["VanadiumFile"])
 
                     if self.plan["UBFile"] is not None:
-
                         data.load_clear_UB(self.plan["UBFile"], "md")
 
                     data.load_background(self.plan.get("BackgroundFile"), "md")
@@ -176,7 +164,6 @@ class Normalization(SubPlan):
         data.save_histograms(norm_file, "md_norm")
 
         if mtd.doesExist("md_bkg_data") and mtd.doesExist("md_bkg_norm"):
-
             data_file = self.get_file(output_file, "bkg_data")
             norm_file = self.get_file(output_file, "bkg_norm")
 
@@ -348,7 +335,6 @@ class Normalization(SubPlan):
 
     @staticmethod
     def combine_parallel(plan, files):
-
         instance = Normalization(plan)
 
         return instance.combine(files)
@@ -371,7 +357,6 @@ class Normalization(SubPlan):
         data.update_raw_path(self.plan)
 
         for ind, file in enumerate(files):
-
             data_file = self.get_file(file, "data")
             norm_file = self.get_file(file, "norm")
 
@@ -385,7 +370,6 @@ class Normalization(SubPlan):
             bkg_norm_file = self.get_file(file, "bkg_norm")
 
             if os.path.exists(bkg_data_file) and os.path.exists(bkg_norm_file):
-
                 data.load_histograms(bkg_data_file, "tmp_bkg_data")
                 data.load_histograms(bkg_norm_file, "tmp_bkg_norm")
 
@@ -407,11 +391,9 @@ class Normalization(SubPlan):
         UB_file = file.replace(".nxs", ".mat")
 
         for ws in ["data", "norm", "result"]:
-
             data.add_UBW(ws, UB_file, self.params["Projections"])
 
         for ind, file in enumerate(files):
-
             UB_file = file.replace(".nxs", ".mat")
 
             os.remove(UB_file)
@@ -424,7 +406,6 @@ class Normalization(SubPlan):
         UB, W, titles, axes = data.extract_axis_info("result")
 
         for i, vals in enumerate(axes):
-
             norm = np.zeros(3, dtype=int)
             norm[i] = 1
 
@@ -435,9 +416,7 @@ class Normalization(SubPlan):
             plot.calculate_transforms(axes, titles, norm)
 
             for val in vals:
-
                 if np.isclose(np.round(val, 4) % 1, 0):
-
                     plot.make_slice(signal, val)
                     pdf.add_plot(plot.fig)
 
@@ -448,7 +427,6 @@ class Normalization(SubPlan):
             pdf.close()
 
         if mtd.doesExist("bkg_data") and mtd.doesExist("bkg_norm"):
-
             data_file = self.get_file(diag_file, "bkg_data")
             norm_file = self.get_file(diag_file, "bkg_norm")
 

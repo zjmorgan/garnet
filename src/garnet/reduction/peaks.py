@@ -46,9 +46,7 @@ centering_reflection = {
 
 
 class PeaksModel:
-
     def __init__(self):
-
         self.edge_pixels = 0
 
     def find_peaks(self, md, peaks, max_d, density=1000, max_peaks=50):
@@ -170,7 +168,6 @@ class PeaksModel:
         )
 
         for peak in mtd[peaks]:
-
             Q0, Q1, Q2 = peak.getQSampleFrame()
 
             shape = peak.getPeakShape()
@@ -178,7 +175,6 @@ class PeaksModel:
             shape_dict = eval(shape.toJSON())
 
             if "translation0" in shape_dict.keys():
-
                 Q0 += shape_dict["translation0"]
                 Q1 += shape_dict["translation1"]
                 Q2 += shape_dict["translation2"]
@@ -189,11 +185,9 @@ class PeaksModel:
                 Qx, Qy, Qz = R @ Q
 
                 if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
-
                     peak.setQSampleFrame(V3D(Q0, Q1, Q2))
 
         if method == "ellipsoid":
-
             IntegratePeaksMD(
                 InputWorkspace=md,
                 PeaksWorkspace=peaks,
@@ -256,8 +250,12 @@ class PeaksModel:
 
         """
 
-        background_inner_rad = background_inner_fact * peak_radius if fix else 0
-        background_outer_rad = background_outer_fact * peak_radius if fix else 0
+        background_inner_rad = (
+            background_inner_fact * peak_radius if fix else 0
+        )
+        background_outer_rad = (
+            background_outer_fact * peak_radius if fix else 0
+        )
 
         background_inner_fact = 0 if fix else background_inner_fact
         background_outer_fact = 0 if fix else background_outer_fact
@@ -284,7 +282,9 @@ class PeaksModel:
             WorkspaceIndex=n - 1,
         )
 
-        peak_radius = mtd[peaks + "_sig/noise_vs_rad/strong"].extractX().ravel()
+        peak_radius = (
+            mtd[peaks + "_sig/noise_vs_rad/strong"].extractX().ravel()
+        )
         sig_noise = mtd[peaks + "_sig/noise_vs_rad/strong"].extractY().ravel()
 
         # ol = mtd['peaks'].sample().getOrientedLattice()
@@ -299,7 +299,12 @@ class PeaksModel:
         return peak_radius, sig_noise, x, y, e, lamda
 
     def intensity_profile(
-        self, md, peaks, peak_radius, background_inner_fact=1, background_outer_fact=1.5
+        self,
+        md,
+        peaks,
+        peak_radius,
+        background_inner_fact=1,
+        background_outer_fact=1.5,
     ):
         """
         Integrate peak intensity as profile.
@@ -356,7 +361,12 @@ class PeaksModel:
         return x, y, lamda
 
     def intensity_projection(
-        self, md, peaks, peak_radius, background_inner_fact=1, background_outer_fact=1.5
+        self,
+        md,
+        peaks,
+        peak_radius,
+        background_inner_fact=1,
+        background_outer_fact=1.5,
     ):
         """
         Integrate peak intensity as profile.
@@ -408,7 +418,6 @@ class PeaksModel:
         intensity = []
 
         for peak in mtd[peaks + "_projection"]:
-
             tt = peak.getScattering()
             I = peak.getIntensity()
             Q = peak.getQSampleFrame()
@@ -448,14 +457,12 @@ class PeaksModel:
         return x, y, theta
 
     def extract_peaks_roi(self, md, peaks, r_cut, n_bins=21):
-
         signals = []
         weights = []
         d2s = []
         lamdas = []
 
         for peak in mtd[peaks]:
-
             Q = peak.getQSampleFrame()
             lamda = peak.getWavelength()
 
@@ -488,7 +495,9 @@ class PeaksModel:
             ]
 
             xs = [
-                np.linspace(dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries())
+                np.linspace(
+                    dim.getMinimum(), dim.getMaximum(), dim.getNBoundaries()
+                )
                 for dim in dims
             ]
 
@@ -499,7 +508,6 @@ class PeaksModel:
             mask = (signal > 0) & np.isfinite(weight)
 
             if mask.sum() > 5:
-
                 d2s.append(x[mask] ** 2 + y[mask] ** 2 + z[mask] ** 2)
                 lamdas.append(lamda)
 
@@ -525,7 +533,6 @@ class PeaksModel:
         """
 
         if HasUB(Workspace=ws):
-
             if hasattr(mtd[ws], "sample"):
                 ol = mtd[ws].sample().getOrientedLattice()
             else:
@@ -555,7 +562,6 @@ class PeaksModel:
         """
 
         if HasUB(Workspace=ws):
-
             if hasattr(mtd[ws], "sample"):
                 ol = mtd[ws].sample().getOrientedLattice()
             else:
@@ -615,7 +621,6 @@ class PeaksModel:
             refl_conds = [centering_reflection[centering]]
 
         for i, refl_cond in enumerate(refl_conds):
-
             peaks_cond = peaks + "_{}".format(refl_cond)
 
             PredictPeaks(
@@ -631,10 +636,14 @@ class PeaksModel:
             )
 
             if i == 0:
-                CloneWorkspace(InputWorkspace=peaks_cond, OutputWorkspace=peaks)
+                CloneWorkspace(
+                    InputWorkspace=peaks_cond, OutputWorkspace=peaks
+                )
             else:
                 CombinePeaksWorkspaces(
-                    LHSWorkspace=peaks, RHSWorkspace=peaks_cond, OutputWorkspace=peaks
+                    LHSWorkspace=peaks,
+                    RHSWorkspace=peaks_cond,
+                    OutputWorkspace=peaks,
                 )
 
         self.remove_duplicate_peaks(peaks)
@@ -741,7 +750,6 @@ class PeaksModel:
         Rs = self.get_all_goniometer_matrices(data_ws)
 
         for R in Rs:
-
             self.set_goniometer(peaks_ws, R)
 
             self.predict_modulated_peaks(
@@ -772,7 +780,6 @@ class PeaksModel:
         columns = ["l", "k", "h"]
 
         for col in columns:
-
             SortPeaksWorkspace(
                 InputWorkspace=peaks,
                 ColumnNameToSortBy=col,
@@ -813,11 +820,10 @@ class PeaksModel:
         self.sort_peaks_by_hkl(peaks)
 
         for no in range(mtd[peaks].getNumberPeaks() - 1, 0, -1):
-
             if (
-                mtd[peaks].getPeak(no).getHKL() - mtd[peaks].getPeak(no - 1).getHKL()
+                mtd[peaks].getPeak(no).getHKL()
+                - mtd[peaks].getPeak(no - 1).getHKL()
             ).norm2() == 0:
-
                 mtd[peaks].getPeak(no).setRunNumber(-1)
 
         FilterPeaks(
@@ -847,7 +853,6 @@ class PeaksModel:
         Rs = []
 
         for ei in range(mtd[ws].getNumExperimentInfo()):
-
             run = mtd[ws].getExperimentInfo(ei).run()
 
             n_gon = run.getNumGoniometers()
@@ -872,7 +877,6 @@ class PeaksModel:
         Rs = self.get_all_goniometer_matrices(ws)
 
         for no in range(mtd[peaks].getNumberPeaks()):
-
             peak = mtd[peaks].getPeak(no)
 
             R = peak.getGoniometerMatrix()
@@ -942,11 +946,9 @@ class PeaksModel:
         """
 
         if not mtd.doesExist(merge):
-
             CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=merge)
 
         else:
-
             CombinePeaksWorkspaces(
                 LHSWorkspace=merge, RHSWorkspace=peaks, OutputWorkspace=merge
             )
@@ -987,7 +989,6 @@ class PeaksModel:
         """
 
         if mtd.doesExist(peaks):
-
             DeleteWorkspace(Workspace=peaks)
 
     def remove_weak_peaks(self, peaks, sig_noise=3):
@@ -1027,7 +1028,6 @@ class PeaksModel:
         """
 
         if HasUB(Workspace=peaks):
-
             ol = mtd[peaks].sample().getOrientedLattice()
 
             for no in range(mtd[peaks].getNumberPeaks()):
@@ -1140,9 +1140,7 @@ class PeaksModel:
 
 
 class PeakModel:
-
     def __init__(self, peaks):
-
         self.peaks = peaks
 
     def get_number_peaks(self):
@@ -1362,7 +1360,9 @@ class PeakModel:
             mod_2 = ol.getModVec(1)
             mod_3 = ol.getModVec(2)
             h, k, l, m, n, p = *hkl, *mnp
-            dh, dk, dl = m * np.array(mod_1) + n * np.array(mod_2) + p * np.array(mod_3)
+            dh, dk, dl = (
+                m * np.array(mod_1) + n * np.array(mod_2) + p * np.array(mod_3)
+            )
             d = ol.d(V3D(h + dh, k + dk, l + dl))
         else:
             d = peak.getDSpacing()
@@ -1414,7 +1414,6 @@ class PeakModel:
         c0, c1, c2 = Q0, Q1, Q2
 
         if shape.shapeName() == "ellipsoid":
-
             shape_dict = eval(shape.toJSON())
 
             c0 = Q0 + shape_dict["translation0"]
@@ -1434,7 +1433,6 @@ class PeakModel:
             r2 = r2 if r2 < r_cut else r_cut
 
         else:
-
             r0 = r1 = r2 = r_cut
             v0, v1, v2 = np.eye(3).tolist()
 
@@ -1465,12 +1463,13 @@ class PeakModel:
         radii = [0, 0, 0]
 
         if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
-
             mtd[self.peaks].getPeak(no).setQSampleFrame(V3D(c0, c1, c2))
 
             radii = [r0, r1, r2]
 
-        shape = PeakShapeEllipsoid([V3D(*v0), V3D(*v1), V3D(*v2)], radii, radii, radii)
+        shape = PeakShapeEllipsoid(
+            [V3D(*v0), V3D(*v1), V3D(*v2)], radii, radii, radii
+        )
 
         mtd[self.peaks].getPeak(no).setPeakShape(shape)
 
@@ -1527,9 +1526,7 @@ class PeakModel:
 
 
 class PeaksStatisticsModel(PeaksModel):
-
     def __init__(self, peaks):
-
         super(PeaksModel, self).__init__(peaks)
 
         self.peaks = peaks + "_stats"
@@ -1537,7 +1534,6 @@ class PeaksStatisticsModel(PeaksModel):
         CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=self.peaks)
 
     def set_scale(self, scale="auto"):
-
         if scale == "auto":
             scale = 1
             if mtd[self.peaks].getNumberPeaks() > 1:

@@ -34,9 +34,7 @@ from garnet.reduction.parallel import ParallelProcessor
 
 
 class Integration(SubPlan):
-
     def __init__(self, plan):
-
         super(Integration, self).__init__(plan)
 
         self.params = plan["Integration"]
@@ -45,7 +43,6 @@ class Integration(SubPlan):
         self.validate_params()
 
     def validate_params(self):
-
         assert self.params["Cell"] in lattice_group.keys()
         assert self.params["Centering"] in centering_reflection.keys()
         assert self.params["MinD"] > 0
@@ -72,7 +69,6 @@ class Integration(SubPlan):
 
     @staticmethod
     def integrate_parallel(plan, runs, proc):
-
         plan["Runs"] = runs
         plan["ProcName"] = "_p{}".format(proc)
 
@@ -88,7 +84,6 @@ class Integration(SubPlan):
             return instance.monochromatic_integrate()
 
     def integrate(self, n_proc=1):
-
         data = DataModel(beamlines[self.plan["Instrument"]])
 
         instance = Integration(self.plan)
@@ -100,12 +95,10 @@ class Integration(SubPlan):
             return instance.monochromatic_integrate()
 
     def integrate_peaks(self, data):
-
         pp = ParallelProcessor(n_proc=self.n_proc)
         return pp.process_dict(data, self.fit_peaks)
 
     def laue_integrate(self):
-
         output_file = self.get_output_file()
 
         data = DataModel(beamlines[self.plan["Instrument"]])
@@ -122,12 +115,13 @@ class Integration(SubPlan):
         self.runs = len(runs)
 
         for run in runs:
-
             self.run += 1
 
             print("{}: {:}/{:}".format(self.proc, self.run, len(runs)))
 
-            data.load_data("data", self.plan["IPTS"], run, self.plan.get("Grouping"))
+            data.load_data(
+                "data", self.plan["IPTS"], run, self.plan.get("Grouping")
+            )
 
             data.apply_calibration(
                 "data",
@@ -177,7 +171,6 @@ class Integration(SubPlan):
             params = self.estimate_peak_size("peaks", "md", r_cut)
 
             if self.params["MaxOrder"] > 0:
-
                 peaks.predict_satellite_peaks(
                     "peaks",
                     "md",
@@ -221,7 +214,6 @@ class Integration(SubPlan):
         # ---
 
         if mtd.doesExist("combine"):
-
             opt = Optimization("combine")
             opt.optimize_lattice(self.params["Cell"])
 
@@ -262,7 +254,6 @@ class Integration(SubPlan):
     #         ub.save_UB(ub_file)
 
     def monochromatic_integrate(self):
-
         output_file = self.get_output_file()
 
         data = DataModel(beamlines[self.plan["Instrument"]])
@@ -278,11 +269,12 @@ class Integration(SubPlan):
         self.runs = len(runs)
 
         if self.plan["Instrument"] == "WAND²":
-
             self.runs = 1
             self.run += 1
 
-            data.load_data("data", self.plan["IPTS"], runs, self.plan.get("Grouping"))
+            data.load_data(
+                "data", self.plan["IPTS"], runs, self.plan.get("Grouping")
+            )
 
             data.load_generate_normalization(self.plan["VanadiumFile"], "data")
 
@@ -292,16 +284,16 @@ class Integration(SubPlan):
             data.save_histograms(md_file, "md", sample_logs=True)
 
         else:
-
             for run in runs:
-
                 self.run += 1
 
                 data.load_data(
                     "data", self.plan["IPTS"], run, self.plan.get("Grouping")
                 )
 
-                data.load_generate_normalization(self.plan["VanadiumFile"], "data")
+                data.load_generate_normalization(
+                    self.plan["VanadiumFile"], "data"
+                )
 
                 data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
@@ -322,7 +314,6 @@ class Integration(SubPlan):
                 )
 
                 if self.params["MaxOrder"] > 0:
-
                     peaks.predict_satellite_peaks(
                         "peaks",
                         "md",
@@ -351,7 +342,6 @@ class Integration(SubPlan):
                 peaks.save_peaks(pk_file, "peaks")
 
         if self.plan["Instrument"] != "WAND²":
-
             peaks.remove_weak_peaks("combine")
 
             peaks.save_peaks(output_file, "combine")
@@ -361,7 +351,6 @@ class Integration(SubPlan):
         return output_file
 
     def monochromatic_combine(self, files):
-
         output_file = self.get_output_file()
         result_file = self.get_file(output_file, "")
 
@@ -373,10 +362,8 @@ class Integration(SubPlan):
         lamda_min, lamda_max = data.wavelength_band
 
         if self.plan["Instrument"] == "WAND²":
-
             merge = []
             for file in files:
-
                 peaks.load_peaks(file, "peaks")
                 peaks.combine_peaks("peaks", "combine")
 
@@ -405,7 +392,6 @@ class Integration(SubPlan):
             )
 
             if self.params["MaxOrder"] > 0:
-
                 peaks.predict_satellite_peaks(
                     "peaks",
                     "md",
@@ -432,9 +418,7 @@ class Integration(SubPlan):
             peaks.save_peaks(pk_file, "peaks")
 
         else:
-
             for file in files:
-
                 peaks.load_peaks(file, "tmp")
                 peaks.combine_peaks("tmp", "combine")
 
@@ -442,7 +426,6 @@ class Integration(SubPlan):
                 os.remove(file)
 
         if mtd.doesExist("combine"):
-
             peaks.save_peaks(result_file, "combine")
 
             opt = Optimization("combine")
@@ -495,7 +478,9 @@ class Integration(SubPlan):
         """
 
         append = (
-            self.cell_centering_name() + self.modulation_name() + self.resolution_name()
+            self.cell_centering_name()
+            + self.modulation_name()
+            + self.resolution_name()
         )
 
         name, ext = os.path.splitext(file)
@@ -563,7 +548,6 @@ class Integration(SubPlan):
         return "_d(min)={:.2f}".format(min_d) + "_r(max)={:.2f}".format(max_r)
 
     def estimate_peak_size(self, peaks_ws, data_ws, r_cut):
-
         params = self.peaks.intensity_vs_radius(data_ws, peaks_ws, r_cut)
 
         r, sig_noise, x, y, e, lamda = params
@@ -583,7 +567,6 @@ class Integration(SubPlan):
         return r
 
     def fit_peaks(self, key_value):
-
         key, value = key_value
 
         data_info, peak_info = value
@@ -600,7 +583,6 @@ class Integration(SubPlan):
         value = None
 
         if params is not None:
-
             c, S, *fitting = ellipsoid.best_fit
 
             shape = self.revert_ellipsoid_parameters(params, projections)
@@ -610,7 +592,6 @@ class Integration(SubPlan):
             I, sigma = ellipsoid.integrate(*norm_params)
 
             if self.make_plot:
-
                 self.peak_plot.add_fitting(*fitting)
 
                 self.peak_plot.add_profile_fit(*ellipsoid.best_prof)
@@ -700,13 +681,10 @@ class Integration(SubPlan):
         return peak_dict
 
     def update_peak_info(self, peaks_ws, peak_dict):
-
         peak = PeakModel(peaks_ws)
 
         for i, value in peak_dict.items():
-
             if value is not None:
-
                 I, sigma, shape, info = value
                 # print(i, I, sigma)
 
@@ -717,7 +695,6 @@ class Integration(SubPlan):
                 peak.add_diagonstic_info(i, info)
 
     def bin_axes(self, R, two_theta, az_phi):
-
         two_theta = np.deg2rad(two_theta)
         az_phi = np.deg2rad(az_phi)
 
@@ -743,7 +720,6 @@ class Integration(SubPlan):
         return R.T @ n, R.T @ u, R.T @ v
 
     def project_ellipsoid_parameters(self, params, projections):
-
         W = np.column_stack(projections)
 
         c0, c1, c2, r0, r1, r2, v0, v1, v2 = params
@@ -753,7 +729,6 @@ class Integration(SubPlan):
         return *np.dot(W.T, [c0, c1, c2]), r0, r1, r2, *np.dot(W.T, V).T
 
     def revert_ellipsoid_parameters(self, params, projections):
-
         W = np.column_stack(projections)
 
         c0, c1, c2, r0, r1, r2, v0, v1, v2 = params
@@ -763,7 +738,6 @@ class Integration(SubPlan):
         return *np.dot(W, [c0, c1, c2]), r0, r1, r2, *np.dot(W, V).T
 
     def trasform_Q(self, Q0, Q1, Q2, projections):
-
         W = np.column_stack(projections)
 
         return np.einsum("ij,j...->i...", W, [Q0, Q1, Q2])
@@ -787,7 +761,6 @@ class Integration(SubPlan):
         az_phi,
         UB,
     ):
-
         n, u, v = self.bin_axes(R, two_theta, az_phi)
 
         projections = [n, u, v]
@@ -811,13 +784,25 @@ class Integration(SubPlan):
 
         W = np.column_stack(projections)
 
-        am = np.dot(W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [-0.5, 0, 0]))
-        bm = np.dot(W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, -0.5, 0]))
-        cm = np.dot(W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0, -0.5]))
+        am = np.dot(
+            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [-0.5, 0, 0])
+        )
+        bm = np.dot(
+            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, -0.5, 0])
+        )
+        cm = np.dot(
+            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0, -0.5])
+        )
 
-        ap = np.dot(W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0.5, 0, 0]))
-        bp = np.dot(W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0.5, 0]))
-        cp = np.dot(W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0, 0.5]))
+        ap = np.dot(
+            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0.5, 0, 0])
+        )
+        bp = np.dot(
+            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0.5, 0])
+        )
+        cp = np.dot(
+            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0, 0.5])
+        )
 
         Q0_min = np.min([am[0], bm[0], cm[0], ap[0], bp[0], cp[0]])
         Q1_min = np.min([am[1], bm[1], cm[1], ap[1], bp[1], cp[1]])
@@ -856,7 +841,6 @@ class Integration(SubPlan):
 
     @staticmethod
     def combine_parallel(plan, files):
-
         instance = Integration(plan)
 
         data = DataModel(beamlines[plan["Instrument"]])
@@ -870,16 +854,13 @@ class Integration(SubPlan):
 
 
 class PeakRegionOfInterest:
-
     def __init__(self, r_cut):
-
         self.params = Parameters()
 
         self.params.add("r0", value=r_cut / 2, min=0.001, max=2 * r_cut)
         self.params.add("r1", value=0, min=-r_cut, max=r_cut)
 
     def objective(self, params, x, y, e, lamda):
-
         r0 = params["r0"]
         r1 = params["r1"]
 
@@ -887,9 +868,9 @@ class PeakRegionOfInterest:
 
         z = x / sigma
 
-        y_hat = scipy.special.erf(z / np.sqrt(2)) - np.sqrt(2 / np.pi) * z * np.exp(
-            -0.5 * z**2
-        )
+        y_hat = scipy.special.erf(z / np.sqrt(2)) - np.sqrt(
+            2 / np.pi
+        ) * z * np.exp(-0.5 * z**2)
 
         num = np.nansum(y_hat * y, axis=1)
         den = np.nansum(y_hat**2, axis=1)
@@ -904,12 +885,14 @@ class PeakRegionOfInterest:
         # cost = np.nansum((weight*residuals**2)/(fit.size-2)*wgt)
 
     def fit(self, x, y, e, lamda):
-
         if np.max(lamda) - np.min(lamda) < 0.2:
             self.params["r1"].set(vary=False)
 
         out = Minimizer(
-            self.objective, self.params, fcn_args=(x, y, e, lamda), nan_policy="omit"
+            self.objective,
+            self.params,
+            fcn_args=(x, y, e, lamda),
+            nan_policy="omit",
         )
 
         result = out.minimize(method="least_squares", loss="soft_l1")
@@ -920,9 +903,7 @@ class PeakRegionOfInterest:
 
 
 class PeakSphere:
-
     def __init__(self, r_cut):
-
         self.params = Parameters()
 
         if np.isclose(r_cut, 0.04) or r_cut < 0.04:
@@ -931,7 +912,6 @@ class PeakSphere:
         self.params.add("sigma", value=r_cut / 6, min=0.01, max=r_cut / 4)
 
     def model(self, x, A, sigma):
-
         z = x / sigma
 
         return A * (
@@ -940,7 +920,6 @@ class PeakSphere:
         )
 
     def residual(self, params, x, y):
-
         A = params["A"]
         sigma = params["sigma"]
 
@@ -952,7 +931,6 @@ class PeakSphere:
         return diff
 
     def fit(self, x, y):
-
         y_max = np.max(y)
 
         y[y < 0] = 0
@@ -962,7 +940,9 @@ class PeakSphere:
 
         self.params.add("A", value=y_max, min=0, max=100 * y_max, vary=True)
 
-        out = Minimizer(self.residual, self.params, fcn_args=(x, y), nan_policy="omit")
+        out = Minimizer(
+            self.residual, self.params, fcn_args=(x, y), nan_policy="omit"
+        )
 
         result = out.minimize(method="least_squares", loss="soft_l1")
 
@@ -971,7 +951,6 @@ class PeakSphere:
         return 3.76205 * result.params["sigma"].value
 
     def best_fit(self, r):
-
         A = self.params["A"].value
         sigma = self.params["sigma"].value
 
@@ -979,13 +958,10 @@ class PeakSphere:
 
 
 class PeakEllipsoid:
-
     def __init__(self):
-
         self.params = Parameters()
 
     def update_constraints(self, x0, x1, x2, dx):
-
         r0 = (x0[:, 0, 0][-1] - x0[:, 0, 0][0]) / 8
         r1 = (x1[0, :, 0][-1] - x1[0, :, 0][0]) / 8
         r2 = (x2[0, 0, :][-1] - x2[0, 0, :][0]) / 8
@@ -998,8 +974,16 @@ class PeakEllipsoid:
         c1 = (x1[0, :, 0][-1] + x1[0, :, 0][0]) / 2
         c2 = (x2[0, 0, :][-1] + x2[0, 0, :][0]) / 2
 
-        c0_min, c1_min, c2_min = c0 - r0_max / 2, c1 - r1_max / 2, c2 - r2_max / 2
-        c0_max, c1_max, c2_max = c0 + r0_max / 2, c1 + r1_max / 2, c2 + r2_max / 2
+        c0_min, c1_min, c2_min = (
+            c0 - r0_max / 2,
+            c1 - r1_max / 2,
+            c2 - r2_max / 2,
+        )
+        c0_max, c1_max, c2_max = (
+            c0 + r0_max / 2,
+            c1 + r1_max / 2,
+            c2 + r2_max / 2,
+        )
 
         self.params.add("c0", value=c0, min=c0_min, max=c0_max)
         self.params.add("c1", value=c1, min=c1_min, max=c1_max)
@@ -1014,7 +998,6 @@ class PeakEllipsoid:
         self.params.add("u2", value=0.0, min=-np.pi / 6, max=np.pi / 6)
 
     def S_matrix(self, r0, r1, r2, u0, u1, u2):
-
         U = self.U_matrix(u0, u1, u2)
 
         V = np.diag([r0**2, r1**2, r2**2])
@@ -1024,7 +1007,6 @@ class PeakEllipsoid:
         return S
 
     def inv_S_matrix(self, r0, r1, r2, u0, u1, u2):
-
         U = self.U_matrix(u0, u1, u2)
 
         V = np.diag([1 / r0**2, 1 / r1**2, 1 / r2**2])
@@ -1034,7 +1016,6 @@ class PeakEllipsoid:
         return inv_S
 
     def U_matrix(self, u0, u1, u2):
-
         u = np.array([u0, u1, u2])
 
         U = scipy.spatial.transform.Rotation.from_rotvec(u).as_matrix()
@@ -1042,7 +1023,6 @@ class PeakEllipsoid:
         return U
 
     def centroid_inverse_covariance(self, c0, c1, c2, r0, r1, r2, u0, u1, u2):
-
         c = np.array([c0, c1, c2])
 
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -1050,7 +1030,6 @@ class PeakEllipsoid:
         return c, inv_S
 
     def normalize(self, x0, x1, x2, counts, y, e, mode="3d"):
-
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == "1d_0":
@@ -1082,7 +1061,9 @@ class PeakEllipsoid:
             y_int = y.copy() / c_int
             e_int = e.copy() / c_int
 
-        mask = (y_int > 0) & np.isfinite(y_int) & (e_int > 0) & np.isfinite(e_int)
+        mask = (
+            (y_int > 0) & np.isfinite(y_int) & (e_int > 0) & np.isfinite(e_int)
+        )
 
         y_int[~mask] = np.nan
         e_int[~mask] = np.nan
@@ -1090,7 +1071,6 @@ class PeakEllipsoid:
         return y_int, e_int
 
     def ellipsoid_covariance(self, inv_S, mode="3d", perc=99.7):
-
         if mode == "3d":
             scale = scipy.stats.chi2.ppf(perc / 100, df=3)
             inv_var = inv_S * scale
@@ -1116,7 +1096,6 @@ class PeakEllipsoid:
         return inv_var
 
     def chi_2_fit(self, x0, x1, x2, c, inv_S, y_fit, y, e, mode="3d"):
-
         c0, c1, c2 = c
 
         dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
@@ -1157,10 +1136,11 @@ class PeakEllipsoid:
         if n <= m:
             return np.inf
         else:
-            return np.nansum(((y_fit[mask] - y[mask]) / e[mask]) ** 2) / (n - m)
+            return np.nansum(((y_fit[mask] - y[mask]) / e[mask]) ** 2) / (
+                n - m
+            )
 
     def gaussian(self, x0, x1, x2, c, inv_S, mode="3d"):
-
         c0, c1, c2 = c
 
         dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
@@ -1192,7 +1172,6 @@ class PeakEllipsoid:
         return np.exp(-0.5 * d2)
 
     def inv_S_deriv_r(self, r0, r1, r2, u0, u1, u2):
-
         U = self.U_matrix(u0, u1, u2)
 
         dinv_S0 = U @ np.diag([-2 / r0**3, 0, 0]) @ U.T
@@ -1202,7 +1181,6 @@ class PeakEllipsoid:
         return dinv_S0, dinv_S1, dinv_S2
 
     def inv_S_deriv_u(self, r0, r1, r2, u0, u1, u2):
-
         V = np.diag([1 / r0**2, 1 / r1**2, 1 / r2**2])
 
         U = self.U_matrix(u0, u1, u2)
@@ -1215,15 +1193,19 @@ class PeakEllipsoid:
         return dinv_S0, dinv_S1, dinv_S2
 
     def U_deriv_u(self, u0, u1, u2, delta=1e-6):
-
-        dU0 = self.U_matrix(u0 + delta, u1, u2) - self.U_matrix(u0 - delta, u1, u2)
-        dU1 = self.U_matrix(u0, u1 + delta, u2) - self.U_matrix(u0, u1 - delta, u2)
-        dU2 = self.U_matrix(u0, u1, u2 + delta) - self.U_matrix(u0, u1, u2 - delta)
+        dU0 = self.U_matrix(u0 + delta, u1, u2) - self.U_matrix(
+            u0 - delta, u1, u2
+        )
+        dU1 = self.U_matrix(u0, u1 + delta, u2) - self.U_matrix(
+            u0, u1 - delta, u2
+        )
+        dU2 = self.U_matrix(u0, u1, u2 + delta) - self.U_matrix(
+            u0, u1, u2 - delta
+        )
 
         return 0.5 * dU0 / delta, 0.5 * dU1 / delta, 0.5 * dU2 / delta
 
     def gaussian_jac_c(self, x0, x1, x2, c, inv_S, mode="3d"):
-
         c0, c1, c2 = c
 
         dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
@@ -1270,7 +1252,6 @@ class PeakEllipsoid:
         return g * np.array([g0, g1, g2])
 
     def gaussian_jac_S(self, x0, x1, x2, c, inv_S, d_inv_S, mode="3d"):
-
         c0, c1, c2 = c
 
         dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
@@ -1323,7 +1304,6 @@ class PeakEllipsoid:
         return -0.5 * g * np.array([g0, g1, g2])
 
     def residual_1d(self, params, x0, x1, x2, ys, es):
-
         y0, y1, y2 = ys
         e0, e1, e2 = es
 
@@ -1351,7 +1331,9 @@ class PeakEllipsoid:
         C1 = params["C1d_1"]
         C2 = params["C1d_2"]
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -1386,7 +1368,6 @@ class PeakEllipsoid:
         return diff[mask]
 
     def jacobian_1d(self, params, x0, x1, x2, ys, es):
-
         params_list = list(params.keys())
 
         y0, y1, y2 = ys
@@ -1416,7 +1397,9 @@ class PeakEllipsoid:
         C1 = params["C1d_1"]
         C2 = params["C1d_2"]
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -1518,7 +1501,6 @@ class PeakEllipsoid:
         return jac[:, mask]
 
     def residual_2d(self, params, x0, x1, x2, ys, es):
-
         y0, y1, y2 = ys
         e0, e1, e2 = es
 
@@ -1551,7 +1533,9 @@ class PeakEllipsoid:
         C20 = params["C2d_20"]
         C21 = params["C2d_21"]
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -1562,13 +1546,22 @@ class PeakEllipsoid:
         diff = []
 
         y0_fit = (
-            A0 * y0_gauss + B0 + C01 * (x1[0, :, :] - c1) + C02 * (x2[0, :, :] - c2)
+            A0 * y0_gauss
+            + B0
+            + C01 * (x1[0, :, :] - c1)
+            + C02 * (x2[0, :, :] - c2)
         )
         y1_fit = (
-            A1 * y1_gauss + B1 + C10 * (x0[:, 0, :] - c0) + C12 * (x2[:, 0, :] - c2)
+            A1 * y1_gauss
+            + B1
+            + C10 * (x0[:, 0, :] - c0)
+            + C12 * (x2[:, 0, :] - c2)
         )
         y2_fit = (
-            A2 * y2_gauss + B2 + C20 * (x0[:, :, 0] - c0) + C21 * (x1[:, :, 0] - c1)
+            A2 * y2_gauss
+            + B2
+            + C20 * (x0[:, :, 0] - c0)
+            + C21 * (x1[:, :, 0] - c1)
         )
 
         res = (y0_fit - y0) / e0
@@ -1592,7 +1585,6 @@ class PeakEllipsoid:
         return diff[mask]
 
     def jacobian_2d(self, params, x0, x1, x2, ys, es):
-
         params_list = list(params.keys())
 
         y0, y1, y2 = ys
@@ -1627,7 +1619,9 @@ class PeakEllipsoid:
         C20 = params["C2d_20"]
         C21 = params["C2d_21"]
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -1721,8 +1715,12 @@ class PeakEllipsoid:
 
         jac[params_list.index("A2d_2"), n0 + n1 : n0 + n1 + n2] = dA2.flatten()
         jac[params_list.index("B2d_2"), n0 + n1 : n0 + n1 + n2] = dB2.flatten()
-        jac[params_list.index("C2d_20"), n0 + n1 : n0 + n1 + n2] = dC20.flatten()
-        jac[params_list.index("C2d_21"), n0 + n1 : n0 + n1 + n2] = dC21.flatten()
+        jac[
+            params_list.index("C2d_20"), n0 + n1 : n0 + n1 + n2
+        ] = dC20.flatten()
+        jac[
+            params_list.index("C2d_21"), n0 + n1 : n0 + n1 + n2
+        ] = dC21.flatten()
         jac[params_list.index("c0"), n0 + n1 : n0 + n1 + n2] = dc0_2.flatten()
         jac[params_list.index("c1"), n0 + n1 : n0 + n1 + n2] = dc1_2.flatten()
         jac[params_list.index("c2"), n0 + n1 : n0 + n1 + n2] = dc2_2.flatten()
@@ -1742,7 +1740,6 @@ class PeakEllipsoid:
         return jac[:, mask]
 
     def residual_3d(self, params, x0, x1, x2, y, e):
-
         c0 = params["c0"]
         c1 = params["c1"]
         c2 = params["c2"]
@@ -1758,7 +1755,9 @@ class PeakEllipsoid:
         A = params["A3d"]
         B = params["B3d"]
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -1781,7 +1780,6 @@ class PeakEllipsoid:
         return diff[mask]
 
     def jacobian_3d(self, params, x0, x1, x2, y, e):
-
         params_list = list(params.keys())
 
         c0 = params["c0"]
@@ -1799,7 +1797,9 @@ class PeakEllipsoid:
         A = params["A3d"]
         # B = params['B3d']
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -1846,7 +1846,6 @@ class PeakEllipsoid:
         return jac[:, mask]
 
     def residual(self, params, args_1d, args_2d, args_3d):
-
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
@@ -1858,7 +1857,6 @@ class PeakEllipsoid:
         return cost
 
     def jacobian(self, params, args_1d, args_2d, args_3d):
-
         params_list = list(params.keys())
 
         jac_1d = self.jacobian_1d(params, *args_1d)
@@ -1872,7 +1870,6 @@ class PeakEllipsoid:
         return jac
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e):
-
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
         y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
         y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_2")
@@ -2023,7 +2020,9 @@ class PeakEllipsoid:
         u1 = self.params["u1"].value
         u2 = self.params["u2"].value
 
-        c, inv_S = self.centroid_inverse_covariance(c0, c1, c2, r0, r1, r2, u0, u1, u2)
+        c, inv_S = self.centroid_inverse_covariance(
+            c0, c1, c2, r0, r1, r2, u0, u1, u2
+        )
 
         args = x0, x1, x2, c, inv_S
 
@@ -2055,7 +2054,10 @@ class PeakEllipsoid:
         y2_gauss = self.gaussian(*args, "2d_0")
 
         y2_fit = (
-            A2 * y2_gauss + B2 + C2_1 * (x1[0, :, :] - c1) + C2_2 * (x2[0, :, :] - c2)
+            A2 * y2_gauss
+            + B2
+            + C2_1 * (x1[0, :, :] - c1)
+            + C2_2 * (x2[0, :, :] - c2)
         )
 
         chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y2_fit, y2, e2, "2d_0")
@@ -2093,7 +2095,6 @@ class PeakEllipsoid:
         return c, inv_S, (y1_fit, y1, e1), (y2_fit, y2, e2), (y3_fit, y3, e3)
 
     def voxels(self, x0, x1, x2):
-
         return (
             x0[1, 0, 0] - x0[0, 0, 0],
             x1[0, 1, 0] - x1[0, 0, 0],
@@ -2101,11 +2102,9 @@ class PeakEllipsoid:
         )
 
     def voxel_volume(self, x0, x1, x2):
-
         return np.prod(self.voxels(x0, x1, x2))
 
     def fit(self, x0_prof, x1_proj, x2_proj, c, y_norm, e_norm, dx, xmod):
-
         counts = c.copy()
         y = y_norm.copy()
         e = e_norm.copy()
@@ -2204,7 +2203,6 @@ class PeakEllipsoid:
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
     def integrate(self, x0, x1, x2, y, e, counts, c, S):
-
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         d3x = dx0 * dx1 * dx2

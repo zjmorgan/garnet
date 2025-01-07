@@ -15,7 +15,6 @@ from garnet.reduction.plan import SubPlan
 
 
 class Determination(SubPlan):
-
     def __init__(self, plan):
         """
         Tool for UB matrix determination and refimenent.
@@ -40,12 +39,10 @@ class Determination(SubPlan):
         self.peaks = PeaksModel()
 
     def load_data(self, skip_runs=None, apply_lorentz=True, time_cut=None):
-
         if skip_runs is None:
             skip_runs = len(self.plan["Runs"]) if self.data.laue else 1
 
         if self.data.laue:
-
             grouping_file = self.get_diagnostic_file("grouping", ".xml")
 
             self.data.preprocess_detectors()
@@ -70,33 +67,35 @@ class Determination(SubPlan):
             self.data.group_pixels(grouping_file, "data")
 
             if self.plan["UBFile"] is not None:
-
                 self.data.load_clear_UB(self.plan["UBFile"], "data")
 
-            self.data.convert_to_Q_sample("data", "md", lorentz_corr=apply_lorentz)
+            self.data.convert_to_Q_sample(
+                "data", "md", lorentz_corr=apply_lorentz
+            )
 
         else:
-
             UB_file = self.get_output_file(".mat")
 
             if self.plan["Instrument"] == "WAND²":
-
                 self.data.load_data(
                     "data", self.plan["IPTS"], runs, self.plan.get("Grouping")
                 )
 
-                self.data.convert_to_Q_sample("data", "md", lorentz_corr=apply_lorentz)
+                self.data.convert_to_Q_sample(
+                    "data", "md", lorentz_corr=apply_lorentz
+                )
 
                 if self.plan.get("UBFile") is None:
                     self.data.save_UB(UB_file, "md")
                     self.plan["UBFile"] = UB_file
 
             else:
-
                 for run in runs:
-
                     self.data.load_data(
-                        "data", self.plan["IPTS"], run, self.plan.get("Grouping")
+                        "data",
+                        self.plan["IPTS"],
+                        run,
+                        self.plan.get("Grouping"),
                     )
 
                     self.data.convert_to_Q_sample(
@@ -114,7 +113,6 @@ class Determination(SubPlan):
         self.Q = "md"
 
     def has_Q(self):
-
         if self.Q is None:
             return False
         elif mtd.doesExist(self.Q):
@@ -123,7 +121,6 @@ class Determination(SubPlan):
             return False
 
     def has_peaks(self):
-
         if self.table is None:
             return False
         elif mtd.doesExist(self.table):
@@ -132,7 +129,6 @@ class Determination(SubPlan):
             return False
 
     def has_UB(self):
-
         if self.has_peaks():
             ol = UBModel(self.table)
             if ol.has_UB():
@@ -143,27 +139,24 @@ class Determination(SubPlan):
             return False
 
     def get_UB(self):
-
         return UBModel(self.table)
 
     def convert_to_hkl(self, projections, extents, bins):
-
         if self.has_Q() and self.has_UB():
-
-            self.data.convert_to_hkl(self.Q, self.table, projections, extents, bins)
+            self.data.convert_to_hkl(
+                self.Q, self.table, projections, extents, bins
+            )
 
     def find_peaks(self, max_d, density, max_peaks):
-
         if self.has_Q():
-
             self.peaks.find_peaks(self.Q, "peaks", max_d, density, max_peaks)
 
             self.table = "peaks"
 
-    def integrate_peaks(self, radius, inner_fact, outer_fact, adaptive, centroid):
-
+    def integrate_peaks(
+        self, radius, inner_fact, outer_fact, adaptive, centroid
+    ):
         if self.has_Q() and self.has_peaks():
-
             method = "ellipsoid" if adaptive else "sphere"
 
             self.peaks.integrate_peaks(
@@ -177,29 +170,25 @@ class Determination(SubPlan):
             )
 
     def find_primitive_UB(self, min_d, max_d, tol):
-
         if self.has_peaks():
-
             ub = self.get_UB()
 
             ub.determine_UB_with_niggli_cell(min_d, max_d, tol)
 
     def list_possible_conventional_cells(self, max_error, permutations):
-
         if self.has_peaks() and self.has_UB():
-
             ub = self.get_UB()
 
             cells = ub.possible_conventional_cells(max_error, permutations)
             print(cells)
 
     def find_conventional_UB(self, a, b, c, alpha, beta, gamma, tol):
-
         if self.has_peaks():
-
             ub = self.get_UB()
 
-            ub.determine_UB_with_lattice_parameters(a, b, c, alpha, beta, gamma, tol)
+            ub.determine_UB_with_lattice_parameters(
+                a, b, c, alpha, beta, gamma, tol
+            )
 
     def predict_peaks(
         self,
@@ -214,9 +203,7 @@ class Determination(SubPlan):
         max_order,
         cross_terms,
     ):
-
         if self.has_Q() and self.has_UB():
-
             self.peaks.predict_peaks(
                 self.Q, "peaks", centering, d_min, lamda_min, lamda_max
             )
@@ -224,7 +211,6 @@ class Determination(SubPlan):
             valid_mod = self._modulation(mod_vec_1, mod_vec_2, mod_vec_3)
 
             if max_order > 0 and valid_mod:
-
                 if d_min_sat is None:
                     d_min_sat = d_min
 
@@ -244,7 +230,6 @@ class Determination(SubPlan):
             self.table = "peaks"
 
     def _modulation(self, mod_vec_1, mod_vec_2, mod_vec_3):
-
         if not any(mod_vec_1):
             return False
 

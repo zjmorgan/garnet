@@ -38,7 +38,6 @@ lattice_group = {
 
 
 class UBModel:
-
     def __init__(self, peaks):
         """
         Tools for working with peaks and UB.
@@ -87,7 +86,8 @@ class UBModel:
         """
 
         LoadIsawUB(
-            InputWorkspace=self.peaks, Filename=filename.replace("*", str(run_number))
+            InputWorkspace=self.peaks,
+            Filename=filename.replace("*", str(run_number)),
         )
 
     def determine_UB_with_niggli_cell(self, min_d, max_d, tol=0.1):
@@ -105,7 +105,9 @@ class UBModel:
 
         """
 
-        FindUBUsingFFT(PeaksWorkspace=self.peaks, MinD=min_d, MaxD=max_d, Tolerance=tol)
+        FindUBUsingFFT(
+            PeaksWorkspace=self.peaks, MinD=min_d, MaxD=max_d, Tolerance=tol
+        )
 
     def determine_UB_with_lattice_parameters(
         self, a, b, c, alpha, beta, gamma, tol=0.1
@@ -151,7 +153,9 @@ class UBModel:
         tol_for_sat = sat_tol if sat_tol is not None else tol
 
         FindUBUsingIndexedPeaks(
-            PeaksWorkspace=self.peaks, Tolerance=tol, ToleranceForSatellite=tol_for_sat
+            PeaksWorkspace=self.peaks,
+            Tolerance=tol,
+            ToleranceForSatellite=tol_for_sat,
         )
 
     def refine_UB_with_constraints(self, cell, tol=0.1):
@@ -226,7 +230,10 @@ class UBModel:
         """
 
         SelectCellWithForm(
-            PeaksWorkspace=self.peaks, FormNumber=number, Apply=True, Tolerance=tol
+            PeaksWorkspace=self.peaks,
+            FormNumber=number,
+            Apply=True,
+            Tolerance=tol,
         )
 
     def possible_conventional_cells(self, max_error=0.2, permutations=True):
@@ -273,7 +280,9 @@ class UBModel:
 
         hkl_trans = ",".join(["{},{},{}".format(*row) for row in transform])
 
-        TransformHKL(PeaksWorkspace=self.peaks, Tolerance=tol, HKLTransform=hkl_trans)
+        TransformHKL(
+            PeaksWorkspace=self.peaks, Tolerance=tol, HKLTransform=hkl_trans
+        )
 
     def generate_lattice_transforms(self, cell):
         """
@@ -388,7 +397,6 @@ class UBModel:
 
 
 class Optimization:
-
     def __init__(self, peaks, tol=0.1):
         """
         Optimize lattice and orientation using nonlinear least squares.
@@ -409,18 +417,15 @@ class Optimization:
         Qs, hkls = [], []
 
         for pk in mtd[peaks]:
-
             hkl = np.array(pk.getHKL())
             Q = np.array(pk.getQSampleFrame())
 
             mod_Q = np.linalg.norm(Q)
 
             if mod_Q > 0:
-
                 diff_hkl = np.abs(hkl - np.dot(ub_inv, Q))
 
                 if (diff_hkl < tol).all():
-
                     hkls.append(hkl)
                     Qs.append(Q)
 
@@ -438,7 +443,6 @@ class Optimization:
         """
 
         if mtd.doesExist(self.peaks):
-
             ol = mtd[self.peaks].sample().getOrientedLattice()
 
             return ol.getUB()
@@ -457,7 +461,6 @@ class Optimization:
         """
 
         if mtd.doesExist(self.peaks):
-
             ol = mtd[self.peaks].sample().getOrientedLattice()
 
             a, b, c = ol.a(), ol.b(), ol.c()
@@ -481,7 +484,6 @@ class Optimization:
         """
 
         if mtd.doesExist(self.peaks):
-
             U = mtd[self.peaks].sample().getOrientedLattice().getU()
 
             omega = np.arccos((np.trace(U) - 1) / 2)
@@ -496,7 +498,6 @@ class Optimization:
             return phi, theta, omega
 
     def U_matrix(self, phi, theta, omega):
-
         u0 = np.cos(phi) * np.sin(theta)
         u1 = np.sin(phi) * np.sin(theta)
         u2 = np.cos(theta)
@@ -508,7 +509,6 @@ class Optimization:
         return U
 
     def B_matrix(self, a, b, c, alpha, beta, gamma):
-
         alpha, beta, gamma = np.deg2rad([alpha, beta, gamma])
 
         G = np.array(
@@ -524,43 +524,36 @@ class Optimization:
         return B
 
     def cubic(self, x):
-
         a, *params = x
 
         return (a, a, a, 90, 90, 90, *params)
 
     def rhombohedral(self, x):
-
         a, alpha, *params = x
 
         return (a, a, a, alpha, alpha, alpha, *params)
 
     def tetragonal(self, x):
-
         a, c, *params = x
 
         return (a, a, c, 90, 90, 90, *params)
 
     def hexagonal(self, x):
-
         a, c, *params = x
 
         return (a, a, c, 90, 90, 120, *params)
 
     def orthorhombic(self, x):
-
         a, b, c, *params = x
 
         return (a, b, c, 90, 90, 90, *params)
 
     def monoclinic(self, x):
-
         a, b, c, beta, *params = x
 
         return (a, b, c, 90, beta, 90, *params)
 
     def triclinic(self, x):
-
         a, b, c, alpha, beta, gamma, *params = x
 
         return (a, b, c, alpha, beta, gamma, *params)
@@ -608,7 +601,6 @@ class Optimization:
         """
 
         if mtd.doesExist(self.peaks):
-
             a, b, c, alpha, beta, gamma = self.get_lattice_parameters()
 
             phi, theta, omega = self.get_orientation_angles()

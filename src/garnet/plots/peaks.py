@@ -22,9 +22,7 @@ from garnet.plots.base import BasePlot
 
 
 class RadiusPlot(BasePlot):
-
     def __init__(self, r, y, y_fit):
-
         super(RadiusPlot, self).__init__()
 
         plt.close("all")
@@ -36,7 +34,6 @@ class RadiusPlot(BasePlot):
         self.add_radius_fit(r, y, y_fit)
 
     def add_radius_fit(self, r, y, y_fit):
-
         ax = self.ax[0]
 
         ax.plot(r, y, "o", color="C0")
@@ -45,7 +42,6 @@ class RadiusPlot(BasePlot):
         ax.set_xlabel(r"$r$ [$\AA^{-1}$]")
 
     def add_sphere(self, r_cut, A, sigma):
-
         self.ax[0].axvline(x=r_cut, color="k", linestyle="--")
 
         xlim = list(self.ax[0].get_xlim())
@@ -64,7 +60,6 @@ class RadiusPlot(BasePlot):
         self.ax[0].set_ylabel(r"# [$I/\sigma=10$]")
 
     def add_profile(self, hist, r, l):
-
         ax = self.ax[1]
 
         cmap = plt.get_cmap("turbo")
@@ -83,7 +78,6 @@ class RadiusPlot(BasePlot):
         cb.ax.minorticks_on()
 
     def add_projection(self, hist, r, t):
-
         ax = self.ax[2]
 
         cmap = plt.get_cmap("copper")
@@ -106,14 +100,14 @@ class RadiusPlot(BasePlot):
 
 
 class PeakPlot(BasePlot):
-
     def __init__(self):
-
         super(PeakPlot, self).__init__()
 
         plt.close("all")
 
-        self.fig = plt.figure(figsize=(6.4 * 2, 4.8 * 1.5), layout="constrained")
+        self.fig = plt.figure(
+            figsize=(6.4 * 2, 4.8 * 1.5), layout="constrained"
+        )
 
         # sp = GridSpec(3, 1, figure=self.fig, height_ratios=[1,1,0.5])
         sp = GridSpec(2, 2, figure=self.fig, height_ratios=[1, 0.5])
@@ -121,7 +115,11 @@ class PeakPlot(BasePlot):
         self.gs = []
 
         gs = GridSpecFromSubplotSpec(
-            2, 3, height_ratios=[1, 1], width_ratios=[1, 1, 1], subplot_spec=sp[0, 1]
+            2,
+            3,
+            height_ratios=[1, 1],
+            width_ratios=[1, 1, 1],
+            subplot_spec=sp[0, 1],
         )
 
         self.gs.append(gs)
@@ -133,7 +131,11 @@ class PeakPlot(BasePlot):
         self.gs.append(gs)
 
         gs = GridSpecFromSubplotSpec(
-            1, 3, height_ratios=[1], width_ratios=[1, 1, 1], subplot_spec=sp[1, 0]
+            1,
+            3,
+            height_ratios=[1],
+            width_ratios=[1, 1, 1],
+            subplot_spec=sp[1, 0],
         )
 
         self.gs.append(gs)
@@ -150,7 +152,6 @@ class PeakPlot(BasePlot):
         self.__init_norm()
 
     def __init_ellipsoid(self):
-
         self.ellip = []
         self.ellip_im = []
         self.ellip_el = []
@@ -322,7 +323,6 @@ class PeakPlot(BasePlot):
         self.cb_el.formatter.set_useMathText(True)
 
     def __init_profile(self):
-
         gs = self.gs[1]
 
         ax = self.fig.add_subplot(gs[0])
@@ -340,7 +340,6 @@ class PeakPlot(BasePlot):
         self.profile = ax
 
     def __init_projection(self):
-
         self.proj = []
         self.proj_surf = []
 
@@ -381,13 +380,14 @@ class PeakPlot(BasePlot):
         norm = Normalize(0, 29)
         im = ScalarMappable(norm=norm)
 
-        self.cb_surf = self.fig.colorbar(im, ax=self.proj, orientation="vertical")
+        self.cb_surf = self.fig.colorbar(
+            im, ax=self.proj, orientation="vertical"
+        )
         self.cb_surf.ax.minorticks_on()
         self.cb_surf.formatter.set_powerlimits((0, 0))
         self.cb_surf.formatter.set_useMathText(True)
 
     def __init_norm(self):
-
         self.norm = []
         self.norm_im = []
         self.norm_el = []
@@ -468,13 +468,14 @@ class PeakPlot(BasePlot):
         norm = Normalize(0, 29)
         im = ScalarMappable(norm=norm)
 
-        self.cb_norm = self.fig.colorbar(im, ax=self.norm, orientation="vertical")
+        self.cb_norm = self.fig.colorbar(
+            im, ax=self.norm, orientation="vertical"
+        )
         self.cb_norm.ax.minorticks_on()
         self.cb_norm.formatter.set_powerlimits((0, 0))
         self.cb_norm.formatter.set_useMathText(True)
 
     def add_profile_fit(self, xye, y_fit):
-
         x, y, e = xye
 
         lines, caps, bars = self.error_cont
@@ -496,7 +497,6 @@ class PeakPlot(BasePlot):
         self.profile.autoscale_view()
 
     def add_projection_fit(self, xye, y_fit):
-
         x0, x1, y, e = xye
 
         mask = np.isfinite(y)
@@ -528,7 +528,6 @@ class PeakPlot(BasePlot):
         self.cb_surf.formatter.set_useMathText(True)
 
     def add_data_norm_fit(self, xye, params):
-
         axes, bins, y = xye
 
         x0, x1, x2 = axes
@@ -738,7 +737,11 @@ class PeakPlot(BasePlot):
 
         r = np.sqrt(np.diag(S))
 
-        rho = [S[1, 2] / r[1] / r[2], S[0, 2] / r[0] / r[2], S[0, 1] / r[0] / r[1]]
+        rho = [
+            S[1, 2] / r[1] / r[2],
+            S[0, 2] / r[0] / r[2],
+            S[0, 1] / r[0] / r[1],
+        ]
 
         for el, ax in zip(self.ellip_el[0:2], self.ellip[0:2]):
             self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
@@ -779,7 +782,6 @@ class PeakPlot(BasePlot):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
-
         ellipse.set_center((0, 0))
 
         if not np.isfinite(rho):
@@ -833,7 +835,6 @@ class PeakPlot(BasePlot):
         return peak
 
     def _update_intersecting_line(self, line, ax, x0, y0):
-
         x_min, x_max = ax.get_xlim()
         y_min, y_max = ax.get_ylim()
 
