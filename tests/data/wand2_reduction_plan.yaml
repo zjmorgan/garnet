@@ -1,0 +1,22 @@
+Instrument: "WAND\xB2"
+IPTS: 7776
+Runs: 26640:27944
+UBFile: /HFIR/HB2C/shared/benchmark/NaCl.mat
+VanadiumFile: /HFIR/HB2C/IPTS-7776/nexus/HB2C_27969.nxs.h5
+BackgroundFile: /HFIR/HB2C/IPTS-7776/nexus/HB2C_27968.nxs.h5
+Integration:
+  Cell: Cubic
+  Centering: F
+  ModVec1: [0, 0, 0]
+  ModVec2: [0, 0, 0]
+  ModVec3: [0, 0, 0]
+  MaxOrder: 0
+  CrossTerms: false
+  MinD: 0.7
+  Radius: 0.25
+Normalization:
+  Symmetry: m-3m
+  Projections: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  Extents: [[-7, 7], [-7, 7], [-7, 7]]
+  Bins: [281, 281, 281]
+Grouping: 4x4

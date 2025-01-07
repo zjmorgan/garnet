@@ -1,0 +1,25 @@
+Instrument: TOPAZ
+IPTS: 31189
+Runs: 46759:46769
+UBFile: /SNS/TOPAZ/IPTS-31189/shared/scolecite/find_peaks_46759-46769/SC_Monoclinic_C.mat
+VanadiumFile: /SNS/TOPAZ/shared/Vanadium/2022C_1202_AG/solid_angle_1p8-18.nxs
+BackgroundFile: /SNS/TOPAZ/shared/Background/2022C_1202_AG/background_1p8-18.nxs
+FluxFile: /SNS/TOPAZ/shared/Vanadium/2022C_1202_AG/flux_1p8-18.nxs
+MaskFile: /SNS/TOPAZ/shared/Vanadium/2022C_1202_AG/mask.xml
+DetectorCalibration: /SNS/TOPAZ/shared/calibration/2022C/TOPAZ_2022C_YAG.DetCal
+Integration:
+  Cell: Monoclinic
+  Centering: C
+  ModVec1: [0, 0, 0]
+  ModVec2: [0, 0, 0]
+  ModVec3: [0, 0, 0]
+  MaxOrder: 0
+  CrossTerms: false
+  MinD: 0.6
+  Radius: 0.25
+Normalization:
+  Symmetry: 2/m
+  Projections: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  Extents: [[-10, 10], [-10, 10], [-10, 10]]
+  Bins: [201, 201, 201]
+Grouping: 2x2

@@ -1,0 +1,25 @@
+Instrument: SNAP
+IPTS: 25836
+Runs: 51455:51599
+UBFile: null
+VanadiumFile: ''
+BackgroundFile: null
+FluxFile: ''
+MaskFile: null
+DetectorCalibration: null
+Integration:
+  Cell: Hexagonal
+  Centering: R(obv)
+  ModVec1: [0, 0, 0]
+  ModVec2: [0, 0, 0]
+  ModVec3: [0, 0, 0]
+  MaxOrder: 0
+  CrossTerms: false
+  MinD: 0.6
+  Radius: 0.25
+Normalization:
+  Symmetry: -3m
+  Projections: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  Extents: [[-10, 10], [-10, 10], [-10, 10]]
+  Bins: [201, 201, 201]
+Grouping: 4x4

@@ -1,0 +1,16 @@
+name: garnet_reduction
+channels:
+  - conda-forge
+  - mantid/label/nightly
+  - oncat
+dependencies:
+  - python
+  - numpy
+  - scipy
+  - matplotlib
+  - pycifrw
+  - h5py
+  - lmfit
+  - mantidworkbench
+  - pytest
+  - conda

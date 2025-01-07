@@ -1,0 +1,28 @@
+Instrument: CORELLI
+IPTS: 31429
+Runs: 324246:324422
+UBFile: /SNS/CORELLI/IPTS-31429/shared/garnet/calibration/Yb3Al5O12_300K_2023_0703/YAG.mat
+VanadiumFile: /SNS/CORELLI/shared/Vanadium/2022B_0725_CCR_5x7/solid_angle_2p5-8.nxs
+BackgroundFile: /SNS/CORELLI/shared/Background/2022B_0725_CCR_5x7/background_2p5-8.nxs
+FluxFile: /SNS/CORELLI/shared/Vanadium/2022B_0725_CCR_5x7/flux_2p5-8.nxs
+MaskFile: /SNS/CORELLI/shared/Vanadium/2022B_0725_CCR_5x7/integration.xml
+DetectorCalibration: /SNS/CORELLI/shared/calibration/2022A/calibration.xml
+TubeCalibration: /SNS/CORELLI/shared/calibration/tube/calibration_corelli_20200109.nxs.h5
+Elastic: false
+TimeOffset: null
+Integration:
+  Cell: Cubic
+  Centering: I
+  ModVec1: [0, 0, 0]
+  ModVec2: [0, 0, 0]
+  ModVec3: [0, 0, 0]
+  MaxOrder: 0
+  CrossTerms: false
+  MinD: 0.7
+  Radius: 0.25
+Normalization:
+  Symmetry: m-3m
+  Projections: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  Extents: [[-10, 10], [-10, 10], [-10, 10]]
+  Bins: [201, 201, 201]
+Grouping: 1x4

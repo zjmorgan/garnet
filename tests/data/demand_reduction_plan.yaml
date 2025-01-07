@@ -1,0 +1,23 @@
+Instrument: DEMAND
+IPTS: 9884
+Runs: '2'
+Experiment: 817
+UBFile: /HFIR/HB3A/shared/benchmark/LiFePO4.mat
+VanadiumFile: /HFIR/HB3A/shared/Vanadium/Vanadium_cycle493/HB3A_exp0814_scan0001.nxs
+BackgroundFile: null
+Integration:
+  Cell: Orthorhombic
+  Centering: P
+  ModVec1: [0, 0, 0]
+  ModVec2: [0, 0, 0]
+  ModVec3: [0, 0, 0]
+  MaxOrder: 0
+  CrossTerms: false
+  MinD: 0.7
+  Radius: 0.25
+Normalization:
+  Symmetry: mmm
+  Projections: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+  Extents: [[-5, 5], [-9, 9], [-5, 5]]
+  Bins: [201, 361, 201]
+Grouping: 4x4
