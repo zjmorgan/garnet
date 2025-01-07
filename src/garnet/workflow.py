@@ -1,6 +1,8 @@
 import sys
 import os
 
+import multiprocessing
+
 directory = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(directory)
 
@@ -36,6 +38,7 @@ inst_dict = {
 reduction_types = {"temp": None, "int": "Integration", "norm": "Normalization"}
 
 if __name__ == "__main__":
+    multiprocessing.set_start_method("spawn")
 
     filename, reduction, arg = sys.argv[1], sys.argv[2], sys.argv[3]
 
@@ -50,7 +53,6 @@ if __name__ == "__main__":
     rp = ReductionPlan()
 
     if reduction == "temp":
-
         rp.generate_plan(instrument)
         filename = os.path.abspath(filename)
         if not os.path.exists(filename):
@@ -59,7 +61,6 @@ if __name__ == "__main__":
             rp.save_plan(filename)
 
     else:
-
         rp.load_plan(filename)
 
         if reduction == "int":
@@ -92,7 +93,6 @@ if __name__ == "__main__":
         # pt.run_tasks(rp.plan, n_proc)
 
         if reduction == "norm":
-
             pt = ParallelTasks(func, comb)
 
             n_runs = len(rp.plan["Runs"])
@@ -105,7 +105,6 @@ if __name__ == "__main__":
             pt.run_tasks(rp.plan, n_proc)
 
         else:
-
             max_proc = os.cpu_count()
 
             if n_proc > max_proc:

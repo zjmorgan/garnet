@@ -10,7 +10,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
-np.seterr(all="ignore", invalid="ignore")
+# np.seterr(all="ignore", invalid="ignore")
 
 from mantid import config
 

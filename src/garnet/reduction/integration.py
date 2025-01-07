@@ -1133,12 +1133,12 @@ class PeakEllipsoid:
 
         n = np.sum(mask)
 
-        if n <= m:
+        dof = n - m
+
+        if dof <= 0:
             return np.inf
         else:
-            return np.nansum(((y_fit[mask] - y[mask]) / e[mask]) ** 2) / (
-                n - m
-            )
+            return np.nansum(((y_fit[mask] - y[mask]) / e[mask]) ** 2) / dof
 
     def gaussian(self, x0, x1, x2, c, inv_S, mode="3d"):
         c0, c1, c2 = c
@@ -1451,7 +1451,11 @@ class PeakEllipsoid:
         du0_2, du1_2, du2_2 = A2 * yu2_gauss / e2
 
         n0, n1, n2, n_params = y0.size, y1.size, y2.size, len(params)
-        jac = np.zeros((n_params, n0 + n1 + n2))
+
+        n01 = n0 + n1
+        n012 = n01 + n2
+
+        jac = np.zeros((n_params, n012))
 
         jac[params_list.index("A1d_0"), :n0] = dA0.flatten()
         jac[params_list.index("B1d_0"), :n0] = dB0.flatten()
@@ -1466,31 +1470,31 @@ class PeakEllipsoid:
         jac[params_list.index("u1"), :n0] = du1_0.flatten()
         jac[params_list.index("u2"), :n0] = du2_0.flatten()
 
-        jac[params_list.index("A1d_1"), n0 : n0 + n1] = dA1.flatten()
-        jac[params_list.index("B1d_1"), n0 : n0 + n1] = dB1.flatten()
-        jac[params_list.index("C1d_1"), n0 : n0 + n1] = dC1.flatten()
-        jac[params_list.index("c0"), n0 : n0 + n1] = dc0_1.flatten()
-        jac[params_list.index("c1"), n0 : n0 + n1] = dc1_1.flatten()
-        jac[params_list.index("c2"), n0 : n0 + n1] = dc2_1.flatten()
-        jac[params_list.index("r0"), n0 : n0 + n1] = dr0_1.flatten()
-        jac[params_list.index("r1"), n0 : n0 + n1] = dr1_1.flatten()
-        jac[params_list.index("r2"), n0 : n0 + n1] = dr2_1.flatten()
-        jac[params_list.index("u0"), n0 : n0 + n1] = du0_1.flatten()
-        jac[params_list.index("u1"), n0 : n0 + n1] = du1_1.flatten()
-        jac[params_list.index("u2"), n0 : n0 + n1] = du2_1.flatten()
+        jac[params_list.index("A1d_1"), n0:n01] = dA1.flatten()
+        jac[params_list.index("B1d_1"), n0:n01] = dB1.flatten()
+        jac[params_list.index("C1d_1"), n0:n01] = dC1.flatten()
+        jac[params_list.index("c0"), n0:n01] = dc0_1.flatten()
+        jac[params_list.index("c1"), n0:n01] = dc1_1.flatten()
+        jac[params_list.index("c2"), n0:n01] = dc2_1.flatten()
+        jac[params_list.index("r0"), n0:n01] = dr0_1.flatten()
+        jac[params_list.index("r1"), n0:n01] = dr1_1.flatten()
+        jac[params_list.index("r2"), n0:n01] = dr2_1.flatten()
+        jac[params_list.index("u0"), n0:n01] = du0_1.flatten()
+        jac[params_list.index("u1"), n0:n01] = du1_1.flatten()
+        jac[params_list.index("u2"), n0:n01] = du2_1.flatten()
 
-        jac[params_list.index("A1d_2"), n0 + n1 : n0 + n1 + n2] = dA2.flatten()
-        jac[params_list.index("B1d_2"), n0 + n1 : n0 + n1 + n2] = dB2.flatten()
-        jac[params_list.index("C1d_2"), n0 + n1 : n0 + n1 + n2] = dC2.flatten()
-        jac[params_list.index("c0"), n0 + n1 : n0 + n1 + n2] = dc0_2.flatten()
-        jac[params_list.index("c1"), n0 + n1 : n0 + n1 + n2] = dc1_2.flatten()
-        jac[params_list.index("c2"), n0 + n1 : n0 + n1 + n2] = dc2_2.flatten()
-        jac[params_list.index("r0"), n0 + n1 : n0 + n1 + n2] = dr0_2.flatten()
-        jac[params_list.index("r1"), n0 + n1 : n0 + n1 + n2] = dr1_2.flatten()
-        jac[params_list.index("r2"), n0 + n1 : n0 + n1 + n2] = dr2_2.flatten()
-        jac[params_list.index("u0"), n0 + n1 : n0 + n1 + n2] = du0_2.flatten()
-        jac[params_list.index("u1"), n0 + n1 : n0 + n1 + n2] = du1_2.flatten()
-        jac[params_list.index("u2"), n0 + n1 : n0 + n1 + n2] = du2_2.flatten()
+        jac[params_list.index("A1d_2"), n01:n012] = dA2.flatten()
+        jac[params_list.index("B1d_2"), n01:n012] = dB2.flatten()
+        jac[params_list.index("C1d_2"), n01:n012] = dC2.flatten()
+        jac[params_list.index("c0"), n01:n012] = dc0_2.flatten()
+        jac[params_list.index("c1"), n01:n012] = dc1_2.flatten()
+        jac[params_list.index("c2"), n01:n012] = dc2_2.flatten()
+        jac[params_list.index("r0"), n01:n012] = dr0_2.flatten()
+        jac[params_list.index("r1"), n01:n012] = dr1_2.flatten()
+        jac[params_list.index("r2"), n01:n012] = dr2_2.flatten()
+        jac[params_list.index("u0"), n01:n012] = du0_2.flatten()
+        jac[params_list.index("u1"), n01:n012] = du1_2.flatten()
+        jac[params_list.index("u2"), n01:n012] = du2_2.flatten()
 
         # ---
 
@@ -1683,7 +1687,11 @@ class PeakEllipsoid:
         du0_2, du1_2, du2_2 = A2 * yu2_gauss / e2
 
         n0, n1, n2, n_params = y0.size, y1.size, y2.size, len(params)
-        jac = np.zeros((n_params, n0 + n1 + n2))
+
+        n01 = n0 + n1
+        n012 = n01 + n2
+
+        jac = np.zeros((n_params, n012))
 
         jac[params_list.index("A2d_0"), :n0] = dA0.flatten()
         jac[params_list.index("B2d_0"), :n0] = dB0.flatten()
@@ -1699,37 +1707,33 @@ class PeakEllipsoid:
         jac[params_list.index("u1"), :n0] = du1_0.flatten()
         jac[params_list.index("u2"), :n0] = du2_0.flatten()
 
-        jac[params_list.index("A2d_1"), n0 : n0 + n1] = dA1.flatten()
-        jac[params_list.index("B2d_1"), n0 : n0 + n1] = dB1.flatten()
-        jac[params_list.index("C2d_10"), n0 : n0 + n1] = dC10.flatten()
-        jac[params_list.index("C2d_12"), n0 : n0 + n1] = dC12.flatten()
-        jac[params_list.index("c0"), n0 : n0 + n1] = dc0_1.flatten()
-        jac[params_list.index("c1"), n0 : n0 + n1] = dc1_1.flatten()
-        jac[params_list.index("c2"), n0 : n0 + n1] = dc2_1.flatten()
-        jac[params_list.index("r0"), n0 : n0 + n1] = dr0_1.flatten()
-        jac[params_list.index("r1"), n0 : n0 + n1] = dr1_1.flatten()
-        jac[params_list.index("r2"), n0 : n0 + n1] = dr2_1.flatten()
-        jac[params_list.index("u0"), n0 : n0 + n1] = du0_1.flatten()
-        jac[params_list.index("u1"), n0 : n0 + n1] = du1_1.flatten()
-        jac[params_list.index("u2"), n0 : n0 + n1] = du2_1.flatten()
+        jac[params_list.index("A2d_1"), n0:n01] = dA1.flatten()
+        jac[params_list.index("B2d_1"), n0:n01] = dB1.flatten()
+        jac[params_list.index("C2d_10"), n0:n01] = dC10.flatten()
+        jac[params_list.index("C2d_12"), n0:n01] = dC12.flatten()
+        jac[params_list.index("c0"), n0:n01] = dc0_1.flatten()
+        jac[params_list.index("c1"), n0:n01] = dc1_1.flatten()
+        jac[params_list.index("c2"), n0:n01] = dc2_1.flatten()
+        jac[params_list.index("r0"), n0:n01] = dr0_1.flatten()
+        jac[params_list.index("r1"), n0:n01] = dr1_1.flatten()
+        jac[params_list.index("r2"), n0:n01] = dr2_1.flatten()
+        jac[params_list.index("u0"), n0:n01] = du0_1.flatten()
+        jac[params_list.index("u1"), n0:n01] = du1_1.flatten()
+        jac[params_list.index("u2"), n0:n01] = du2_1.flatten()
 
-        jac[params_list.index("A2d_2"), n0 + n1 : n0 + n1 + n2] = dA2.flatten()
-        jac[params_list.index("B2d_2"), n0 + n1 : n0 + n1 + n2] = dB2.flatten()
-        jac[
-            params_list.index("C2d_20"), n0 + n1 : n0 + n1 + n2
-        ] = dC20.flatten()
-        jac[
-            params_list.index("C2d_21"), n0 + n1 : n0 + n1 + n2
-        ] = dC21.flatten()
-        jac[params_list.index("c0"), n0 + n1 : n0 + n1 + n2] = dc0_2.flatten()
-        jac[params_list.index("c1"), n0 + n1 : n0 + n1 + n2] = dc1_2.flatten()
-        jac[params_list.index("c2"), n0 + n1 : n0 + n1 + n2] = dc2_2.flatten()
-        jac[params_list.index("r0"), n0 + n1 : n0 + n1 + n2] = dr0_2.flatten()
-        jac[params_list.index("r1"), n0 + n1 : n0 + n1 + n2] = dr1_2.flatten()
-        jac[params_list.index("r2"), n0 + n1 : n0 + n1 + n2] = dr2_2.flatten()
-        jac[params_list.index("u0"), n0 + n1 : n0 + n1 + n2] = du0_2.flatten()
-        jac[params_list.index("u1"), n0 + n1 : n0 + n1 + n2] = du1_2.flatten()
-        jac[params_list.index("u2"), n0 + n1 : n0 + n1 + n2] = du2_2.flatten()
+        jac[params_list.index("A2d_2"), n01:n012] = dA2.flatten()
+        jac[params_list.index("B2d_2"), n01:n012] = dB2.flatten()
+        jac[params_list.index("C2d_20"), n01:n012] = dC20.flatten()
+        jac[params_list.index("C2d_21"), n01:n012] = dC21.flatten()
+        jac[params_list.index("c0"), n01:n012] = dc0_2.flatten()
+        jac[params_list.index("c1"), n01:n012] = dc1_2.flatten()
+        jac[params_list.index("c2"), n01:n012] = dc2_2.flatten()
+        jac[params_list.index("r0"), n01:n012] = dr0_2.flatten()
+        jac[params_list.index("r1"), n01:n012] = dr1_2.flatten()
+        jac[params_list.index("r2"), n01:n012] = dr2_2.flatten()
+        jac[params_list.index("u0"), n01:n012] = du0_2.flatten()
+        jac[params_list.index("u1"), n01:n012] = du1_2.flatten()
+        jac[params_list.index("u2"), n01:n012] = du2_2.flatten()
 
         # ---
 
@@ -2135,7 +2139,7 @@ class PeakEllipsoid:
         e = e[i0:j0, i1:j1, i2:j2].copy()
         counts = counts[i0:j0, i1:j1, i2:j2].copy()
 
-        if (np.array(y.shape) <= 3).any():
+        if (np.array(y.shape) <= 9).any():
             return None
 
         x0 = x0[i0:j0, i1:j1, i2:j2].copy()
@@ -2216,11 +2220,7 @@ class PeakEllipsoid:
 
         S_inv = np.linalg.inv(S)
 
-        # r = 1.2*np.max(np.sqrt(np.linalg.eigvalsh(S)))
-        # r = np.cbrt(2*np.sqrt(np.linalg.det(S)))
-
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
-        # sphere = np.einsum('ij,jklm,iklm->klm', np.diag([1/r**2]*3), x, x)
 
         pk = (ellipsoid <= 1.1**2) & (e > 0)
         bkg = (ellipsoid > 1.1**2) & (ellipsoid < 2**2) & (e > 0)
@@ -2231,8 +2231,6 @@ class PeakEllipsoid:
         # y_bkg = y[bkg].copy()
         # e_bkg = e[bkg].copy()
 
-        # b = np.nanmean(y_bkg)
-        # b_err = np.sqrt(np.nanmean(e_bkg**2))
         b = self.bkg
         b_err = self.bkg_err
 
@@ -2246,7 +2244,7 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         freq = y - b
-        freq[~(pk | bkg)] = np.nan
+        # freq[~(pk | bkg)] = np.nan
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()
