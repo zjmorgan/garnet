@@ -1369,7 +1369,7 @@ class PeakModel:
 
         name = (
             "peak_d={:.4f}_({:d},{:d},{:d})"
-            + "_({:d},{:d},{:d})_lambda={:.4f}_run#{:d}"
+            + "_({:d},{:d},{:d})/lambda={:.4f}_run#{:d}"
         )
         return name.format(d, *hkl, *mnp, lamda, run)
 
