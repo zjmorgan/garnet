@@ -171,11 +171,16 @@ class Integration(SubPlan):
             params = self.estimate_peak_size("peaks", "md", r_cut)
 
             if self.params["MaxOrder"] > 0:
+                sat_min_d = self.params["MinD"]
+                if self.params.get("SatMinD") is not None:
+                    sat_min_d = self.params["SatMinD"]
+
                 peaks.predict_satellite_peaks(
                     "peaks",
                     "md",
-                    self.params["MinD"],
+                    lamda_min,
                     lamda_max,
+                    sat_min_d,
                     self.params["ModVec1"],
                     self.params["ModVec2"],
                     self.params["ModVec3"],
@@ -518,7 +523,7 @@ class Integration(SubPlan):
 
         max_order = self.params.get("MaxOrder")
         mod_vec_1 = self.params.get("ModVec1")
-        mod_vec_2 = self.params.get("ModVec1")
+        mod_vec_2 = self.params.get("ModVec2")
         mod_vec_3 = self.params.get("ModVec3")
         cross_terms = self.params.get("CrossTerms")
 
@@ -2244,7 +2249,7 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         freq = y - b
-        # freq[~(pk | bkg)] = np.nan
+        freq[freq < 0] = np.nan
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()

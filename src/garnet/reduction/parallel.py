@@ -3,19 +3,14 @@ import sys
 import traceback
 
 import multiprocessing
-
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
-
 from mantid import config
 
 np.seterr(all="ignore", invalid="ignore")
-
-multiprocessing.set_start_method("spawn", force=True)
-
 config["Q.convention"] = "Crystallography"
-config.setLogLevel(2, quiet=False)
+config.setLogLevel(2, quiet=True)
 
 
 class ParallelTasks:
