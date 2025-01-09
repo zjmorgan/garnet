@@ -12,7 +12,6 @@ filepath = os.path.dirname(os.path.abspath(__file__))
 
 
 def test_slice_plot():
-
     np.random.seed(13)
 
     U = scipy.spatial.transform.Rotation.random().as_matrix()
@@ -63,7 +62,6 @@ def test_slice_plot():
 
 
 def test_radius_plot():
-
     r_cut = 0.25
 
     A = 1.2
@@ -87,7 +85,6 @@ def test_radius_plot():
 
 
 def test_init_peak_plot():
-
     plot = PeakPlot()
 
     file = os.path.join(filepath, "ellipsoid_init.png")
@@ -98,23 +95,22 @@ def test_init_peak_plot():
 
 
 def test_peak_plot():
-
     np.random.seed(13)
 
     nx, ny, nz = 21, 24, 31
 
     Qx_min, Qx_max = 1, 3
-    Qy_min, Qy_max = -0.9, 3.1
-    Qz_min, Qz_max = -3.2, 0.8
+    Qy_min, Qy_max = -2.9, 3.1
+    Qz_min, Qz_max = -2.2, 1.8
 
-    Q0_x, Q0_y, Q0_z = 2.1, 1.0, -1.2
+    Q0_x, Q0_y, Q0_z = 2.1, 0.2, -0.2
 
     sigma_x, sigma_y, sigma_z = 0.15, 0.25, 0.2
     rho_yz, rho_xz, rho_xy = 0.5, -0.1, -0.12
 
     a = 0.3
     b = 0.2
-    c = 0.6
+    c = 5.2
 
     sigma_yz = sigma_y * sigma_z
     sigma_xz = sigma_x * sigma_z
@@ -130,34 +126,20 @@ def test_peak_plot():
 
     Q0 = np.array([Q0_x, Q0_y, Q0_z])
 
-    signal = np.random.multivariate_normal(Q0, cov, size=1000)
+    signal = np.random.multivariate_normal(Q0, cov, size=100000)
 
-    data_norm, bins = np.histogramdd(
+    counts, bins = np.histogramdd(
         signal,
         density=False,
         bins=[nx, ny, nz],
         range=[(Qx_min, Qx_max), (Qy_min, Qy_max), (Qz_min, Qz_max)],
     )
 
-    counts = data_norm.copy()
-
-    sig_data = np.sqrt(counts) + 0.001
-    sig_data /= np.max(data_norm)
-    sig_data /= np.sqrt(np.linalg.det(2 * np.pi * cov))
-
-    data_norm /= np.max(data_norm)
-    data_norm /= np.sqrt(np.linalg.det(2 * np.pi * cov))
-
     x_bin_edges, y_bin_edges, z_bin_edges = bins
 
     Qx = 0.5 * (x_bin_edges[1:] + x_bin_edges[:-1])
     Qy = 0.5 * (y_bin_edges[1:] + y_bin_edges[:-1])
     Qz = 0.5 * (z_bin_edges[1:] + z_bin_edges[:-1])
-
-    data_norm *= c
-    data_norm += b + a * (2 * np.random.random(data_norm.shape) - 1)
-
-    sig_data *= c
 
     m = 1
 
@@ -178,35 +160,52 @@ def test_peak_plot():
     jc = np.random.randint(j_min, j_max, size=n).ravel()
     kc = np.random.randint(k_min, k_max, size=n).ravel()
 
-    temp = np.copy(data_norm)
-    data_norm[i, j, k] = data_norm[ic, jc, kc]
-    data_norm[ic, jc, kc] = temp[i, j, k]
+    temp = np.copy(counts)
+    counts[i, j, k] = counts[ic, jc, kc]
+    counts[ic, jc, kc] = temp[i, j, k]
+
+    counts += b + a * (2 * np.random.random(counts.shape) - 1)
+
+    sig_data = np.sqrt(counts)
+    sig_data /= np.max(counts)
+
+    data_norm = counts.copy()
+    data_norm /= np.max(counts)
+
+    data_norm *= c
+    sig_data *= c
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing="ij")
 
-    ellipsoid = PeakEllipsoid(counts)
+    ellipsoid = PeakEllipsoid()
 
-    ellipsoid.fit(Qx, Qy, Qz, data_norm, sig_data, 0.1, 2.0, 2.0)
+    ellipsoid.fit(Qx, Qy, Qz, counts, data_norm, sig_data, 0.1, 2)
 
-    c, S, *fitting = ellipsoid.best_fit
+    c, S, *best_fit = ellipsoid.best_fit
 
     wavelength = 3.2887
 
     angles = 60, 0
     goniometer = [0, 0, 0]
 
-    bin_data = ellipsoid.bin_data
-
-    I, sigma = ellipsoid.integrate_norm(bin_data, c, S)
-
     plot = PeakPlot()
 
-    plot.add_fitting(*fitting)
-    plot.add_profile_fit(*ellipsoid.best_prof)
-    plot.add_projection_fit(*ellipsoid.best_proj)
+    norm_params = Qx, Qy, Qz, data_norm, sig_data, counts, c, S
+
+    I, sigma = ellipsoid.integrate(*norm_params)
+
+    plot.add_ellipsoid_fit(best_fit)
+
+    plot.add_profile_fit(ellipsoid.best_prof)
+
+    plot.add_projection_fit(ellipsoid.best_proj)
+
     plot.add_ellipsoid(c, S)
+
     plot.add_peak_info(wavelength, angles, goniometer)
+
     plot.add_peak_stats(ellipsoid.redchi2)
+
     plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
     file = os.path.join(filepath, "ellipsoid.png")
@@ -217,3 +216,6 @@ def test_peak_plot():
     plot.save_plot(file)
 
     assert os.path.exists(file)
+
+
+test_peak_plot()

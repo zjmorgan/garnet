@@ -592,7 +592,7 @@ class Integration(SubPlan):
         value = None
 
         if params is not None:
-            c, S, *fitting = ellipsoid.best_fit
+            c, S, *best_fit = ellipsoid.best_fit
 
             shape = self.revert_ellipsoid_parameters(params, projections)
 
@@ -601,11 +601,11 @@ class Integration(SubPlan):
             I, sigma = ellipsoid.integrate(*norm_params)
 
             if self.make_plot:
-                self.peak_plot.add_fitting(*fitting)
+                self.peak_plot.add_ellipsoid_fit(best_fit)
 
-                self.peak_plot.add_profile_fit(*ellipsoid.best_prof)
+                self.peak_plot.add_profile_fit(ellipsoid.best_prof)
 
-                self.peak_plot.add_projection_fit(*ellipsoid.best_proj)
+                self.peak_plot.add_projection_fit(ellipsoid.best_proj)
 
                 self.peak_plot.add_ellipsoid(c, S)
 
@@ -879,11 +879,13 @@ class PeakRegionOfInterest:
         self.params.add("r0", value=r_cut / 2, min=0.001, max=2 * r_cut)
         self.params.add("r1", value=0, min=-r_cut, max=r_cut)
 
+        self.scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
+
     def objective(self, params, x, y, e, lamda):
         r0 = params["r0"]
         r1 = params["r1"]
 
-        sigma = (r0 + r1 * lamda[:, np.newaxis]) / 3.76205
+        sigma = (r0 + r1 * lamda[:, np.newaxis]) / self.scale
 
         z = x / sigma
 
@@ -1050,6 +1052,8 @@ class PeakEllipsoid:
 
     def normalize(self, x0, x1, x2, counts, y, e, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        c_int = 1
 
         if mode == "1d_0":
             c_int = dx0 * np.mean(counts > 0, axis=(1, 2))
@@ -2016,9 +2020,6 @@ class PeakEllipsoid:
 
         self.redchi2 = []
 
-        y1, y2, y3 = y1d_0, y2d_0, y3d
-        e1, e2, e3 = e1d_0, e2d_0, e3d
-
         out = Minimizer(
             self.residual,
             self.params,
@@ -2056,73 +2057,111 @@ class PeakEllipsoid:
 
         args = x0, x1, x2, c, inv_S
 
-        C1_0 = self.params["C1d_0"].value
+        A0 = self.params["A1d_0"]
+        A1 = self.params["A1d_1"]
+        A2 = self.params["A1d_2"]
 
-        B1 = self.params["B1d_0"].value
+        B0 = self.params["B1d_0"]
+        B1 = self.params["B1d_1"]
+        B2 = self.params["B1d_2"]
 
-        A1 = self.params["A1d_0"].value
+        C0 = self.params["C1d_0"]
+        C1 = self.params["C1d_1"]
+        C2 = self.params["C1d_2"]
 
-        y1_gauss = self.gaussian(*args, "1d_0")
-
-        y1_fit = A1 * y1_gauss + B1 + C1_0 * (x0[:, 0, 0] - c0)
-
-        self.ellipsoid_covariance(inv_S, mode="1d_0")
-
-        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y1_fit, y1, e1, "1d_0")
-
-        self.redchi2.append(chi2)
-
-        # ---
-
-        C2_1 = self.params["C2d_01"].value
-        C2_2 = self.params["C2d_02"].value
-
-        B2 = self.params["B2d_0"].value
-
-        A2 = self.params["A2d_0"].value
-
-        y2_gauss = self.gaussian(*args, "2d_0")
-
-        y2_fit = (
-            A2 * y2_gauss
-            + B2
-            + C2_1 * (x1[0, :, :] - c1)
-            + C2_2 * (x2[0, :, :] - c2)
+        y1d_0_fit = (
+            A0 * self.gaussian(*args, "1d_0") + B0 + C0 * (x0[:, 0, 0] - c0)
+        )
+        y1d_1_fit = (
+            A1 * self.gaussian(*args, "1d_1") + B1 + C1 * (x1[0, :, 0] - c1)
+        )
+        y1d_2_fit = (
+            A2 * self.gaussian(*args, "1d_2") + B2 + C2 * (x2[0, 0, :] - c2)
         )
 
-        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y2_fit, y2, e2, "2d_0")
+        y1 = [
+            (y1d_0_fit, y1d_0, e1d_0),
+            (y1d_1_fit, y1d_1, e1d_1),
+            (y1d_2_fit, y1d_2, e1d_2),
+        ]
+
+        chi2_1d = []
+        chi2_1d.append(self.chi_2_fit(x0, x1, x2, c, inv_S, *y1[0], "1d_0"))
+        chi2_1d.append(self.chi_2_fit(x0, x1, x2, c, inv_S, *y1[1], "1d_1"))
+        chi2_1d.append(self.chi_2_fit(x0, x1, x2, c, inv_S, *y1[2], "1d_2"))
+
+        self.redchi2.append(chi2_1d)
+
+        # ---
+
+        A0 = self.params["A2d_0"]
+        A1 = self.params["A2d_1"]
+        A2 = self.params["A2d_2"]
+
+        B0 = self.params["B2d_0"]
+        B1 = self.params["B2d_1"]
+        B2 = self.params["B2d_2"]
+
+        C01 = self.params["C2d_01"]
+        C02 = self.params["C2d_02"]
+
+        C10 = self.params["C2d_10"]
+        C12 = self.params["C2d_12"]
+
+        C20 = self.params["C2d_20"]
+        C21 = self.params["C2d_21"]
+
+        y2d_0_fit = (
+            A0 * self.gaussian(*args, "2d_0")
+            + B0
+            + C01 * (x1[0, :, :] - c1)
+            + C02 * (x2[0, :, :] - c2)
+        )
+        y2d_1_fit = (
+            A1 * self.gaussian(*args, "2d_1")
+            + B1
+            + C10 * (x0[:, 0, :] - c0)
+            + C12 * (x2[:, 0, :] - c2)
+        )
+        y2d_2_fit = (
+            A2 * self.gaussian(*args, "2d_2")
+            + B2
+            + C20 * (x0[:, :, 0] - c0)
+            + C21 * (x1[:, :, 0] - c1)
+        )
+
+        y2 = [
+            (y2d_0_fit, y2d_0, e2d_0),
+            (y2d_1_fit, y2d_1, e2d_1),
+            (y2d_2_fit, y2d_2, e2d_2),
+        ]
+
+        chi2_2d = []
+        chi2_2d.append(self.chi_2_fit(x0, x1, x2, c, inv_S, *y2[0], "2d_0"))
+        chi2_2d.append(self.chi_2_fit(x0, x1, x2, c, inv_S, *y2[1], "2d_1"))
+        chi2_2d.append(self.chi_2_fit(x0, x1, x2, c, inv_S, *y2[2], "2d_2"))
+
+        self.redchi2.append(chi2_2d)
+
+        # ---
+
+        B = self.params["B3d"].value
+
+        A = self.params["A3d"].value
+
+        y3d_fit = A * self.gaussian(*args, "3d") + B
+
+        y3 = (y3d_fit, y3d, e3d)
+
+        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, *y3, "3d")
 
         self.redchi2.append(chi2)
 
         # ---
-
-        B3 = self.params["B3d"].value
-
-        A3 = self.params["A3d"].value
-
-        y3_gauss = self.gaussian(*args, "3d")
-
-        y3_fit = A3 * y3_gauss + B3
-
-        chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, y3_fit, y3, e3, "3d")
-
-        self.redchi2.append(chi2)
-
-        # ---
-
-        self.bkg = B3
-
-        B3_err = self.params["B3d"].stderr
-        if B3_err is None:
-            B3_err = B3
-
-        self.bkg_err = B3_err
-
-        self.error_scale = np.sqrt(self.redchi2[2])
 
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
-        return c, inv_S, (y1_fit, y1, e1), (y2_fit, y2, e2), (y3_fit, y3, e3)
+        return c, inv_S, y1, y2, y3
 
     def voxels(self, x0, x1, x2):
         return (
@@ -2186,12 +2225,6 @@ class PeakEllipsoid:
 
         c, inv_S, vals1d, vals2d, vals3d = weights
 
-        y_prof_fit, y_prof, e_prof = vals1d
-
-        y_proj_fit, y_proj, e_proj = vals2d
-
-        y_fit, y, e = vals3d
-
         if not np.linalg.det(inv_S) > 0:
             print("Improper optimal covariance")
             return None
@@ -2220,15 +2253,21 @@ class PeakEllipsoid:
 
         v0, v1, v2 = W.T
 
-        binning = (x0 + xmod, x1, x2), y, e
-
-        fitting = binning, y_fit
+        fitting = (x0 + xmod, x1, x2, *vals3d)
 
         self.best_fit = c, S, *fitting
 
-        self.best_prof = (x0[:, 0, 0] + xmod, y_prof, e_prof), y_prof_fit
+        self.best_prof = (
+            (x0[:, 0, 0] + xmod, *vals1d[0]),
+            (x1[0, :, 0], *vals1d[1]),
+            (x2[0, 0, :], *vals1d[2]),
+        )
 
-        self.best_proj = (x1[0, :, :], x2[0, :, :], y_proj, e_proj), y_proj_fit
+        self.best_proj = (
+            (x1[0, :, :], x2[0, :, :], *vals2d[0]),
+            (x0[:, 0, :] + xmod, x2[:, 0, :], *vals2d[1]),
+            (x0[:, :, 0] + xmod, x1[:, :, 0], *vals2d[2]),
+        )
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
@@ -2266,7 +2305,7 @@ class PeakEllipsoid:
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
 
-        sig *= np.sqrt(1 + self.error_scale**2)
+        # sig *= np.sqrt(1 + self.error_scale**2)
 
         self.weights = (x0[pk], x1[pk], x2[pk]), counts[pk].copy()
 
