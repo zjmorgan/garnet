@@ -1,5 +1,3 @@
-import os
-
 import matplotlib.pyplot as plt
 import matplotlib.style as mplstyle
 
@@ -29,11 +27,6 @@ class BasePlot:
             Path to file.
 
         """
-
-        directory = os.path.dirname(filename)
-
-        if not os.path.exists(directory):
-            os.mkdir(directory)
 
         self.fig.savefig(filename, bbox_inches="tight")
 

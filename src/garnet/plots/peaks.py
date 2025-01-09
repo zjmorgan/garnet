@@ -534,9 +534,9 @@ class PeakPlot(BasePlot):
 
         y[np.isinf(y)] = np.nan
 
-        y0 = np.nansum(y, axis=0)
-        y1 = np.nansum(y, axis=1)
-        y2 = np.nansum(y, axis=2)
+        y0 = np.nansum(y, axis=0) / np.nanmean(y > 0, axis=0)
+        y1 = np.nansum(y, axis=1) / np.nanmean(y > 0, axis=1)
+        y2 = np.nansum(y, axis=2) / np.nanmean(y > 0, axis=2)
 
         mask = np.isfinite(y)
 
@@ -649,13 +649,13 @@ class PeakPlot(BasePlot):
         y[~mask] = np.nan
         labels[~mask] = np.nan
 
-        y0 = np.nansum(y, axis=0)
-        y1 = np.nansum(y, axis=1)
-        y2 = np.nansum(y, axis=2)
+        y0 = np.nansum(y, axis=0) / np.nanmean(y > 0, axis=0)
+        y1 = np.nansum(y, axis=1) / np.nanmean(y > 0, axis=1)
+        y2 = np.nansum(y, axis=2) / np.nanmean(y > 0, axis=2)
 
-        p0 = np.nansum(labels, axis=0)
-        p1 = np.nansum(labels, axis=1)
-        p2 = np.nansum(labels, axis=2)
+        p0 = np.nansum(labels, axis=0) / np.nanmean(y > 0, axis=0)
+        p1 = np.nansum(labels, axis=1) / np.nanmean(y > 0, axis=1)
+        p2 = np.nansum(labels, axis=2) / np.nanmean(y > 0, axis=2)
 
         mask_0 = np.isfinite(y0) & (y0 > 0)
         mask_1 = np.isfinite(y1) & (y1 > 0)

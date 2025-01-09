@@ -578,12 +578,16 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
 
-        peak_name, wavelength, angles, goniometer = peak_info
+        peak_file, wavelength, angles, goniometer = peak_info
         # print(key, peak_name)
 
         ellipsoid = PeakEllipsoid()
 
-        params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ, Qmod)
+        params = None
+        try:
+            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ, Qmod)
+        except Exception as e:
+            print("Exception fitting data: {}".format(e))
 
         value = None
 
@@ -611,7 +615,10 @@ class Integration(SubPlan):
 
                 self.peak_plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
-                self.peak_plot.save_plot(self.get_plot_file(peak_name))
+                try:
+                    self.peak_plot.save_plot(peak_file)
+                except Exception as e:
+                    print("Exception saving figure: {}".format(e))
 
             value = I, sigma, shape, ellipsoid.info
 
@@ -679,7 +686,14 @@ class Integration(SubPlan):
 
             data_info = (Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections)
 
-            peak_info = (peak_name, wavelength, angles, goniometer)
+            peak_file = self.get_plot_file(peak_name)
+
+            directory = os.path.dirname(peak_file)
+
+            if not os.path.exists(directory):
+                os.mkdir(directory)
+
+            peak_info = (peak_file, wavelength, angles, goniometer)
 
             peak_dict[i] = data_info, peak_info
 
@@ -967,9 +981,9 @@ class PeakEllipsoid:
         self.params = Parameters()
 
     def update_constraints(self, x0, x1, x2, dx):
-        r0 = (x0[:, 0, 0][-1] - x0[:, 0, 0][0]) / 8
-        r1 = (x1[0, :, 0][-1] - x1[0, :, 0][0]) / 8
-        r2 = (x2[0, 0, :][-1] - x2[0, 0, :][0]) / 8
+        r0 = (x0[:, 0, 0][1] - x0[:, 0, 0][0]) * 4
+        r1 = (x1[0, :, 0][1] - x1[0, :, 0][0]) * 4
+        r2 = (x2[0, 0, :][1] - x2[0, 0, :][0]) * 4
 
         r0_max = (x0[:, 0, 0][-1] - x0[:, 0, 0][0]) / 2
         r1_max = (x1[0, :, 0][-1] - x1[0, :, 0][0]) / 2
@@ -1854,27 +1868,34 @@ class PeakEllipsoid:
 
         return jac[:, mask]
 
-    def residual(self, params, args_1d, args_2d, args_3d):
+    def residual(self, params, args_1d, args_2d, args_3d, epsilon=1e-16):
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
 
-        reg = [params[key] for key in params.keys()]
+        ridge = [params[key] for key in params.keys()]
+        lasso = [np.sqrt(params[key] ** 2 + epsilon) for key in params.keys()]
 
-        cost = np.concatenate([cost_1d, cost_2d, cost_3d, reg])
+        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso])
 
         return cost
 
-    def jacobian(self, params, args_1d, args_2d, args_3d):
+    def jacobian(self, params, args_1d, args_2d, args_3d, epsilon=1e-16):
         params_list = list(params.keys())
 
         jac_1d = self.jacobian_1d(params, *args_1d)
         jac_2d = self.jacobian_2d(params, *args_2d)
         jac_3d = self.jacobian_3d(params, *args_3d)
 
-        reg = np.eye(len(params_list))
+        ridge = np.eye(len(params_list))
+        lasso = np.diag(
+            [
+                params[key] / np.sqrt(params[key] ** 2 + epsilon)
+                for key in params.keys()
+            ]
+        )
 
-        jac = np.column_stack([jac_1d, jac_2d, jac_3d, reg])
+        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge, lasso])
 
         return jac
 
@@ -2227,17 +2248,20 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        pk = (ellipsoid <= 1.1**2) & (e > 0)
-        bkg = (ellipsoid > 1.1**2) & (ellipsoid < 2**2) & (e > 0)
+        pk = (ellipsoid <= 1**2) & (e > 0)
+        bkg = (ellipsoid > 1**2) & (ellipsoid < 2**2) & (e > 0)
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
 
-        # y_bkg = y[bkg].copy()
-        # e_bkg = e[bkg].copy()
+        y_bkg = y[bkg].copy()
+        e_bkg = e[bkg].copy()
 
-        b = self.bkg
-        b_err = self.bkg_err
+        b = np.nanmean(y_bkg)
+        b_err = np.sqrt(np.nanmean(e_bkg**2))
+
+        # b = self.bkg
+        # b_err = self.bkg_err
 
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x

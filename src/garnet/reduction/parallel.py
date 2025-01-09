@@ -2,7 +2,7 @@ import os
 import sys
 import traceback
 
-import multiprocessing
+import multiprocess as multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
@@ -10,7 +10,7 @@ from mantid import config
 
 np.seterr(all="ignore", invalid="ignore")
 config["Q.convention"] = "Crystallography"
-config.setLogLevel(2, quiet=True)
+config.setLogLevel(2, quiet=False)
 
 
 class ParallelTasks:

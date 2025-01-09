@@ -1,7 +1,7 @@
 import sys
 import os
 
-import multiprocessing
+import multiprocess as multiprocessing
 
 directory = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(directory)
@@ -38,7 +38,7 @@ inst_dict = {
 reduction_types = {"temp": None, "int": "Integration", "norm": "Normalization"}
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn")
+    multiprocessing.set_start_method("spawn", force=True)
 
     filename, reduction, arg = sys.argv[1], sys.argv[2], sys.argv[3]
 
