@@ -611,7 +611,9 @@ class Integration(SubPlan):
 
                 self.peak_plot.add_peak_info(wavelength, angles, goniometer)
 
-                self.peak_plot.add_peak_stats(ellipsoid.redchi2)
+                self.peak_plot.add_peak_stats(
+                    ellipsoid.redchi2, ellipsoid.intensity
+                )
 
                 self.peak_plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 
@@ -2322,6 +2324,7 @@ class PeakEllipsoid:
         args_3d = [x0, x1, x2, y3d, e3d]
 
         self.redchi2 = []
+        self.intensity = []
 
         out = Minimizer(
             self.residual,
@@ -2408,6 +2411,18 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_1d)
 
+        I0 = A0 * self.gaussian_integral(
+            inv_S, "1d_0"
+        ) + H0 * self.lorentzian_integral(inv_S, "1d_0")
+        I1 = A1 * self.gaussian_integral(
+            inv_S, "1d_1"
+        ) + H1 * self.lorentzian_integral(inv_S, "1d_2")
+        I2 = A2 * self.gaussian_integral(
+            inv_S, "1d_2"
+        ) + H2 * self.lorentzian_integral(inv_S, "1d_2")
+
+        self.intensity.append([I0, I1, I2])
+
         # ---
 
         A0 = self.params["A2d_0"]
@@ -2466,6 +2481,18 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_2d)
 
+        I0 = A0 * self.gaussian_integral(
+            inv_S, "2d_0"
+        ) + H0 * self.lorentzian_integral(inv_S, "2d_0")
+        I1 = A1 * self.gaussian_integral(
+            inv_S, "2d_1"
+        ) + H1 * self.lorentzian_integral(inv_S, "2d_2")
+        I2 = A2 * self.gaussian_integral(
+            inv_S, "2d_2"
+        ) + H2 * self.lorentzian_integral(inv_S, "2d_2")
+
+        self.intensity.append([I0, I1, I2])
+
         # ---
 
         B = self.params["B3d"].value
@@ -2485,6 +2512,12 @@ class PeakEllipsoid:
         chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, *y3, "3d")
 
         self.redchi2.append(chi2)
+
+        I = A * self.gaussian_integral(
+            inv_S, "3d"
+        ) + H * self.lorentzian_integral(inv_S, "3d")
+
+        self.intensity.append(I)
 
         # ---
 

@@ -204,7 +204,7 @@ def test_peak_plot():
 
     plot.add_peak_info(wavelength, angles, goniometer)
 
-    plot.add_peak_stats(ellipsoid.redchi2)
+    plot.add_peak_stats(ellipsoid.redchi2, ellipsoid.intensity)
 
     plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
 

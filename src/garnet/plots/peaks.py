@@ -1207,7 +1207,7 @@ class PeakPlot(BasePlot):
         ellip[4].set_title(r"$2\theta={:.2f}^\circ$".format(angles[0]))
         ellip[5].set_title(r"$\phi={:.2f}^\circ$".format(angles[1]))
 
-    def add_peak_stats(self, redchi2):
+    def add_peak_stats(self, redchi2, intensity):
         """
         Add peak statistics.
 
@@ -1215,15 +1215,38 @@ class PeakPlot(BasePlot):
         ----------
         redchi2 : list
             Reduced chi^2 per degree of freedom.
+        intensity : list
+            Integrated intensity.
 
         """
 
-        self.prof[0].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[0][0]))
-        self.prof[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[0][1]))
-        self.prof[2].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[0][2]))
+        label = r"$I={}$ | $\chi^2_\nu={:.1f}$"
+
+        self.prof[0].set_title(
+            label.format(self._sci_notation(intensity[0][0]), redchi2[0][0])
+        )
+        self.prof[1].set_title(
+            label.format(self._sci_notation(intensity[0][1]), redchi2[0][1])
+        )
+        self.prof[2].set_title(
+            label.format(self._sci_notation(intensity[0][2]), redchi2[0][2])
+        )
+
+        self.proj[0].set_title(
+            r"$I={}$".format(self._sci_notation(intensity[1][0]))
+        )
+        self.proj[2].set_title(
+            r"$I={}$".format(self._sci_notation(intensity[1][1]))
+        )
+        self.proj[4].set_title(
+            r"$I={}$".format(self._sci_notation(intensity[1][2]))
+        )
 
         self.proj[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][0]))
-        self.proj[3].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][0]))
-        self.proj[5].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][0]))
+        self.proj[3].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][1]))
+        self.proj[5].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][2]))
 
-        self.ellip[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[2]))
+        self.ellip[0].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[2]))
+        self.ellip[1].set_title(
+            r"$I={}$".format(self._sci_notation(intensity[2]))
+        )
