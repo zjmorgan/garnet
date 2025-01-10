@@ -1266,6 +1266,39 @@ class PeakEllipsoid:
 
         return 0.5 * dU0 / delta, 0.5 * dU1 / delta, 0.5 * dU2 / delta
 
+    def gaussian_integral(self, inv_S, mode="3d"):
+        inv_var = self.ellipsoid_covariance(inv_S, mode)
+        if mode == "3d":
+            k = 3
+            det = 1 / np.linalg.det(inv_var)
+        elif "2d" in mode:
+            k = 2
+            det = 1 / np.linalg.det(inv_var)
+        elif "1d" in mode:
+            k = 1
+            det = 1 / inv_var
+
+        return np.sqrt((2 * np.pi) ** k * det)
+
+    def lorentzian_integral(self, inv_S, mode="3d"):
+        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
+
+        if mode == "3d":
+            k = 3
+            det = 1 / np.linalg.det(inv_var)
+        elif "2d" in mode:
+            k = 2
+            det = 1 / np.linalg.det(inv_var)
+        elif "1d" in mode:
+            k = 1
+            det = 1 / inv_var
+
+        return (
+            scipy.special.gamma(0.5)
+            * np.sqrt(np.pi * det)
+            / scipy.special.gamma(0.5 * (1 + k))
+        )
+
     def gaussian_jac_c(self, x0, x1, x2, c, inv_S, mode="3d"):
         c0, c1, c2 = c
 
