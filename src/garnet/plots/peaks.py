@@ -1025,7 +1025,7 @@ class PeakPlot(BasePlot):
         for el, ax in zip(self.norm_el[2:3], self.norm[2:3]):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-        r *= 2
+        r *= np.cbrt(2)
 
         for el, ax in zip(self.ellip_sp[0:2], self.ellip[0:2]):
             self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
@@ -1246,7 +1246,7 @@ class PeakPlot(BasePlot):
         self.proj[3].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][1]))
         self.proj[5].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[1][2]))
 
-        self.ellip[0].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[2]))
-        self.ellip[1].set_title(
+        self.ellip[0].set_title(
             r"$I={}$".format(self._sci_notation(intensity[2]))
         )
+        self.ellip[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[2]))

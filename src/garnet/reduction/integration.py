@@ -162,10 +162,6 @@ class Integration(SubPlan):
 
             r_cut = self.params["Radius"]
 
-            # peaks.integrate_peaks('md', 'peaks', r_cut)
-
-            # peaks.remove_weak_peaks('peaks', 10)
-
             self.peaks, self.data = peaks, data
 
             params = self.estimate_peak_size("peaks", "md", r_cut)
@@ -553,23 +549,13 @@ class Integration(SubPlan):
         return "_d(min)={:.2f}".format(min_d) + "_r(max)={:.2f}".format(max_r)
 
     def estimate_peak_size(self, peaks_ws, data_ws, r_cut):
-        params = self.peaks.intensity_vs_radius(data_ws, peaks_ws, r_cut)
-
-        r, sig_noise, x, y, e, lamda = params
-
-        sphere = PeakSphere(r_cut)
-
-        r_cut = sphere.fit(r, sig_noise)
-
-        sig_noise_fit, *vals = sphere.best_fit(r)
-
-        # values = self.peaks.extract_peaks_roi(data_ws, peaks_ws, r_cut)
+        peak_dict = self.extract_peak_info("peaks", r_cut)
 
         roi = PeakRegionOfInterest(r_cut)
 
-        r = roi.fit(x, y, e, lamda)
+        r, R = roi.fit(peak_dict)
 
-        return r
+        return r, R
 
     def fit_peaks(self, key_value):
         key, value = key_value
@@ -579,7 +565,6 @@ class Integration(SubPlan):
         Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
 
         peak_file, wavelength, angles, goniometer = peak_info
-        # print(key, peak_name)
 
         ellipsoid = PeakEllipsoid()
 
@@ -645,13 +630,9 @@ class Integration(SubPlan):
 
         n_peak = peak.get_number_peaks()
 
-        UB = self.peaks.get_UB(peaks_ws)
-
         peak_dict = {}
 
         for i in range(n_peak):
-            # print(i)
-
             Qmod = 2 * np.pi / peak.get_d_spacing(i)
 
             h, k, l = peak.get_hkl(i)
@@ -662,7 +643,7 @@ class Integration(SubPlan):
 
             two_theta, az_phi = angles
 
-            params = peak.get_peak_shape(i, r[0])
+            params = peak.get_peak_shape(i, r if type(r) is float else r[0])
 
             peak.set_peak_intensity(i, 0, 0)
 
@@ -676,7 +657,7 @@ class Integration(SubPlan):
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = r, wavelength, dQ, R, two_theta, az_phi, UB
+            bin_params = r, wavelength, dQ, R, two_theta, az_phi
 
             # ---
 
@@ -707,7 +688,6 @@ class Integration(SubPlan):
         for i, value in peak_dict.items():
             if value is not None:
                 I, sigma, shape, info = value
-                # print(i, I, sigma)
 
                 peak.set_peak_intensity(i, I, sigma)
 
@@ -780,7 +760,6 @@ class Integration(SubPlan):
         R,
         two_theta,
         az_phi,
-        UB,
     ):
         n, u, v = self.bin_axes(R, two_theta, az_phi)
 
@@ -792,9 +771,10 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2, r0, r1, r2, v0, v1, v2 = params
 
-        r = roi[0] + roi[1] * lamda
-
-        dQ = 2 * np.array([r] * 3)
+        if type(roi) is float:
+            dQ = 2 * np.array([roi] * 3)
+        else:
+            dQ = 2 * np.array([roi[0]] + [roi[1]] * 2)
 
         W = np.column_stack([v0, v1, v2])
         V = np.diag([r0**2, r1**2, r2**2])
@@ -805,39 +785,7 @@ class Integration(SubPlan):
 
         W = np.column_stack(projections)
 
-        am = np.dot(
-            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [-0.5, 0, 0])
-        )
-        bm = np.dot(
-            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, -0.5, 0])
-        )
-        cm = np.dot(
-            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0, -0.5])
-        )
-
-        ap = np.dot(
-            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0.5, 0, 0])
-        )
-        bp = np.dot(
-            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0.5, 0])
-        )
-        cp = np.dot(
-            W.T, np.einsum("ij,j...->i...", 2 * np.pi * UB, [0, 0, 0.5])
-        )
-
-        Q0_min = np.min([am[0], bm[0], cm[0], ap[0], bp[0], cp[0]])
-        Q1_min = np.min([am[1], bm[1], cm[1], ap[1], bp[1], cp[1]])
-        Q2_min = np.min([am[2], bm[2], cm[2], ap[2], bp[2], cp[2]])
-
-        Q0_max = np.max([am[0], bm[0], cm[0], ap[0], bp[0], cp[0]])
-        Q1_max = np.max([am[1], bm[1], cm[1], ap[1], bp[1], cp[1]])
-        Q2_max = np.max([am[2], bm[2], cm[2], ap[2], bp[2], cp[2]])
-
         dQ0, dQ1, dQ2 = dQ
-
-        dQ0 = np.min(np.abs([dQ0, Q0 - Q0_min, Q0_max - Q0]))
-        dQ1 = np.min(np.abs([dQ1, Q1 - Q1_min, Q1_max - Q1]))
-        dQ2 = np.min(np.abs([dQ2, Q2 - Q2_min, Q2_max - Q2]))
 
         extents = np.array(
             [[Q0 - dQ0, Q0 + dQ0], [Q1 - dQ1, Q1 + dQ1], [Q2 - dQ2, Q2 + dQ2]]
@@ -878,51 +826,80 @@ class PeakRegionOfInterest:
     def __init__(self, r_cut):
         self.params = Parameters()
 
-        self.params.add("r0", value=r_cut / 2, min=0.001, max=2 * r_cut)
-        self.params.add("r1", value=0, min=-r_cut, max=r_cut)
+        self.params.add("r0", value=r_cut / 2, min=0.01, max=2 * r_cut)
+        self.params.add("R0", value=r_cut / 2, min=0.01, max=2 * r_cut)
 
-        self.scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
+    def model(self, r, R, y, e, x0, x1, x2):
+        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
 
-    def objective(self, params, x, y, e, lamda):
-        r0 = params["r0"]
-        r1 = params["r1"]
+        sigma = r / scale
+        Sigma = R / scale
 
-        sigma = (r0 + r1 * lamda[:, np.newaxis]) / self.scale
+        z0 = x0 / sigma
+        z1 = x1 / Sigma
+        z2 = x2 / Sigma
 
-        z = x / sigma
+        y_hat = np.exp(-0.5 * (z0**2 + z1**2 + z2**2))
 
-        y_hat = scipy.special.erf(z / np.sqrt(2)) - np.sqrt(
-            2 / np.pi
-        ) * z * np.exp(-0.5 * z**2)
+        y_bar = np.nanmean(y)
+        y_hat_bar = np.nanmean(y_hat)
 
-        num = np.nansum(y_hat * y, axis=1)
-        den = np.nansum(y_hat**2, axis=1)
-        # wgt = np.nanmax(y, axis=1)
+        num = np.nansum((y_hat - y_hat_bar) * (y - y_bar))
+        den = np.nansum((y_hat - y_hat_bar) ** 2)
 
         A = num / den
+        B = y_bar - A * y_hat_bar
 
-        residuals = A[:, np.newaxis] * y_hat - y
+        return A * y_hat + B
 
-        return residuals  # *wgt[:,np.newaxis]
+    def objective(self, params, ys, es, x0s, x1s, x2s):
+        r = params["r0"]
+        R = params["R0"]
 
-        # cost = np.nansum((weight*residuals**2)/(fit.size-2)*wgt)
+        res = []
+        for y, e, x0, x1, x2 in zip(ys, es, x0s, x1s, x2s):
+            y_fit = self.model(r, R, y, e, x0, x1, x2)
+            res += ((y_fit - y) / e).tolist()
 
-    def fit(self, x, y, e, lamda):
-        if np.max(lamda) - np.min(lamda) < 0.2:
-            self.params["r1"].set(vary=False)
+        res.append(r.value)
+        res.append(R.value)
+        res.append(np.sign(r.value) * np.sqrt(np.abs(r.value) + 1e-8))
+        res.append(np.sign(R.value) * np.sqrt(np.abs(R.value) + 1e-8))
+        return res
+
+    def fit(self, peak_dict):
+        ys = []
+        es = []
+        x0s = []
+        x1s = []
+        x2s = []
+
+        for key in peak_dict.keys():
+            Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = peak_dict[key][0]
+            mask = e > 0
+
+            if mask.sum() > 15:
+                ys.append(y[mask])
+                es.append(e[mask])
+                x0s.append(Q0[mask] - Qmod)
+                x1s.append(Q1[mask])
+                x2s.append(Q2[mask])
 
         out = Minimizer(
             self.objective,
             self.params,
-            fcn_args=(x, y, e, lamda),
+            fcn_args=(ys, es, x0s, x1s, x2s),
             nan_policy="omit",
         )
 
-        result = out.minimize(method="least_squares", loss="soft_l1")
+        result = out.minimize(method="leastsq")
 
         self.params = result.params
 
-        return result.params["r0"].value, result.params["r1"].value
+        r = result.params["r0"].value
+        R = result.params["R0"].value
+
+        return r, R
 
 
 class PeakSphere:
@@ -1044,6 +1021,23 @@ class PeakEllipsoid:
         U = scipy.spatial.transform.Rotation.from_rotvec(u).as_matrix()
 
         return U
+
+    def det_S(self, r0, r1, r2, u0, u1, u2):
+        S = self.S_matrix(r0, r1, r2, u0, u1, u2)
+        return np.linalg.det(S)
+
+    def det_func(self, params):
+        return self.det_S(*params)
+
+    def uncert_det_S(
+        self, r0, r1, r2, u0, u1, u2, dr0, dr1, dr2, du0, du1, du2
+    ):
+        params = np.array([r0, r1, r2, u0, u1, u2])
+        uncerts = np.array([dr0, dr1, dr2, du0, du1, du2])
+
+        J = scipy.optimize.approx_fprime(params, self.det_func, epsilon=1e-8)
+
+        return np.sqrt(np.sum((J * uncerts) ** 2))
 
     def centroid_inverse_covariance(self, c0, c1, c2, r0, r1, r2, u0, u1, u2):
         c = np.array([c0, c1, c2])
@@ -2173,7 +2167,10 @@ class PeakEllipsoid:
         cost_3d = self.residual_3d(params, *args_3d)
 
         ridge = [params[key] for key in params.keys()]
-        lasso = [np.sqrt(params[key] ** 2 + epsilon) for key in params.keys()]
+        lasso = [
+            np.abs(params[key]) * np.sqrt(np.abs(params[key]) + epsilon)
+            for key in params.keys()
+        ]
 
         cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso])
 
@@ -2189,7 +2186,9 @@ class PeakEllipsoid:
         ridge = np.eye(len(params_list))
         lasso = np.diag(
             [
-                params[key] / np.sqrt(params[key] ** 2 + epsilon)
+                0.5
+                * np.sign(params[key])
+                / np.sqrt(np.abs(params[key]) + epsilon)
                 for key in params.keys()
             ]
         )
@@ -2650,7 +2649,7 @@ class PeakEllipsoid:
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
         pk = (ellipsoid <= 1**2) & (e > 0)
-        bkg = (ellipsoid > 1**2) & (ellipsoid < 2**2) & (e > 0)
+        bkg = (ellipsoid > 1**2) & (ellipsoid < np.cbrt(2) ** 2) & (e > 0)
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
