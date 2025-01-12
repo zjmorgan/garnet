@@ -597,7 +597,9 @@ class Integration(SubPlan):
                 self.peak_plot.add_peak_info(wavelength, angles, goniometer)
 
                 self.peak_plot.add_peak_stats(
-                    ellipsoid.redchi2, ellipsoid.intensity
+                    ellipsoid.redchi2,
+                    ellipsoid.intensity,
+                    ellipsoid.sigma,
                 )
 
                 self.peak_plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
@@ -1026,19 +1028,6 @@ class PeakEllipsoid:
         S = self.S_matrix(r0, r1, r2, u0, u1, u2)
         return np.linalg.det(S)
 
-    def det_func(self, params):
-        return self.det_S(*params)
-
-    def uncert_det_S(
-        self, r0, r1, r2, u0, u1, u2, dr0, dr1, dr2, du0, du1, du2
-    ):
-        params = np.array([r0, r1, r2, u0, u1, u2])
-        uncerts = np.array([dr0, dr1, dr2, du0, du1, du2])
-
-        J = scipy.optimize.approx_fprime(params, self.det_func, epsilon=1e-8)
-
-        return np.sqrt(np.sum((J * uncerts) ** 2))
-
     def centroid_inverse_covariance(self, c0, c1, c2, r0, r1, r2, u0, u1, u2):
         c = np.array([c0, c1, c2])
 
@@ -1264,6 +1253,7 @@ class PeakEllipsoid:
 
     def gaussian_integral(self, inv_S, mode="3d"):
         inv_var = self.ellipsoid_covariance(inv_S, mode)
+
         if mode == "3d":
             k = 3
             det = 1 / np.linalg.det(inv_var)
@@ -2324,6 +2314,7 @@ class PeakEllipsoid:
 
         self.redchi2 = []
         self.intensity = []
+        self.sigma = []
 
         out = Minimizer(
             self.residual,
@@ -2410,17 +2401,82 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_1d)
 
-        I0 = A0 * self.gaussian_integral(
-            inv_S, "1d_0"
-        ) + H0 * self.lorentzian_integral(inv_S, "1d_0")
-        I1 = A1 * self.gaussian_integral(
-            inv_S, "1d_1"
-        ) + H1 * self.lorentzian_integral(inv_S, "1d_2")
-        I2 = A2 * self.gaussian_integral(
-            inv_S, "1d_2"
-        ) + H2 * self.lorentzian_integral(inv_S, "1d_2")
+        params = {
+            "r0": result.params["r0"].value,
+            "r1": result.params["r1"].value,
+            "r2": result.params["r2"].value,
+            "u0": result.params["u0"].value,
+            "u1": result.params["u1"].value,
+            "u2": result.params["u2"].value,
+        }
+
+        param_errors = {
+            name: (
+                result.params[name].stderr
+                if result.params[name].stderr is not None
+                else result.params[name].value
+            )
+            for name in params.keys()
+        }
+
+        delta = 1e-12
+
+        params["A"] = result.params["A1d_0"].value
+        params["H"] = result.params["H1d_0"].value
+        param_errors["A"] = (
+            result.params["A1d_0"].stderr
+            if result.params["A1d_0"].stderr is not None
+            else result.params["A1d_0"].value
+        )
+        param_errors["H"] = (
+            result.params["H1d_0"].stderr
+            if result.params["H1d_0"].stderr is not None
+            else result.params["H1d_0"].value
+        )
+
+        I0 = self.calculate_intensity(**params)
+        sig0 = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="1d_0"
+        )
+
+        params["A"] = result.params["A1d_1"].value
+        params["H"] = result.params["H1d_1"].value
+        param_errors["A"] = (
+            result.params["A1d_1"].stderr
+            if result.params["A1d_1"].stderr is not None
+            else result.params["A1d_1"].value
+        )
+        param_errors["H"] = (
+            result.params["H1d_1"].stderr
+            if result.params["H1d_1"].stderr is not None
+            else result.params["H1d_1"].value
+        )
+
+        I1 = self.calculate_intensity(**params)
+        sig1 = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="1d_1"
+        )
+
+        params["A"] = result.params["A1d_2"].value
+        params["H"] = result.params["H1d_2"].value
+        param_errors["A"] = (
+            result.params["A1d_2"].stderr
+            if result.params["A1d_2"].stderr is not None
+            else result.params["A1d_2"].value
+        )
+        param_errors["H"] = (
+            result.params["H1d_2"].stderr
+            if result.params["H1d_2"].stderr is not None
+            else result.params["H1d_2"].value
+        )
+
+        I2 = self.calculate_intensity(**params)
+        sig2 = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="1d_2"
+        )
 
         self.intensity.append([I0, I1, I2])
+        self.sigma.append([sig0, sig1, sig2])
 
         # ---
 
@@ -2480,17 +2536,61 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_2d)
 
-        I0 = A0 * self.gaussian_integral(
-            inv_S, "2d_0"
-        ) + H0 * self.lorentzian_integral(inv_S, "2d_0")
-        I1 = A1 * self.gaussian_integral(
-            inv_S, "2d_1"
-        ) + H1 * self.lorentzian_integral(inv_S, "2d_2")
-        I2 = A2 * self.gaussian_integral(
-            inv_S, "2d_2"
-        ) + H2 * self.lorentzian_integral(inv_S, "2d_2")
+        params["A"] = result.params["A2d_0"].value
+        params["H"] = result.params["H2d_0"].value
+        param_errors["A"] = (
+            result.params["A2d_0"].stderr
+            if result.params["A2d_0"].stderr is not None
+            else result.params["A2d_0"].value
+        )
+        param_errors["H"] = (
+            result.params["H2d_0"].stderr
+            if result.params["H2d_0"].stderr is not None
+            else result.params["H2d_0"].value
+        )
 
+        I0 = self.calculate_intensity(**params)
+        sig0 = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="2d_0"
+        )
+
+        params["A"] = result.params["A2d_1"].value
+        params["H"] = result.params["H2d_1"].value
+        param_errors["A"] = (
+            result.params["A2d_1"].stderr
+            if result.params["A2d_1"].stderr is not None
+            else result.params["A2d_1"].value
+        )
+        param_errors["H"] = (
+            result.params["H2d_1"].stderr
+            if result.params["H2d_1"].stderr is not None
+            else result.params["H2d_1"].value
+        )
+
+        I1 = self.calculate_intensity(**params)
+        sig1 = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="2d_1"
+        )
+
+        params["A"] = result.params["A2d_2"].value
+        params["H"] = result.params["H1d_2"].value
+        param_errors["A"] = (
+            result.params["A1d_2"].stderr
+            if result.params["A1d_2"].stderr is not None
+            else result.params["A1d_2"].value
+        )
+        param_errors["H"] = (
+            result.params["H1d_2"].stderr
+            if result.params["H1d_2"].stderr is not None
+            else result.params["H1d_2"].value
+        )
+
+        I2 = self.calculate_intensity(**params)
+        sig2 = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="1d_2"
+        )
         self.intensity.append([I0, I1, I2])
+        self.sigma.append([sig0, sig1, sig2])
 
         # ---
 
@@ -2512,17 +2612,65 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2)
 
-        I = A * self.gaussian_integral(
-            inv_S, "3d"
-        ) + H * self.lorentzian_integral(inv_S, "3d")
+        params["A"] = result.params["A3d"].value
+        params["H"] = result.params["H3d"].value
+        param_errors["A"] = (
+            result.params["A3d"].stderr
+            if result.params["A3d"].stderr is not None
+            else result.params["A3d"].value
+        )
+        param_errors["H"] = (
+            result.params["H3d"].stderr
+            if result.params["H3d"].stderr is not None
+            else result.params["H3d"].value
+        )
+
+        I = self.calculate_intensity(**params)
+        sig = self.estimate_intensity_uncertainty(
+            self.calculate_intensity, params, param_errors, delta, mode="3d"
+        )
 
         self.intensity.append(I)
+        self.sigma.append(sig)
 
         # ---
 
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
         return c, inv_S, y1, y2, y3
+
+    def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+        g = self.gaussian_integral(inv_S, mode)
+        l = self.lorentzian_integral(inv_S, mode)
+
+        return A * g + H * l
+
+    def fin_diff_deriv(self, func, params, param_name, delta, mode):
+        params_plus = params.copy()
+        params_minus = params.copy()
+
+        params_plus[param_name] += delta
+        params_minus[param_name] -= delta
+
+        I_plus = func(**params_plus, mode=mode)
+        I_minus = func(**params_minus, mode=mode)
+
+        return (I_plus - I_minus) / (2 * delta)
+
+    def estimate_intensity_uncertainty(
+        self, func, params, param_errors, delta, mode
+    ):
+        variance = 0.0
+
+        for param_name, sigma_p in param_errors.items():
+            derivative = self.fin_diff_deriv(
+                func, params, param_name, delta, mode
+            )
+
+            variance += (derivative * sigma_p) ** 2
+
+        return np.sqrt(variance)
 
     def voxels(self, x0, x1, x2):
         return (

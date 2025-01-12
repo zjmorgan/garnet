@@ -1207,7 +1207,7 @@ class PeakPlot(BasePlot):
         ellip[4].set_title(r"$2\theta={:.2f}^\circ$".format(angles[0]))
         ellip[5].set_title(r"$\phi={:.2f}^\circ$".format(angles[1]))
 
-    def add_peak_stats(self, redchi2, intensity):
+    def add_peak_stats(self, redchi2, intensity, sigma):
         """
         Add peak statistics.
 
@@ -1217,19 +1217,33 @@ class PeakPlot(BasePlot):
             Reduced chi^2 per degree of freedom.
         intensity : list
             Integrated intensity.
+        sigma : list
+            Integrated intensity uncertainty.
 
         """
 
-        label = r"$I={}$ | $\chi^2_\nu={:.1f}$"
+        label = r"$I={}$ | $I/\sigma={:.1f}$ | $\chi^2_\nu={:.1f}$"
 
         self.prof[0].set_title(
-            label.format(self._sci_notation(intensity[0][0]), redchi2[0][0])
+            label.format(
+                self._sci_notation(intensity[0][0]),
+                intensity[0][0] / sigma[0][0],
+                redchi2[0][0],
+            )
         )
         self.prof[1].set_title(
-            label.format(self._sci_notation(intensity[0][1]), redchi2[0][1])
+            label.format(
+                self._sci_notation(intensity[0][1]),
+                intensity[0][1] / sigma[0][1],
+                redchi2[0][1],
+            )
         )
         self.prof[2].set_title(
-            label.format(self._sci_notation(intensity[0][2]), redchi2[0][2])
+            label.format(
+                self._sci_notation(intensity[0][2]),
+                intensity[0][2] / sigma[0][2],
+                redchi2[0][2],
+            )
         )
 
         self.proj[0].set_title(
@@ -1250,3 +1264,11 @@ class PeakPlot(BasePlot):
             r"$I={}$".format(self._sci_notation(intensity[2]))
         )
         self.ellip[1].set_title(r"$\chi^2_\nu={:.1f}$".format(redchi2[2]))
+
+        I_sig = "$I/\sigma={:.1f}$"
+
+        self.prof[0].set_ylabel(I_sig.format(intensity[1][0] / sigma[1][0]))
+        self.prof[1].set_ylabel(I_sig.format(intensity[1][1] / sigma[1][1]))
+        self.prof[2].set_ylabel(I_sig.format(intensity[1][2] / sigma[1][2]))
+
+        self.cb_norm.ax.set_xlabel(I_sig.format(intensity[2] / sigma[2]))
