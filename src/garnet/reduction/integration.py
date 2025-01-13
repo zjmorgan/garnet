@@ -10,7 +10,7 @@ import scipy.ndimage
 import scipy.linalg
 import scipy.stats
 
-from lmfit import Minimizer, Parameters
+from lmfit import Minimizer, Parameters, fit_report
 
 from mantid.simpleapi import mtd
 from mantid import config
@@ -778,15 +778,6 @@ class Integration(SubPlan):
         else:
             dQ = 2 * np.array([roi[0]] + [roi[1]] * 2)
 
-        W = np.column_stack([v0, v1, v2])
-        V = np.diag([r0**2, r1**2, r2**2])
-
-        S = np.dot(np.dot(W, V), W.T)
-
-        dQ = np.column_stack([2 * np.sqrt(np.diag(S)), dQ]).min(axis=1)
-
-        W = np.column_stack(projections)
-
         dQ0, dQ1, dQ2 = dQ
 
         extents = np.array(
@@ -1041,27 +1032,39 @@ class PeakEllipsoid:
         c_int = 1
 
         if mode == "1d_0":
-            c_int = dx0 * np.mean(counts > 0, axis=(1, 2))
+            # c_int = np.mean(counts > 0, axis=(1, 2))
+            # c_int /= np.max(c_int)
+            c_int *= dx0
             y_int = np.nansum(y, axis=(1, 2)) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(1, 2))) / c_int
         elif mode == "1d_1":
-            c_int = dx1 * np.mean(counts > 0, axis=(0, 2))
+            # c_int = np.mean(counts > 0, axis=(0, 2))
+            # c_int /= np.max(c_int)
+            c_int *= dx1
             y_int = np.nansum(y, axis=(0, 2)) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(0, 2))) / c_int
         elif mode == "1d_2":
-            c_int = dx2 * np.mean(counts > 0, axis=(0, 1))
+            # c_int= np.mean(counts > 0, axis=(0, 1))
+            # c_int /= np.max(c_int)
+            c_int *= dx2
             y_int = np.nansum(y, axis=(0, 1)) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(0, 1))) / c_int
         elif mode == "2d_0":
-            c_int = dx1 * dx2 * np.mean(counts > 0, axis=0)
+            # c_int = np.mean(counts > 0, axis=0)
+            # c_int /= np.max(c_int)
+            c_int *= dx1 * dx2
             y_int = np.nansum(y, axis=0) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=0)) / c_int
         elif mode == "2d_1":
-            c_int = dx0 * dx2 * np.mean(counts > 0, axis=1)
+            # c_int = np.mean(counts > 0, axis=1)
+            # c_int /= np.max(c_int)
+            c_int *= dx0 * dx2
             y_int = np.nansum(y, axis=1) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=1)) / c_int
         elif mode == "2d_2":
-            c_int = dx0 * dx1 * np.mean(counts > 0, axis=2)
+            # c_int = np.mean(counts > 0, axis=2)
+            # c_int /= np.max(c_int)
+            c_int *= dx0 * dx1
             y_int = np.nansum(y, axis=2) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=2)) / c_int
         elif mode == "3d":
@@ -1112,32 +1115,39 @@ class PeakEllipsoid:
             dx = [dx0, dx1, dx2]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_S, dx)
             m = 11
+            k = 3
         elif mode == "2d_0":
             dx = [dx1[0, :, :], dx2[0, :, :]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_S[1:, 1:], dx)
-            m = 7
+            m = 9
+            k = 2
         elif mode == "2d_1":
             dx = [dx0[:, 0, :], dx2[:, 0, :]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_S[0::2, 0::2], dx)
             m = 9
+            k = 2
         elif mode == "2d_2":
             dx = [dx0[:, :, 0], dx1[:, :, 0]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_S[:2, :2], dx)
             m = 9
+            k = 2
         elif mode == "1d_0":
             dx = dx0[:, 0, 0]
             d2 = inv_S[0, 0] * dx**2
             m = 5
+            k = 1
         elif mode == "1d_1":
             dx = dx1[0, :, 0]
             d2 = inv_S[1, 1] * dx**2
             m = 5
+            k = 1
         elif mode == "1d_2":
             dx = dx2[0, 0, :]
             d2 = inv_S[2, 2] * dx**2
             m = 5
+            k = 1
 
-        mask = (d2 < 2**2) & np.isfinite(y) & (e > 0)
+        mask = (d2 <= 2 ** (2 / k)) & np.isfinite(y) & (e > 0)
 
         n = np.sum(mask)
 
@@ -1147,6 +1157,71 @@ class PeakEllipsoid:
             return np.inf
         else:
             return np.nansum(((y_fit[mask] - y[mask]) / e[mask]) ** 2) / dof
+
+    def estimate_intensity(self, x0, x1, x2, c, inv_S, y_fit, y, e, mode="3d"):
+        c0, c1, c2 = c
+
+        dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
+
+        if mode == "3d":
+            dx = [dx0, dx1, dx2]
+            d2 = np.einsum("i...,ij,j...->...", dx, inv_S, dx)
+        elif mode == "2d_0":
+            dx = [dx1[0, :, :], dx2[0, :, :]]
+            d2 = np.einsum("i...,ij,j...->...", dx, inv_S[1:, 1:], dx)
+        elif mode == "2d_1":
+            dx = [dx0[:, 0, :], dx2[:, 0, :]]
+            d2 = np.einsum("i...,ij,j...->...", dx, inv_S[0::2, 0::2], dx)
+        elif mode == "2d_2":
+            dx = [dx0[:, :, 0], dx1[:, :, 0]]
+            d2 = np.einsum("i...,ij,j...->...", dx, inv_S[:2, :2], dx)
+        elif mode == "1d_0":
+            dx = dx0[:, 0, 0]
+            d2 = inv_S[0, 0] * dx**2
+        elif mode == "1d_1":
+            dx = dx1[0, :, 0]
+            d2 = inv_S[1, 1] * dx**2
+        elif mode == "1d_2":
+            dx = dx2[0, 0, :]
+            d2 = inv_S[2, 2] * dx**2
+
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        if mode == "3d":
+            dx = np.prod([dx0, dx1, dx2])
+            k = 3
+        elif mode == "2d_0":
+            dx = np.prod([dx1, dx2])
+            k = 2
+        elif mode == "2d_1":
+            dx = np.prod([dx0, dx2])
+            k = 2
+        elif mode == "2d_2":
+            dx = np.prod([dx0, dx1])
+            k = 2
+        elif mode == "1d_0":
+            dx = dx0
+            k = 1
+        elif mode == "1d_1":
+            dx = dx1
+            k = 1
+        elif mode == "1d_2":
+            dx = dx2
+            k = 1
+
+        pk = (d2 <= 1**2) & np.isfinite(y) & (e > 0)
+        bkg = (d2 > 1**2) & (d2 < 2 ** (2 / k)) & (e > 0)
+
+        # b = np.nansum(y[bkg]/e[bkg]**2)/np.nansum(1/e[bkg]**2)
+        # b_err = 1/np.sqrt(np.nansum(1/e[bkg]**2))
+
+        b = np.nanmean(y[bkg])
+        b_err = np.sqrt(np.nanmean(e[bkg] ** 2))
+
+        I = np.nansum(y[pk] - b) * dx
+        sig = np.sqrt(np.nansum(e[pk] ** 2 + b_err**2)) * dx
+
+        return I, sig
 
     def gaussian(self, x0, x1, x2, c, inv_S, mode="3d"):
         c0, c1, c2 = c
@@ -2081,7 +2156,6 @@ class PeakEllipsoid:
 
         if norm:
             y_gauss /= self.gaussian_integral(inv_S, "3d")
-
             y_lorentz /= self.lorentzian_integral(inv_S, "3d")
 
         diff = []
@@ -2211,13 +2285,13 @@ class PeakEllipsoid:
         return jac
 
     def cost(self, params, args_1d, args_2d, args_3d):
-        cost_1d = self.residual_1d(params, *args_1d, True)
-        cost_2d = self.residual_2d(params, *args_2d, True)
-        cost_3d = self.residual_3d(params, *args_3d, True)
+        cost_1d = self.residual_1d(params, *args_1d, norm=True)
+        cost_2d = self.residual_2d(params, *args_2d, norm=True)
+        cost_3d = self.residual_3d(params, *args_3d, norm=True)
 
         return np.concatenate([cost_1d, cost_2d, cost_3d])
 
-    def estimate_envelope(self, x0, x1, x2, counts, y, e):
+    def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
         y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
         y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_2")
@@ -2363,13 +2437,16 @@ class PeakEllipsoid:
             col_deriv=True,
         )
 
+        if report_fit:
+            print(fit_report(result))
+
         self.params = result.params
 
         self.params["c0"].set(vary=False)
         self.params["c1"].set(vary=False)
         self.params["c2"].set(vary=False)
 
-        self.params["r1"].set(vary=False)
+        self.params["r0"].set(vary=False)
         self.params["r1"].set(vary=False)
         self.params["r2"].set(vary=False)
 
@@ -2464,17 +2541,20 @@ class PeakEllipsoid:
 
         self.params["H3d"].set(value=H, min=0, max=np.inf)
 
-        out = Minimizer(
-            self.cost,
-            self.params,
-            fcn_args=(args_1d, args_2d, args_3d),
-            nan_policy="omit",
-        )
+        # out = Minimizer(
+        #     self.cost,
+        #     self.params,
+        #     fcn_args=(args_1d, args_2d, args_3d),
+        #     nan_policy="omit",
+        #     calc_covar=True,
+        # )
 
-        result = out.minimize(
-            method="leastsq",
-            max_nfev=10,
-        )
+        # result = out.minimize(
+        #     method="least_squares",
+        #     loss='soft_l1',
+        #     max_nfev=20,
+        # )
+        # print(fit_report(result))
 
         self.params = result.params
 
@@ -2544,38 +2624,12 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_1d)
 
-        I0 = A0 + H0
-        I1 = A1 + H1
-        I2 = A2 + H2
-
-        sigA0 = self.params["A1d_0"].stderr
-        sigA1 = self.params["A1d_1"].stderr
-        sigA2 = self.params["A1d_2"].stderr
-
-        sigH0 = self.params["H1d_0"].stderr
-        sigH1 = self.params["H1d_1"].stderr
-        sigH2 = self.params["H1d_2"].stderr
-
-        if sigA0 is None:
-            sigA0 = A0
-        if sigA1 is None:
-            sigA1 = A1
-        if sigA2 is None:
-            sigA2 = A2
-
-        if sigH0 is None:
-            sigH0 = H0
-        if sigH1 is None:
-            sigH1 = H1
-        if sigH2 is None:
-            sigH2 = H2
-
-        sig0 = np.sqrt(sigA0**2 + sigH0**2)
-        sig1 = np.sqrt(sigA1**2 + sigH1**2)
-        sig2 = np.sqrt(sigA2**2 + sigH2**2)
+        I0, s0 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y1[0], "1d_0")
+        I1, s1 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y1[1], "1d_1")
+        I2, s2 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y1[2], "1d_2")
 
         self.intensity.append([I0, I1, I2])
-        self.sigma.append([sig0, sig1, sig2])
+        self.sigma.append([s0, s1, s2])
 
         # ---
 
@@ -2647,38 +2701,12 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_2d)
 
-        I0 = A0 + H0
-        I1 = A1 + H1
-        I2 = A2 + H2
-
-        sigA0 = self.params["A2d_0"].stderr
-        sigA1 = self.params["A2d_1"].stderr
-        sigA2 = self.params["A2d_2"].stderr
-
-        sigH0 = self.params["H2d_0"].stderr
-        sigH1 = self.params["H2d_1"].stderr
-        sigH2 = self.params["H2d_2"].stderr
-
-        if sigA0 is None:
-            sigA0 = A0
-        if sigA1 is None:
-            sigA1 = A1
-        if sigA2 is None:
-            sigA2 = A2
-
-        if sigH0 is None:
-            sigH0 = H0
-        if sigH1 is None:
-            sigH1 = H1
-        if sigH2 is None:
-            sigH2 = H2
-
-        sig0 = np.sqrt(sigA0**2 + sigH0**2)
-        sig1 = np.sqrt(sigA1**2 + sigH1**2)
-        sig2 = np.sqrt(sigA2**2 + sigH2**2)
+        I0, s0 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y2[0], "2d_0")
+        I1, s1 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y2[1], "2d_1")
+        I2, s2 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y2[2], "2d_2")
 
         self.intensity.append([I0, I1, I2])
-        self.sigma.append([sig0, sig1, sig2])
+        self.sigma.append([s0, s1, s2])
 
         # ---
 
@@ -2704,22 +2732,10 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2)
 
-        I = A + H
-
-        sigA = self.params["A3d"].stderr
-
-        sigH = self.params["H3d"].stderr
-
-        if sigA is None:
-            sigA = A
-
-        if sigH is None:
-            sigH = H
-
-        sig = np.sqrt(sigA**2 + sigH**2)
+        I, s = self.estimate_intensity(x0, x1, x2, c, inv_S, *y3, "3d")
 
         self.intensity.append(I)
-        self.sigma.append(sig)
+        self.sigma.append(s)
 
         # ---
 
@@ -2867,23 +2883,39 @@ class PeakEllipsoid:
         y_bkg = y[bkg].copy()
         e_bkg = e[bkg].copy()
 
+        # b = np.nansum(y_bkg/e_bkg**2)/np.nansum(1/e_bkg**2)
+        # b_err = 1/np.sqrt(np.nansum(1/e_bkg**2))
+
         b = np.nanmean(y_bkg)
         b_err = np.sqrt(np.nanmean(e_bkg**2))
-
-        # b = self.bkg
-        # b_err = self.bkg_err
 
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
 
-        # sig *= np.sqrt(1 + self.error_scale**2)
+        intens_est = []
+        for item in self.intensity:
+            if type(item) is list:
+                intens_est += item
+            else:
+                intens_est.append(item)
+
+        sig_est = []
+        for item in self.sigma:
+            if type(item) is list:
+                sig_est += item
+            else:
+                sig_est.append(item)
+
+        sig_noise = [I / sig for I, sig in zip(intens_est, sig_est)]
+
+        # sig = np.sqrt(sig**2+np.std(intens_est)**2/len(intens_est))
 
         self.weights = (x0[pk], x1[pk], x2[pk]), counts[pk].copy()
 
         self.info = [d3x, b, b_err]
 
         freq = y - b
-        freq[freq < 0] = np.nan
+        freq[y <= 0] = np.nan
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()
@@ -2896,7 +2928,7 @@ class PeakEllipsoid:
 
         self.info += [intens_raw, sig_raw]
 
-        if not np.isfinite(sig):
+        if not np.isfinite(sig) or not np.all([sn > 3 for sn in sig_noise]):
             sig = intens
 
         xye = (x0, x1, x2), (dx0, dx1, dx2), freq

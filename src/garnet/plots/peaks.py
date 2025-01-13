@@ -321,6 +321,10 @@ class PeakPlot(BasePlot):
         self.prof = []
         self.prof_error = []
         self.prof_step = []
+        self.prof_lp = []
+        self.prof_rp = []
+        self.prof_lb = []
+        self.prof_rb = []
 
         gs = self.gs[1]
 
@@ -334,6 +338,18 @@ class PeakPlot(BasePlot):
         x = np.arange(10) - 5
         y = -2 * x**2 + 50
         e = np.sqrt(np.abs(y))
+
+        vl = ax.axvline(x=-1, color="k", linestyle="--")
+        vr = ax.axvline(x=+1, color="k", linestyle="--")
+
+        self.prof_lp.append(vl)
+        self.prof_rp.append(vr)
+
+        vl = ax.axvline(x=-2, color="k", linestyle="--")
+        vr = ax.axvline(x=+2, color="k", linestyle="--")
+
+        self.prof_lb.append(vl)
+        self.prof_rb.append(vr)
 
         error_cont = ax.errorbar(x, y, e, fmt="o", color="C0")
         step_line = ax.step(x, y, where="mid", color="C1")
@@ -354,6 +370,18 @@ class PeakPlot(BasePlot):
         y = -2 * x**2 + 50
         e = np.sqrt(np.abs(y))
 
+        vl = ax.axvline(x=-1, color="k", linestyle="--")
+        vr = ax.axvline(x=+1, color="k", linestyle="--")
+
+        self.prof_lp.append(vl)
+        self.prof_rp.append(vr)
+
+        vl = ax.axvline(x=-2, color="k", linestyle="--")
+        vr = ax.axvline(x=+2, color="k", linestyle="--")
+
+        self.prof_lb.append(vl)
+        self.prof_rb.append(vr)
+
         error_cont = ax.errorbar(x, y, e, fmt="o", color="C0")
         step_line = ax.step(x, y, where="mid", color="C1")
 
@@ -372,6 +400,18 @@ class PeakPlot(BasePlot):
         x = np.arange(10) - 5
         y = -2 * x**2 + 50
         e = np.sqrt(np.abs(y))
+
+        vl = ax.axvline(x=-1, color="k", linestyle="--")
+        vr = ax.axvline(x=+1, color="k", linestyle="--")
+
+        self.prof_lp.append(vl)
+        self.prof_rp.append(vr)
+
+        vl = ax.axvline(x=-2, color="k", linestyle="--")
+        vr = ax.axvline(x=+2, color="k", linestyle="--")
+
+        self.prof_lb.append(vl)
+        self.prof_rb.append(vr)
 
         error_cont = ax.errorbar(x, y, e, fmt="o", color="C0")
         step_line = ax.step(x, y, where="mid", color="C1")
@@ -1025,34 +1065,83 @@ class PeakPlot(BasePlot):
         for el, ax in zip(self.norm_el[2:3], self.norm[2:3]):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-        r *= np.cbrt(2)
+        s = np.cbrt(2)
 
         for el, ax in zip(self.ellip_sp[0:2], self.ellip[0:2]):
-            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
+            self._update_ellipse(
+                el, ax, c[0], c[1], r[0] * s, r[1] * s, rho[2]
+            )
 
         for el, ax in zip(self.ellip_sp[2:4], self.ellip[2:4]):
-            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
+            self._update_ellipse(
+                el, ax, c[0], c[2], r[0] * s, r[2] * s, rho[1]
+            )
 
         for el, ax in zip(self.ellip_sp[4:6], self.ellip[4:6]):
-            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
+            self._update_ellipse(
+                el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
+            )
+
+        s = np.sqrt(2)
 
         for el, ax in zip(self.proj_sp[0:2], self.proj[0:2]):
-            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
+            self._update_ellipse(
+                el, ax, c[0], c[1], r[0] * s, r[1] * s, rho[2]
+            )
 
         for el, ax in zip(self.proj_sp[2:4], self.proj[2:4]):
-            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
+            self._update_ellipse(
+                el, ax, c[0], c[2], r[0] * s, r[2] * s, rho[1]
+            )
 
         for el, ax in zip(self.proj_sp[4:6], self.proj[4:6]):
-            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
+            self._update_ellipse(
+                el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
+            )
+
+        s = np.cbrt(2)
 
         for el, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
-            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
+            self._update_ellipse(
+                el, ax, c[0], c[1], r[0] * s, r[1] * s, rho[2]
+            )
 
         for el, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
-            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
+            self._update_ellipse(
+                el, ax, c[0], c[2], r[0] * s, r[2] * s, rho[1]
+            )
 
         for el, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
-            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
+            self._update_ellipse(
+                el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
+            )
+
+        self.prof_lp[0].set_xdata([c[0] - r[0]])
+        self.prof_rp[0].set_xdata([c[0] + r[0]])
+
+        self.prof_lp[1].set_xdata([c[1] - r[1]])
+        self.prof_rp[1].set_xdata([c[1] + r[1]])
+
+        self.prof_lp[2].set_xdata([c[2] - r[2]])
+        self.prof_rp[2].set_xdata([c[2] + r[2]])
+
+        self.prof_lb[0].set_xdata([c[0] - 2 * r[0]])
+        self.prof_rb[0].set_xdata([c[0] + 2 * r[0]])
+
+        self.prof_lb[1].set_xdata([c[1] - 2 * r[1]])
+        self.prof_rb[1].set_xdata([c[1] + 2 * r[1]])
+
+        self.prof_lb[2].set_xdata([c[2] - 2 * r[2]])
+        self.prof_rb[2].set_xdata([c[2] + 2 * r[2]])
+
+        self.prof[0].relim()
+        self.prof[0].autoscale_view()
+
+        self.prof[1].relim()
+        self.prof[1].autoscale_view()
+
+        self.prof[2].relim()
+        self.prof[2].autoscale_view()
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
         ellipse.set_center((0, 0))
