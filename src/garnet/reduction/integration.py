@@ -1341,6 +1341,105 @@ class PeakEllipsoid:
 
         return np.sqrt((2 * np.pi) ** k * det)
 
+    def gaussian_integral_jac_S(self, inv_S, d_inv_S, mode="3d"):
+        inv_var = self.ellipsoid_covariance(inv_S, mode)
+
+        if mode == "3d":
+            k = 3
+            det = 1 / np.linalg.det(inv_var)
+        elif "2d" in mode:
+            k = 2
+            det = 1 / np.linalg.det(inv_var)
+        elif "1d" in mode:
+            k = 1
+            det = 1 / inv_var
+
+        g = np.sqrt((2 * np.pi) ** k * det)
+
+        inv_var = self.ellipsoid_covariance(inv_S, mode)
+        d_inv_var = [self.ellipsoid_covariance(val, mode) for val in d_inv_S]
+
+        if mode == "3d":
+            g0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
+            g1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
+            g2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
+        elif mode == "2d_0":
+            g1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
+            g2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
+            g0 = g1 * 0
+        elif mode == "2d_1":
+            g0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
+            g2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
+            g1 = g2 * 0
+        elif mode == "2d_2":
+            g0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
+            g1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
+            g2 = g0 * 0
+        elif mode == "1d_0":
+            g0 = d_inv_var[0] * inv_var
+            g1 = g2 = g0 * 0
+        elif mode == "1d_1":
+            g1 = d_inv_var[1] * inv_var
+            g2 = g0 = g1 * 0
+        elif mode == "1d_2":
+            g2 = d_inv_var[2] * inv_var
+            g0 = g1 = g2 * 0
+
+        return 0.5 * g * np.array([g0, g1, g2])
+
+    def lorentzian_integral_jac_S(self, inv_S, d_inv_S, mode="3d"):
+        inv_var = self.ellipsoid_covariance(inv_S, mode)
+
+        if mode == "3d":
+            k = 3
+            det = 1 / np.linalg.det(inv_var)
+        elif "2d" in mode:
+            k = 2
+            det = 1 / np.linalg.det(inv_var)
+        elif "1d" in mode:
+            k = 1
+            det = 1 / inv_var
+
+        l = (
+            scipy.special.gamma(0.5)
+            * np.sqrt(np.pi * det)
+            / scipy.special.gamma(0.5 * (1 + k))
+        )
+
+        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
+        d_inv_var = [
+            self.ellipsoid_covariance(val, mode) / (2 * np.log(2))
+            for val in d_inv_S
+        ]
+
+        if mode == "3d":
+            l0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
+            l1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
+            l2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
+        elif mode == "2d_0":
+            l1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
+            l2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
+            l0 = l1 * 0
+        elif mode == "2d_1":
+            l0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
+            l2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
+            l1 = l2 * 0
+        elif mode == "2d_2":
+            l0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
+            l1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
+            l2 = l0 * 0
+        elif mode == "1d_0":
+            l0 = d_inv_var[0] * inv_var
+            l1 = l2 = l0 * 0
+        elif mode == "1d_1":
+            l1 = d_inv_var[1] * inv_var
+            l2 = l0 = l1 * 0
+        elif mode == "1d_2":
+            l2 = d_inv_var[2] * inv_var
+            l0 = l1 = l2 * 0
+
+        return 0.5 * l * np.array([l0, l1, l2])
+
     def lorentzian_integral(self, inv_S, mode="3d"):
         inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
 
@@ -2248,6 +2347,325 @@ class PeakEllipsoid:
 
         return jac[:, mask]
 
+    def integral_1d(self, params):
+        r0 = params["r0"]
+        r1 = params["r1"]
+        r2 = params["r2"]
+
+        u0 = params["u0"]
+        u1 = params["u1"]
+        u2 = params["u2"]
+
+        A0 = params["A1d_0"]
+        A1 = params["A1d_1"]
+        A2 = params["A1d_2"]
+
+        H0 = params["H1d_0"]
+        H1 = params["H1d_1"]
+        H2 = params["H1d_2"]
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+
+        y0_gauss = self.gaussian_integral(inv_S, "1d_0")
+        y1_gauss = self.gaussian_integral(inv_S, "1d_1")
+        y2_gauss = self.gaussian_integral(inv_S, "1d_2")
+
+        y0_lorentz = self.lorentzian_integral(inv_S, "1d_0")
+        y1_lorentz = self.lorentzian_integral(inv_S, "1d_1")
+        y2_lorentz = self.lorentzian_integral(inv_S, "1d_2")
+
+        I0 = A0 * y0_gauss + H0 * y0_lorentz
+        I1 = A1 * y1_gauss + H1 * y1_lorentz
+        I2 = A2 * y2_gauss + H2 * y2_lorentz
+
+        return I0, I1, I2
+
+    def integral_jac_1d(self, params):
+        params_list = list(params.keys())
+
+        r0 = params["r0"]
+        r1 = params["r1"]
+        r2 = params["r2"]
+
+        u0 = params["u0"]
+        u1 = params["u1"]
+        u2 = params["u2"]
+
+        A0 = params["A1d_0"]
+        A1 = params["A1d_1"]
+        A2 = params["A1d_2"]
+
+        H0 = params["H1d_0"]
+        H1 = params["H1d_1"]
+        H2 = params["H1d_2"]
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+
+        y0_gauss = self.gaussian_integral(inv_S, "1d_0")
+        y1_gauss = self.gaussian_integral(inv_S, "1d_1")
+        y2_gauss = self.gaussian_integral(inv_S, "1d_2")
+
+        y0_lorentz = self.lorentzian_integral(inv_S, "1d_0")
+        y1_lorentz = self.lorentzian_integral(inv_S, "1d_1")
+        y2_lorentz = self.lorentzian_integral(inv_S, "1d_2")
+
+        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
+        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
+
+        yr0_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="1d_0")
+        yr1_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="1d_1")
+        yr2_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="1d_2")
+
+        yr0_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="1d_0")
+        yr1_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="1d_1")
+        yr2_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="1d_2")
+
+        dr0_0, dr1_0, dr2_0 = A0 * yr0_gauss + H0 * yr0_lorentz
+        dr0_1, dr1_1, dr2_1 = A1 * yr1_gauss + H1 * yr1_lorentz
+        dr0_2, dr1_2, dr2_2 = A2 * yr2_gauss + H2 * yr2_lorentz
+
+        yu0_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="1d_0")
+        yu1_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="1d_1")
+        yu2_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="1d_2")
+
+        yu0_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="1d_0")
+        yu1_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="1d_1")
+        yu2_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="1d_2")
+
+        du0_0, du1_0, du2_0 = A0 * yu0_gauss + H0 * yu0_lorentz
+        du0_1, du1_1, du2_1 = A1 * yu1_gauss + H1 * yu1_lorentz
+        du0_2, du1_2, du2_2 = A2 * yu2_gauss + H2 * yu2_lorentz
+
+        n_params = len(params)
+
+        jac0 = np.zeros(n_params)
+        jac1 = np.zeros(n_params)
+        jac2 = np.zeros(n_params)
+
+        jac0[params_list.index("A1d_0")] = y0_gauss
+        jac0[params_list.index("H1d_0")] = y0_lorentz
+        jac0[params_list.index("r0")] = dr0_0
+        jac0[params_list.index("r1")] = dr1_0
+        jac0[params_list.index("r2")] = dr2_0
+        jac0[params_list.index("u0")] = du0_0
+        jac0[params_list.index("u1")] = du1_0
+        jac0[params_list.index("u2")] = du2_0
+
+        jac1[params_list.index("A1d_1")] = y1_gauss
+        jac1[params_list.index("H1d_1")] = y1_lorentz
+        jac1[params_list.index("r0")] = dr0_1
+        jac1[params_list.index("r1")] = dr1_1
+        jac1[params_list.index("r2")] = dr2_1
+        jac1[params_list.index("u0")] = du0_1
+        jac1[params_list.index("u1")] = du1_1
+        jac1[params_list.index("u2")] = du2_1
+
+        jac2[params_list.index("A1d_2")] = y2_gauss
+        jac2[params_list.index("H1d_2")] = y2_lorentz
+        jac2[params_list.index("r0")] = dr0_2
+        jac2[params_list.index("r1")] = dr1_2
+        jac2[params_list.index("r2")] = dr2_2
+        jac2[params_list.index("u0")] = du0_2
+        jac2[params_list.index("u1")] = du1_2
+        jac2[params_list.index("u2")] = du2_2
+
+        return jac0, jac1, jac2
+
+    def integral_2d(self, params):
+        r0 = params["r0"]
+        r1 = params["r1"]
+        r2 = params["r2"]
+
+        u0 = params["u0"]
+        u1 = params["u1"]
+        u2 = params["u2"]
+
+        A0 = params["A2d_0"]
+        A1 = params["A2d_1"]
+        A2 = params["A2d_2"]
+
+        H0 = params["H2d_0"]
+        H1 = params["H2d_1"]
+        H2 = params["H2d_2"]
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+
+        y0_gauss = self.gaussian_integral(inv_S, "2d_0")
+        y1_gauss = self.gaussian_integral(inv_S, "2d_1")
+        y2_gauss = self.gaussian_integral(inv_S, "2d_2")
+
+        y0_lorentz = self.lorentzian_integral(inv_S, "1d_0")
+        y1_lorentz = self.lorentzian_integral(inv_S, "2d_1")
+        y2_lorentz = self.lorentzian_integral(inv_S, "2d_2")
+
+        I0 = A0 * y0_gauss + H0 * y0_lorentz
+        I1 = A1 * y1_gauss + H1 * y1_lorentz
+        I2 = A2 * y2_gauss + H2 * y2_lorentz
+
+        return I0, I1, I2
+
+    def integral_jac_2d(self, params):
+        params_list = list(params.keys())
+
+        r0 = params["r0"]
+        r1 = params["r1"]
+        r2 = params["r2"]
+
+        u0 = params["u0"]
+        u1 = params["u1"]
+        u2 = params["u2"]
+
+        A0 = params["A2d_0"]
+        A1 = params["A2d_1"]
+        A2 = params["A2d_2"]
+
+        H0 = params["H2d_0"]
+        H1 = params["H2d_1"]
+        H2 = params["H2d_2"]
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+
+        y0_gauss = self.gaussian_integral(inv_S, "2d_0")
+        y1_gauss = self.gaussian_integral(inv_S, "2d_1")
+        y2_gauss = self.gaussian_integral(inv_S, "2d_2")
+
+        y0_lorentz = self.lorentzian_integral(inv_S, "2d_0")
+        y1_lorentz = self.lorentzian_integral(inv_S, "2d_1")
+        y2_lorentz = self.lorentzian_integral(inv_S, "2d_2")
+
+        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
+        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
+
+        yr0_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="2d_0")
+        yr1_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="2d_1")
+        yr2_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="2d_2")
+
+        yr0_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="2d_0")
+        yr1_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="2d_1")
+        yr2_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="2d_2")
+
+        dr0_0, dr1_0, dr2_0 = A0 * yr0_gauss + H0 * yr0_lorentz
+        dr0_1, dr1_1, dr2_1 = A1 * yr1_gauss + H1 * yr1_lorentz
+        dr0_2, dr1_2, dr2_2 = A2 * yr2_gauss + H2 * yr2_lorentz
+
+        yu0_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="2d_0")
+        yu1_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="2d_1")
+        yu2_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="2d_2")
+
+        yu0_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="2d_0")
+        yu1_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="2d_1")
+        yu2_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="2d_2")
+
+        du0_0, du1_0, du2_0 = A0 * yu0_gauss + H0 * yu0_lorentz
+        du0_1, du1_1, du2_1 = A1 * yu1_gauss + H1 * yu1_lorentz
+        du0_2, du1_2, du2_2 = A2 * yu2_gauss + H2 * yu2_lorentz
+
+        n_params = len(params)
+
+        jac0 = np.zeros(n_params)
+        jac1 = np.zeros(n_params)
+        jac2 = np.zeros(n_params)
+
+        jac0[params_list.index("A2d_0")] = y0_gauss
+        jac0[params_list.index("H2d_0")] = y0_lorentz
+        jac0[params_list.index("r0")] = dr0_0
+        jac0[params_list.index("r1")] = dr1_0
+        jac0[params_list.index("r2")] = dr2_0
+        jac0[params_list.index("u0")] = du0_0
+        jac0[params_list.index("u1")] = du1_0
+        jac0[params_list.index("u2")] = du2_0
+
+        jac1[params_list.index("A2d_1")] = y1_gauss
+        jac1[params_list.index("H2d_1")] = y1_lorentz
+        jac1[params_list.index("r0")] = dr0_1
+        jac1[params_list.index("r1")] = dr1_1
+        jac1[params_list.index("r2")] = dr2_1
+        jac1[params_list.index("u0")] = du0_1
+        jac1[params_list.index("u1")] = du1_1
+        jac1[params_list.index("u2")] = du2_1
+
+        jac2[params_list.index("A2d_2")] = y2_gauss
+        jac2[params_list.index("H2d_2")] = y2_lorentz
+        jac2[params_list.index("r0")] = dr0_2
+        jac2[params_list.index("r1")] = dr1_2
+        jac2[params_list.index("r2")] = dr2_2
+        jac2[params_list.index("u0")] = du0_2
+        jac2[params_list.index("u1")] = du1_2
+        jac2[params_list.index("u2")] = du2_2
+
+        return jac0, jac1, jac2
+
+    def integral_3d(self, params):
+        r0 = params["r0"]
+        r1 = params["r1"]
+        r2 = params["r2"]
+
+        u0 = params["u0"]
+        u1 = params["u1"]
+        u2 = params["u2"]
+
+        A = params["A3d"]
+        H = params["H3d"]
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+
+        y_gauss = self.gaussian_integral(inv_S, "3d")
+
+        y_lorentz = self.lorentzian_integral(inv_S, "3d")
+
+        I = A * y_gauss + H * y_lorentz
+
+        return I
+
+    def integral_jac_3d(self, params):
+        params_list = list(params.keys())
+
+        r0 = params["r0"]
+        r1 = params["r1"]
+        r2 = params["r2"]
+
+        u0 = params["u0"]
+        u1 = params["u1"]
+        u2 = params["u2"]
+
+        A = params["A3d"]
+        H = params["H3d"]
+
+        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+
+        y_gauss = self.gaussian_integral(inv_S, "3d")
+        y_lorentz = self.lorentzian_integral(inv_S, "3d")
+
+        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
+        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
+
+        yr_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="3d")
+
+        yr_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="3d")
+
+        dr0, dr1, dr2 = A * yr_gauss + H * yr_lorentz
+
+        yu_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="3d")
+
+        yu_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="3d")
+
+        du0, du1, du2 = A * yu_gauss + H * yu_lorentz
+
+        n_params = len(params)
+
+        jac = np.zeros(n_params)
+
+        jac[params_list.index("A3d")] = y_gauss
+        jac[params_list.index("H3d")] = y_lorentz
+        jac[params_list.index("r0")] = dr0
+        jac[params_list.index("r1")] = dr1
+        jac[params_list.index("r2")] = dr2
+        jac[params_list.index("u0")] = du0
+        jac[params_list.index("u1")] = du1
+        jac[params_list.index("u2")] = du2
+
+        return jac
+
     def residual(self, params, args_1d, args_2d, args_3d, epsilon=1e-8):
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
@@ -2259,7 +2677,13 @@ class PeakEllipsoid:
             for key in params.keys()
         ]
 
-        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso])
+        I1d = self.integral_1d(params)
+        I2d = self.integral_2d(params)
+        I3d = self.integral_3d(params)
+
+        diff = [val - I3d for val in I1d] + [val - I3d for val in I2d]
+
+        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso, diff])
 
         return cost
 
@@ -2280,16 +2704,15 @@ class PeakEllipsoid:
             ]
         )
 
-        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge, lasso])
+        I1d = self.integral_jac_1d(params)
+        I2d = self.integral_jac_2d(params)
+        I3d = self.integral_jac_3d(params)
+
+        diff = [val - I3d for val in I1d] + [val - I3d for val in I2d]
+
+        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge, lasso, *diff])
 
         return jac
-
-    def cost(self, params, args_1d, args_2d, args_3d):
-        cost_1d = self.residual_1d(params, *args_1d, norm=True)
-        cost_2d = self.residual_2d(params, *args_2d, norm=True)
-        cost_3d = self.residual_3d(params, *args_3d, norm=True)
-
-        return np.concatenate([cost_1d, cost_2d, cost_3d])
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
