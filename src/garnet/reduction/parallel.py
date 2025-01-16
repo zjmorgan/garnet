@@ -107,7 +107,7 @@ class ParallelProcessor:
                         print("Exception in pool: {}".format(e))
                         traceback.print_exc()
         else:
-            results = {k: func((k, v)) for k, v in data.items()}
+            results = {k: func((k, v))[1] for k, v in data.items()}
         return results
 
     def safe_function_wrapper(self, *args, **kwargs):

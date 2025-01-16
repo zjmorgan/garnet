@@ -164,8 +164,6 @@ class Integration(SubPlan):
 
             self.peaks, self.data = peaks, data
 
-            params = self.estimate_peak_size("peaks", "md", r_cut)
-
             if self.params["MaxOrder"] > 0:
                 sat_min_d = self.params["MinD"]
                 if self.params.get("SatMinD") is not None:
@@ -190,13 +188,13 @@ class Integration(SubPlan):
 
             data.save_histograms(md_file, "md", sample_logs=True)
 
+            params = self.estimate_peak_size("peaks", "md", r_cut)
+
             peak_dict = self.extract_peak_info("peaks", params)
 
             results = self.integrate_peaks(peak_dict)
 
             self.update_peak_info("peaks", results)
-
-            # peaks.remove_weak_peaks('peaks')
 
             peaks.combine_peaks("peaks", "combine")
 
@@ -549,13 +547,13 @@ class Integration(SubPlan):
         return "_d(min)={:.2f}".format(min_d) + "_r(max)={:.2f}".format(max_r)
 
     def estimate_peak_size(self, peaks_ws, data_ws, r_cut):
-        peak_dict = self.extract_peak_info("peaks", r_cut)
+        peak_dict = self.extract_peak_info(peaks_ws, r_cut)
 
         roi = PeakRegionOfInterest(r_cut)
 
-        r, R = roi.fit(peak_dict)
+        rprof, rproj = roi.fit(peak_dict)
 
-        return r, R
+        return rprof * 2, rproj * 2
 
     def fit_peaks(self, key_value):
         key, value = key_value
@@ -613,7 +611,7 @@ class Integration(SubPlan):
 
         return key, value
 
-    def extract_peak_info(self, peaks_ws, r):
+    def extract_peak_info(self, peaks_ws, r_cut):
         """
         Obtain peak information for envelope determination.
 
@@ -621,8 +619,8 @@ class Integration(SubPlan):
         ----------
         peaks_ws : str
             Peaks table.
-        r : list
-            Cutoff radius parameters.
+        r_cut : list or float
+            Cutoff radius parameters(s).
 
         """
 
@@ -632,6 +630,8 @@ class Integration(SubPlan):
 
         n_peak = peak.get_number_peaks()
 
+        UB = peak.get_UB()
+
         peak_dict = {}
 
         for i in range(n_peak):
@@ -639,13 +639,13 @@ class Integration(SubPlan):
 
             h, k, l = peak.get_hkl(i)
 
+            hkl = [h, k, l]
+
             wavelength = peak.get_wavelength(i)
 
             angles = peak.get_angles(i)
 
             two_theta, az_phi = angles
-
-            params = peak.get_peak_shape(i, r if type(r) is float else r[0])
 
             peak.set_peak_intensity(i, 0, 0)
 
@@ -653,17 +653,15 @@ class Integration(SubPlan):
 
             peak_name = peak.get_peak_name(i)
 
-            # det_id = peak.get_detector_id(i)
-
             dQ = data.get_resolution_in_Q(wavelength, two_theta)
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = r, wavelength, dQ, R, two_theta, az_phi
+            bin_params = UB, hkl, wavelength, R, two_theta, az_phi, r_cut, dQ
 
             # ---
 
-            bins, extents, projections = self.bin_extent(*params, *bin_params)
+            bins, extents, projections = self.bin_extent(*bin_params)
 
             y, e, Q0, Q1, Q2 = data.bin_in_Q("md", extents, bins, projections)
 
@@ -745,57 +743,58 @@ class Integration(SubPlan):
 
         return np.einsum("ij,j...->i...", W, [Q0, Q1, Q2])
 
-    def bin_extent(
-        self,
-        Q0,
-        Q1,
-        Q2,
-        r0,
-        r1,
-        r2,
-        v0,
-        v1,
-        v2,
-        roi,
-        lamda,
-        bin_size,
-        R,
-        two_theta,
-        az_phi,
-    ):
+    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut, dr):
         n, u, v = self.bin_axes(R, two_theta, az_phi)
 
         projections = [n, u, v]
 
-        params = Q0, Q1, Q2, r0, r1, r2, v0, v1, v2
+        W = np.column_stack(projections)
 
-        params = self.project_ellipsoid_parameters(params, projections)
+        h, k, l = hkl
 
-        Q0, Q1, Q2, r0, r1, r2, v0, v1, v2 = params
+        Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        if type(roi) is float:
-            dQ = 2 * np.array([roi] * 3)
+        if type(r_cut) is float:
+            dQ_cut = 3 * [r_cut]
         else:
-            dQ = 2 * np.array([roi[0]] + [roi[1]] * 2)
+            dQ_cut = [r_cut[0]] + 2 * [r_cut[1]]
 
-        dQ0, dQ1, dQ2 = dQ
+        Q0_box, Q1_box, Q2_box = [], [], []
+
+        points = [
+            [h - 0.5, k, l],
+            [h + 0.5, k, l],
+            [h, k - 0.5, l],
+            [h, k + 0.5, l],
+            [h, k, l - 0.5],
+            [h, k, l + 0.5],
+        ]
+
+        for point in points:
+            Qp_0, Qp_1, Qp_2 = 2 * np.pi * np.dot(W.T, np.dot(UB, point))
+            Q0_box.append(Qp_0 - Q0)
+            Q1_box.append(Qp_1 - Q1)
+            Q2_box.append(Qp_2 - Q2)
+
+        dQ0_cut, dQ1_cut, dQ2_cut = dQ_cut
+
+        dQ0 = np.min([np.max(np.abs(Q0_box)), dQ0_cut])
+        dQ1 = np.min([np.max(np.abs(Q1_box)), dQ1_cut])
+        dQ2 = np.min([np.max(np.abs(Q2_box)), dQ2_cut])
+
+        dQ = 2 * dQ0, 2 * dQ1, 2 * dQ2
 
         extents = np.array(
             [[Q0 - dQ0, Q0 + dQ0], [Q1 - dQ1, Q1 + dQ1], [Q2 - dQ2, Q2 + dQ2]]
         )
 
-        bin_sizes = np.array(dQ) / 15
-        bin_sizes[bin_sizes < bin_size / 2] = bin_size / 2
+        bin_sizes = np.array([dQ]) / 30
+        bin_sizes[bin_sizes < dr] = dr
 
         min_adjusted = np.floor(extents[:, 0] / bin_sizes) * bin_sizes
         max_adjusted = np.ceil(extents[:, 1] / bin_sizes) * bin_sizes
 
         bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
-        bin_sizes = (max_adjusted - min_adjusted) / bins
-
-        bins = np.where(bins % 2 == 0, bins, bins + 1)
-
-        max_adjusted = min_adjusted + bins * bin_sizes
 
         extents = np.vstack((min_adjusted, max_adjusted)).T
 
@@ -820,79 +819,114 @@ class PeakRegionOfInterest:
         self.params = Parameters()
 
         self.params.add("r0", value=r_cut / 2, min=0.01, max=2 * r_cut)
-        self.params.add("R0", value=r_cut / 2, min=0.01, max=2 * r_cut)
+        self.params.add("r1", value=r_cut / 2, min=0.01, max=2 * r_cut)
+        self.params.add("r2", expr="r1")
 
-    def model(self, r, R, y, e, x0, x1, x2):
-        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
+    def model(self, r, y, e, x):
+        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=1))
 
         sigma = r / scale
-        Sigma = R / scale
 
-        z0 = x0 / sigma
-        z1 = x1 / Sigma
-        z2 = x2 / Sigma
+        z = x / sigma
 
-        y_hat = np.exp(-0.5 * (z0**2 + z1**2 + z2**2))
+        y_hat = np.exp(-0.5 * z**2)
 
         y_bar = np.nanmean(y)
         y_hat_bar = np.nanmean(y_hat)
 
-        num = np.nansum((y_hat - y_hat_bar) * (y - y_bar))
-        den = np.nansum((y_hat - y_hat_bar) ** 2)
+        w = 1 / e**2
+        w[np.isinf(w)] = np.nan
+
+        num = np.nansum(w * (y_hat - y_hat_bar) * (y - y_bar))
+        den = np.nansum(w * (y_hat - y_hat_bar) ** 2)
 
         A = num / den
         B = y_bar - A * y_hat_bar
 
-        return A * y_hat + B
+        if A < 0:
+            A, B = 0, np.nansum(w * y) / np.nansum(w)
 
-    def objective(self, params, ys, es, x0s, x1s, x2s):
-        r = params["r0"]
-        R = params["R0"]
+        y = A * y_hat + B
+
+        return y, A / B
+
+    def objective(self, params, y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s):
+        r0 = params["r0"].value
+        r1 = params["r1"].value
+        r2 = params["r2"].value
 
         res = []
-        for y, e, x0, x1, x2 in zip(ys, es, x0s, x1s, x2s):
-            y_fit = self.model(r, R, y, e, x0, x1, x2)
-            res += ((y_fit - y) / e).tolist()
+        for y0, e0, x0 in zip(y0s, e0s, x0s):
+            y0_fit, aob = self.model(r0, y0, e0, x0)
+            res.append(((y0_fit - y0) / e0).flatten())
+        for y1, e1, x1 in zip(y1s, e1s, x1s):
+            y1_fit, aob = self.model(r1, y1, e1, x1)
+            res.append(((y1_fit - y1) / e1).flatten())
+        for y2, e2, x2 in zip(y2s, e2s, x2s):
+            y2_fit, aob = self.model(r2, y2, e2, x2)
+            res.append(((y2_fit - y2) / e2).flatten())
 
-        res.append(r.value)
-        res.append(R.value)
-        res.append(np.sign(r.value) * np.sqrt(np.abs(r.value) + 1e-8))
-        res.append(np.sign(R.value) * np.sqrt(np.abs(R.value) + 1e-8))
-        return res
+        r_ridge = [r0, r1, r2]
+        r_lasso = [np.sign(r) * np.sqrt(r**2 + 1e-8) for r in r_ridge]
 
-    def fit(self, peak_dict):
-        ys = []
-        es = []
-        x0s = []
-        x1s = []
-        x2s = []
+        return np.concatenate([*res, r_ridge, r_lasso])
+
+    def extract_info(self, peak_dict):
+        y0s, e0s, x0s = [], [], []
+        y1s, e1s, x1s = [], [], []
+        y2s, e2s, x2s = [], [], []
 
         for key in peak_dict.keys():
             Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = peak_dict[key][0]
             mask = e > 0
 
-            if mask.sum() > 15:
-                ys.append(y[mask])
-                es.append(e[mask])
-                x0s.append(Q0[mask] - Qmod)
-                x1s.append(Q1[mask])
-                x2s.append(Q2[mask])
+            y[~mask] = np.nan
+            y[~mask] = np.nan
+
+            c0 = np.nanmean(counts > 0, axis=(1, 2))
+            y0 = np.nansum(y, axis=(1, 2)) / c0
+            e0 = np.sqrt(np.nansum(e**2, axis=(1, 2))) / c0
+            x0 = Q0[:, 0, 0] - Qmod
+
+            y0s.append(y0)
+            e0s.append(e0)
+            x0s.append(x0)
+
+            c1 = np.nanmean(counts > 0, axis=(0, 2))
+            y1 = np.nansum(y, axis=(0, 2)) / c1
+            e1 = np.sqrt(np.nansum(e**2, axis=(0, 2))) / c1
+            x1 = Q1[0, :, 0]
+
+            y1s.append(y1)
+            e1s.append(e1)
+            x1s.append(x1)
+
+            c2 = np.nanmean(counts > 0, axis=(0, 1))
+            y2 = np.nansum(y, axis=(0, 1)) / c2
+            e2 = np.sqrt(np.nansum(e**2, axis=(0, 1))) / c2
+            x2 = Q2[0, 0, :]
+
+            y2s.append(y2)
+            e2s.append(e2)
+            x2s.append(x2)
+
+        return y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s
+
+    def fit(self, peak_dict):
+        args = self.extract_info(peak_dict)
 
         out = Minimizer(
-            self.objective,
-            self.params,
-            fcn_args=(ys, es, x0s, x1s, x2s),
-            nan_policy="omit",
+            self.objective, self.params, fcn_args=args, nan_policy="omit"
         )
 
         result = out.minimize(method="leastsq")
 
         self.params = result.params
 
-        r = result.params["r0"].value
-        R = result.params["R0"].value
+        r0 = result.params["r0"].value
+        r1 = result.params["r1"].value
 
-        return r, R
+        return r0, r1
 
 
 class PeakSphere:
@@ -1029,41 +1063,39 @@ class PeakEllipsoid:
     def normalize(self, x0, x1, x2, counts, y, e, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        c_int = 1
-
         if mode == "1d_0":
-            # c_int = np.mean(counts > 0, axis=(1, 2))
-            # c_int /= np.max(c_int)
+            c_int = np.mean(counts > 0, axis=(1, 2))
+            c_int /= np.max(c_int)
             c_int *= dx0
             y_int = np.nansum(y, axis=(1, 2)) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(1, 2))) / c_int
         elif mode == "1d_1":
-            # c_int = np.mean(counts > 0, axis=(0, 2))
-            # c_int /= np.max(c_int)
+            c_int = np.mean(counts > 0, axis=(0, 2))
+            c_int /= np.max(c_int)
             c_int *= dx1
             y_int = np.nansum(y, axis=(0, 2)) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(0, 2))) / c_int
         elif mode == "1d_2":
-            # c_int= np.mean(counts > 0, axis=(0, 1))
-            # c_int /= np.max(c_int)
+            c_int = np.mean(counts > 0, axis=(0, 1))
+            c_int /= np.max(c_int)
             c_int *= dx2
             y_int = np.nansum(y, axis=(0, 1)) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=(0, 1))) / c_int
         elif mode == "2d_0":
-            # c_int = np.mean(counts > 0, axis=0)
-            # c_int /= np.max(c_int)
+            c_int = np.mean(counts > 0, axis=0)
+            c_int /= np.max(c_int)
             c_int *= dx1 * dx2
             y_int = np.nansum(y, axis=0) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=0)) / c_int
         elif mode == "2d_1":
-            # c_int = np.mean(counts > 0, axis=1)
-            # c_int /= np.max(c_int)
+            c_int = np.mean(counts > 0, axis=1)
+            c_int /= np.max(c_int)
             c_int *= dx0 * dx2
             y_int = np.nansum(y, axis=1) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=1)) / c_int
         elif mode == "2d_2":
-            # c_int = np.mean(counts > 0, axis=2)
-            # c_int /= np.max(c_int)
+            c_int = np.mean(counts > 0, axis=2)
+            c_int /= np.max(c_int)
             c_int *= dx0 * dx1
             y_int = np.nansum(y, axis=2) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=2)) / c_int
@@ -1341,6 +1373,25 @@ class PeakEllipsoid:
 
         return np.sqrt((2 * np.pi) ** k * det)
 
+    def lorentzian_integral(self, inv_S, mode="3d"):
+        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
+
+        if mode == "3d":
+            k = 3
+            det = 1 / np.linalg.det(inv_var)
+        elif "2d" in mode:
+            k = 2
+            det = 1 / np.linalg.det(inv_var)
+        elif "1d" in mode:
+            k = 1
+            det = 1 / inv_var
+
+        return (
+            scipy.special.gamma(0.5)
+            * np.sqrt(np.pi * det)
+            / scipy.special.gamma(0.5 * (1 + k))
+        )
+
     def gaussian_integral_jac_S(self, inv_S, d_inv_S, mode="3d"):
         inv_var = self.ellipsoid_covariance(inv_S, mode)
 
@@ -1439,25 +1490,6 @@ class PeakEllipsoid:
             l0 = l1 = l2 * 0
 
         return 0.5 * l * np.array([l0, l1, l2])
-
-    def lorentzian_integral(self, inv_S, mode="3d"):
-        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
-
-        if mode == "3d":
-            k = 3
-            det = 1 / np.linalg.det(inv_var)
-        elif "2d" in mode:
-            k = 2
-            det = 1 / np.linalg.det(inv_var)
-        elif "1d" in mode:
-            k = 1
-            det = 1 / inv_var
-
-        return (
-            scipy.special.gamma(0.5)
-            * np.sqrt(np.pi * det)
-            / scipy.special.gamma(0.5 * (1 + k))
-        )
 
     def gaussian_jac_c(self, x0, x1, x2, c, inv_S, mode="3d"):
         c0, c1, c2 = c
@@ -2666,55 +2698,64 @@ class PeakEllipsoid:
 
         return jac
 
+    def elastic_net(self, params, lamda=1, epsilon=1e-8):
+        beta = np.array([params[key] for key in params.keys()])
+        ridge = lamda * np.array(beta)
+        lasso = lamda * np.sign(beta) * np.sqrt(np.abs(beta) + epsilon)
+
+        return ridge, lasso
+
+    def elastic_net_jac(self, params, lamda=1, epsilon=1e-8):
+        params_list = list(params.keys())
+
+        beta = np.array([params[key] for key in params.keys()])
+
+        ridge = lamda * np.eye(len(params_list))
+        lasso = lamda * np.diag(
+            0.5 * np.sign(beta) / np.sqrt(np.abs(beta) + epsilon)
+        )
+
+        return ridge, lasso
+
     def residual(self, params, args_1d, args_2d, args_3d, epsilon=1e-8):
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
 
-        ridge = [params[key] for key in params.keys()]
-        lasso = [
-            np.abs(params[key]) * np.sqrt(np.abs(params[key]) + epsilon)
-            for key in params.keys()
-        ]
+        ridge, lasso = self.elastic_net(params)
 
-        I1d = self.integral_1d(params)
-        I2d = self.integral_2d(params)
-        I3d = self.integral_3d(params)
-
-        diff = [val - I3d for val in I1d] + [val - I3d for val in I2d]
-
-        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso, diff])
+        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso])
 
         return cost
 
     def jacobian(self, params, args_1d, args_2d, args_3d, epsilon=1e-8):
-        params_list = list(params.keys())
-
         jac_1d = self.jacobian_1d(params, *args_1d)
         jac_2d = self.jacobian_2d(params, *args_2d)
         jac_3d = self.jacobian_3d(params, *args_3d)
 
-        ridge = np.eye(len(params_list))
-        lasso = np.diag(
-            [
-                0.5
-                * np.sign(params[key])
-                / np.sqrt(np.abs(params[key]) + epsilon)
-                for key in params.keys()
-            ]
-        )
+        ridge, lasso = self.elastic_net_jac(params)
 
-        I1d = self.integral_jac_1d(params)
-        I2d = self.integral_jac_2d(params)
-        I3d = self.integral_jac_3d(params)
-
-        diff = [val - I3d for val in I1d] + [val - I3d for val in I2d]
-
-        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge, lasso, *diff])
+        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge, lasso])
 
         return jac
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
+        y_scale = 1  # np.nanmax(y)
+        x_scale = 1  # x0[-1,0,0] - x0[0,0,0]
+
+        y /= y_scale
+        e /= y_scale
+
+        x0 /= x_scale
+        x1 /= x_scale
+        x2 /= x_scale
+
+        if not y_scale > 0 or not x_scale > 0:
+            return None
+
+        if (np.array(counts.shape) < 9).any():
+            return None
+
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
         y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
         y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_2")
@@ -2865,41 +2906,6 @@ class PeakEllipsoid:
 
         self.params = result.params
 
-        self.params["c0"].set(vary=False)
-        self.params["c1"].set(vary=False)
-        self.params["c2"].set(vary=False)
-
-        self.params["r0"].set(vary=False)
-        self.params["r1"].set(vary=False)
-        self.params["r2"].set(vary=False)
-
-        self.params["u0"].set(vary=False)
-        self.params["u1"].set(vary=False)
-        self.params["u2"].set(vary=False)
-
-        self.params["B1d_0"].set(vary=False)
-        self.params["B1d_1"].set(vary=False)
-        self.params["B1d_2"].set(vary=False)
-
-        self.params["C1d_0"].set(vary=False)
-        self.params["C1d_1"].set(vary=False)
-        self.params["C1d_2"].set(vary=False)
-
-        self.params["B2d_0"].set(vary=False)
-        self.params["B2d_1"].set(vary=False)
-        self.params["B2d_2"].set(vary=False)
-
-        self.params["C2d_01"].set(vary=False)
-        self.params["C2d_02"].set(vary=False)
-
-        self.params["C2d_10"].set(vary=False)
-        self.params["C2d_12"].set(vary=False)
-
-        self.params["C2d_20"].set(vary=False)
-        self.params["C2d_21"].set(vary=False)
-
-        self.params["B3d"].set(vary=False)
-
         c0 = self.params["c0"].value
         c1 = self.params["c1"].value
         c2 = self.params["c2"].value
@@ -2911,75 +2917,6 @@ class PeakEllipsoid:
         u0 = self.params["u0"].value
         u1 = self.params["u1"].value
         u2 = self.params["u2"].value
-
-        ellip_vals = r0, r1, r2, u0, u1, u2
-
-        A0 = self.params["A1d_0"]
-        A1 = self.params["A1d_1"]
-        A2 = self.params["A1d_2"]
-
-        H0 = self.params["H1d_0"]
-        H1 = self.params["H1d_1"]
-        H2 = self.params["H1d_2"]
-
-        A0, H0 = self.calculate_intensity(A0, H0, *ellip_vals, "1d_0")
-        A1, H1 = self.calculate_intensity(A1, H1, *ellip_vals, "1d_1")
-        A2, H2 = self.calculate_intensity(A2, H2, *ellip_vals, "1d_2")
-
-        self.params["A1d_0"].set(value=A0, min=0, max=np.inf)
-        self.params["A1d_1"].set(value=A1, min=0, max=np.inf)
-        self.params["A1d_2"].set(value=A2, min=0, max=np.inf)
-
-        self.params["H1d_0"].set(value=H0, min=0, max=np.inf)
-        self.params["H1d_1"].set(value=H1, min=0, max=np.inf)
-        self.params["H1d_2"].set(value=H2, min=0, max=np.inf)
-
-        A0 = self.params["A2d_0"]
-        A1 = self.params["A2d_1"]
-        A2 = self.params["A2d_2"]
-
-        H0 = self.params["H2d_0"]
-        H1 = self.params["H2d_1"]
-        H2 = self.params["H2d_2"]
-
-        A0, H0 = self.calculate_intensity(A0, H0, *ellip_vals, "2d_0")
-        A1, H1 = self.calculate_intensity(A1, H1, *ellip_vals, "2d_1")
-        A2, H2 = self.calculate_intensity(A2, H2, *ellip_vals, "2d_2")
-
-        self.params["A2d_0"].set(value=A0, min=0, max=np.inf)
-        self.params["A2d_1"].set(value=A1, min=0, max=np.inf)
-        self.params["A2d_2"].set(value=A2, min=0, max=np.inf)
-
-        self.params["H2d_0"].set(value=H0, min=0, max=np.inf)
-        self.params["H2d_1"].set(value=H1, min=0, max=np.inf)
-        self.params["H2d_2"].set(value=H2, min=0, max=np.inf)
-
-        A = self.params["A3d"]
-
-        H = self.params["H3d"]
-
-        A, H = self.calculate_intensity(A, H, *ellip_vals, "3d")
-
-        self.params["A3d"].set(value=A, min=0, max=np.inf)
-
-        self.params["H3d"].set(value=H, min=0, max=np.inf)
-
-        # out = Minimizer(
-        #     self.cost,
-        #     self.params,
-        #     fcn_args=(args_1d, args_2d, args_3d),
-        #     nan_policy="omit",
-        #     calc_covar=True,
-        # )
-
-        # result = out.minimize(
-        #     method="least_squares",
-        #     loss='soft_l1',
-        #     max_nfev=20,
-        # )
-        # print(fit_report(result))
-
-        self.params = result.params
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -3004,40 +2941,28 @@ class PeakEllipsoid:
         C2 = self.params["C1d_2"]
 
         y1d_0_fit = (
-            A0
-            * self.gaussian(*args, "1d_0")
-            / self.gaussian_integral(inv_S, "1d_0")
-            + H0
-            * self.lorentzian(*args, "1d_0")
-            / self.lorentzian_integral(inv_S, "1d_0")
+            A0 * self.gaussian(*args, "1d_0")
+            + H0 * self.lorentzian(*args, "1d_0")
             + B0
             + C0 * (x0[:, 0, 0] - c0)
         )
         y1d_1_fit = (
-            A1
-            * self.gaussian(*args, "1d_1")
-            / self.gaussian_integral(inv_S, "1d_1")
-            + H1
-            * self.lorentzian(*args, "1d_1")
-            / self.lorentzian_integral(inv_S, "1d_2")
+            A1 * self.gaussian(*args, "1d_1")
+            + H1 * self.lorentzian(*args, "1d_1")
             + B1
             + C1 * (x1[0, :, 0] - c1)
         )
         y1d_2_fit = (
-            A2
-            * self.gaussian(*args, "1d_2")
-            / self.gaussian_integral(inv_S, "1d_2")
-            + H2
-            * self.lorentzian(*args, "1d_2")
-            / self.lorentzian_integral(inv_S, "1d_2")
+            A2 * self.gaussian(*args, "1d_2")
+            + H2 * self.lorentzian(*args, "1d_2")
             + B2
             + C2 * (x2[0, 0, :] - c2)
         )
 
         y1 = [
-            (y1d_0_fit, y1d_0, e1d_0),
-            (y1d_1_fit, y1d_1, e1d_1),
-            (y1d_2_fit, y1d_2, e1d_2),
+            (y1d_0_fit * y_scale, y1d_0 * y_scale, e1d_0 * y_scale),
+            (y1d_1_fit * y_scale, y1d_1 * y_scale, e1d_1 * y_scale),
+            (y1d_2_fit * y_scale, y1d_2 * y_scale, e1d_2 * y_scale),
         ]
 
         chi2_1d = []
@@ -3078,43 +3003,31 @@ class PeakEllipsoid:
         C21 = self.params["C2d_21"]
 
         y2d_0_fit = (
-            A0
-            * self.gaussian(*args, "2d_0")
-            / self.gaussian_integral(inv_S, "2d_0")
-            + H0
-            * self.lorentzian(*args, "2d_0")
-            / self.lorentzian_integral(inv_S, "2d_0")
+            A0 * self.gaussian(*args, "2d_0")
+            + H0 * self.lorentzian(*args, "2d_0")
             + B0
             + C01 * (x1[0, :, :] - c1)
             + C02 * (x2[0, :, :] - c2)
         )
         y2d_1_fit = (
-            A1
-            * self.gaussian(*args, "2d_1")
-            / self.gaussian_integral(inv_S, "2d_1")
-            + H1
-            * self.lorentzian(*args, "2d_1")
-            / self.lorentzian_integral(inv_S, "2d_1")
+            A1 * self.gaussian(*args, "2d_1")
+            + H1 * self.lorentzian(*args, "2d_1")
             + B1
             + C10 * (x0[:, 0, :] - c0)
             + C12 * (x2[:, 0, :] - c2)
         )
         y2d_2_fit = (
-            A2
-            * self.gaussian(*args, "2d_2")
-            / self.gaussian_integral(inv_S, "2d_2")
-            + H2
-            * self.lorentzian(*args, "2d_2")
-            / self.lorentzian_integral(inv_S, "2d_2")
+            A2 * self.gaussian(*args, "2d_2")
+            + H2 * self.lorentzian(*args, "2d_2")
             + B2
             + C20 * (x0[:, :, 0] - c0)
             + C21 * (x1[:, :, 0] - c1)
         )
 
         y2 = [
-            (y2d_0_fit, y2d_0, e2d_0),
-            (y2d_1_fit, y2d_1, e2d_1),
-            (y2d_2_fit, y2d_2, e2d_2),
+            (y2d_0_fit * y_scale, y2d_0 * y_scale, e2d_0 * y_scale),
+            (y2d_1_fit * y_scale, y2d_1 * y_scale, e2d_1 * y_scale),
+            (y2d_2_fit * y_scale, y2d_2 * y_scale, e2d_2 * y_scale),
         ]
 
         chi2_2d = []
@@ -3134,22 +3047,16 @@ class PeakEllipsoid:
         # ---
 
         B = self.params["B3d"].value
-
         A = self.params["A3d"].value
-
         H = self.params["H3d"].value
 
         y3d_fit = (
-            A
-            * self.gaussian(*args, "3d")
-            / self.gaussian_integral(inv_S, "3d")
-            + H
-            * self.lorentzian(*args, "3d")
-            / self.lorentzian_integral(inv_S, "3d")
+            A * self.gaussian(*args, "3d")
+            + H * self.lorentzian(*args, "3d")
             + B
         )
 
-        y3 = (y3d_fit, y3d, e3d)
+        y3 = (y3d_fit * y_scale, y3d * y_scale, e3d * y_scale)
 
         chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, *y3, "3d")
 
@@ -3162,9 +3069,13 @@ class PeakEllipsoid:
 
         # ---
 
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
+        # inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
-        return c, inv_S, y1, y2, y3
+        x0 *= x_scale
+        x1 *= x_scale
+        x2 *= x_scale
+
+        return c * x_scale, inv_S / x_scale**2, y1, y2, y3
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -3192,6 +3103,9 @@ class PeakEllipsoid:
         x1 = x1_proj.copy()
         x2 = x2_proj.copy()
 
+        if (np.array(counts.shape) <= 9).any():
+            return None
+
         self.update_constraints(x0, x1, x2, dx)
 
         mask = (counts >= 0) & (e >= 0) & np.isfinite(counts) & np.isfinite(e)
@@ -3202,7 +3116,7 @@ class PeakEllipsoid:
 
         y_max = np.nanmax(y)
 
-        if mask.sum() < 20 or (np.array(mask.shape) <= 5).any() or y_max <= 0:
+        if mask.sum() < 20 or (np.array(mask.shape) <= 9).any() or y_max <= 0:
             return None
 
         coords = np.argwhere(mask)
@@ -3315,21 +3229,21 @@ class PeakEllipsoid:
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
 
-        intens_est = []
-        for item in self.intensity:
-            if type(item) is list:
-                intens_est += item
-            else:
-                intens_est.append(item)
+        # intens_est = []
+        # for item in self.intensity:
+        #     if type(item) is list:
+        #         intens_est += item
+        #     else:
+        #         intens_est.append(item)
 
-        sig_est = []
-        for item in self.sigma:
-            if type(item) is list:
-                sig_est += item
-            else:
-                sig_est.append(item)
+        # sig_est = []
+        # for item in self.sigma:
+        #     if type(item) is list:
+        #         sig_est += item
+        #     else:
+        #         sig_est.append(item)
 
-        sig_noise = [I / sig for I, sig in zip(intens_est, sig_est)]
+        # sig_noise = [I / sig for I, sig in zip(intens_est, sig_est)]
 
         # sig = np.sqrt(sig**2+np.std(intens_est)**2/len(intens_est))
 
@@ -3337,8 +3251,9 @@ class PeakEllipsoid:
 
         self.info = [d3x, b, b_err]
 
-        freq = y - b
+        freq = y
         freq[y <= 0] = np.nan
+        freq -= b
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()
@@ -3351,7 +3266,9 @@ class PeakEllipsoid:
 
         self.info += [intens_raw, sig_raw]
 
-        if not np.isfinite(sig) or not np.all([sn > 3 for sn in sig_noise]):
+        if not np.isfinite(
+            sig
+        ):  # or not np.all([sn > 3 for sn in sig_noise]):
             sig = intens
 
         xye = (x0, x1, x2), (dx0, dx1, dx2), freq

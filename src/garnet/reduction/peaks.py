@@ -1156,6 +1156,19 @@ class PeakModel:
 
         return mtd[self.peaks].getNumberPeaks()
 
+    def get_UB(self):
+        """
+        UB matrix.
+
+        Returns
+        -------
+        UB : 2d-array, 3x3
+            UB-matrix
+
+        """
+
+        return mtd[self.peaks].sample().getOrientedLattice().getUB()
+
     def set_peak_intensity(self, no, intens, sig):
         """
         Update the peak intensity.
