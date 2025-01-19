@@ -24,7 +24,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["TBB_THREAD_ENABLED"] = "0"
 
-from garnet.plots.peaks import PeakPlot
+from garnet.plots.peaks import PeakPlot, RegionOfInterestPlot
 from garnet.config.instruments import beamlines
 from garnet.reduction.ub import UBModel, Optimization, lattice_group
 from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
@@ -114,6 +114,8 @@ class Integration(SubPlan):
         self.run = 0
         self.runs = len(runs)
 
+        result_file = self.get_file(output_file, "")
+
         for run in runs:
             self.run += 1
 
@@ -188,7 +190,9 @@ class Integration(SubPlan):
 
             data.save_histograms(md_file, "md", sample_logs=True)
 
-            params = self.estimate_peak_size("peaks", "md", r_cut)
+            est_file = self.get_plot_file("run#{}".format(run))
+
+            params = self.estimate_peak_size("peaks", "md", r_cut, est_file)
 
             peak_dict = self.extract_peak_info("peaks", params)
 
@@ -206,9 +210,7 @@ class Integration(SubPlan):
 
             data.delete_workspace("md")
 
-        # result_file = self.get_file(output_file, '')
-
-        peaks.save_peaks(output_file, "combine")
+        peaks.save_peaks(result_file, "combine")
 
         # ---
 
@@ -546,12 +548,17 @@ class Integration(SubPlan):
 
         return "_d(min)={:.2f}".format(min_d) + "_r(max)={:.2f}".format(max_r)
 
-    def estimate_peak_size(self, peaks_ws, data_ws, r_cut):
+    def estimate_peak_size(self, peaks_ws, data_ws, r_cut, filename):
         peak_dict = self.extract_peak_info(peaks_ws, r_cut)
 
         roi = PeakRegionOfInterest(r_cut)
 
         rprof, rproj = roi.fit(peak_dict)
+
+        x, y, e = roi.extract_fit()
+
+        plot = RegionOfInterestPlot(x, y, e, [rprof, rproj])
+        plot.save_plot(filename)
 
         return rprof * 2, rproj * 2
 
@@ -562,7 +569,7 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
 
-        peak_file, wavelength, angles, goniometer = peak_info
+        peak_file, hkl, d, wavelength, angles, goniometer = peak_info
 
         ellipsoid = PeakEllipsoid()
 
@@ -592,7 +599,9 @@ class Integration(SubPlan):
 
                 self.peak_plot.add_ellipsoid(c, S)
 
-                self.peak_plot.add_peak_info(wavelength, angles, goniometer)
+                self.peak_plot.add_peak_info(
+                    hkl, d, wavelength, angles, goniometer
+                )
 
                 self.peak_plot.add_peak_stats(
                     ellipsoid.redchi2,
@@ -635,7 +644,8 @@ class Integration(SubPlan):
         peak_dict = {}
 
         for i in range(n_peak):
-            Qmod = 2 * np.pi / peak.get_d_spacing(i)
+            d = peak.get_d_spacing(i)
+            Qmod = 2 * np.pi / d
 
             h, k, l = peak.get_hkl(i)
 
@@ -676,7 +686,7 @@ class Integration(SubPlan):
             if not os.path.exists(directory):
                 os.mkdir(directory)
 
-            peak_info = (peak_file, wavelength, angles, goniometer)
+            peak_info = (peak_file, hkl, d, wavelength, angles, goniometer)
 
             peak_dict[i] = data_info, peak_info
 
@@ -837,18 +847,36 @@ class PeakRegionOfInterest:
         w = 1 / e**2
         w[np.isinf(w)] = np.nan
 
+        sum_w = np.nansum(w)
         num = np.nansum(w * (y_hat - y_hat_bar) * (y - y_bar))
         den = np.nansum(w * (y_hat - y_hat_bar) ** 2)
 
         A = num / den
         B = y_bar - A * y_hat_bar
+        M = 2
 
         if A < 0:
-            A, B = 0, np.nansum(w * y) / np.nansum(w)
+            A, B, M = 0, np.nansum(w * y) / sum_w, 1
 
         y = A * y_hat + B
 
-        return y, A / B
+        residuals = y - (A * y_hat + B)
+
+        N = np.nansum(~np.isnan(y))
+
+        residual_var = np.nansum(w * residuals**2) / (N - M)
+
+        var_A = residual_var / den
+        var_B = residual_var * (1 / sum_w + (y_hat_bar**2 / den))
+
+        A_err = np.sqrt(var_A)
+        B_err = np.sqrt(var_B)
+
+        if A == 0:
+            B_err = np.sqrt(residual_var / np.nansum(w))
+            A_err = 0
+
+        return y, A, B, A_err, B_err
 
     def objective(self, params, y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s):
         r0 = params["r0"].value
@@ -857,19 +885,81 @@ class PeakRegionOfInterest:
 
         res = []
         for y0, e0, x0 in zip(y0s, e0s, x0s):
-            y0_fit, aob = self.model(r0, y0, e0, x0)
+            y0_fit, A, B, A_err, B_err = self.model(r0, y0, e0, x0)
             res.append(((y0_fit - y0) / e0).flatten())
         for y1, e1, x1 in zip(y1s, e1s, x1s):
-            y1_fit, aob = self.model(r1, y1, e1, x1)
+            y1_fit, A, B, A_err, B_err = self.model(r1, y1, e1, x1)
             res.append(((y1_fit - y1) / e1).flatten())
         for y2, e2, x2 in zip(y2s, e2s, x2s):
-            y2_fit, aob = self.model(r2, y2, e2, x2)
+            y2_fit, A, B, A_err, B_err = self.model(r2, y2, e2, x2)
             res.append(((y2_fit - y2) / e2).flatten())
 
         r_ridge = [r0, r1, r2]
-        r_lasso = [np.sign(r) * np.sqrt(r**2 + 1e-8) for r in r_ridge]
 
-        return np.concatenate([*res, r_ridge, r_lasso])
+        return np.concatenate([*res, r_ridge])
+
+    def extract_fit(self):
+        y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s = self.args
+        r0 = self.params["r0"].value
+        r1 = self.params["r1"].value
+        r2 = self.params["r2"].value
+
+        y0c, e0c, x0c = [], [], []
+        y1c, e1c, x1c = [], [], []
+        y2c, e2c, x2c = [], [], []
+
+        for y0, e0, x0 in zip(y0s, e0s, x0s):
+            y0_fit, A0, B0, A0_err, B0_err = self.model(r0, y0, e0, x0)
+            if A0 > B0 and B0 > 0:
+                y0_hat = y0 - B0
+                e0_hat = e0**2 + B0_err**2
+                y0_hat = y0_hat / A0
+                e0_hat = np.abs(y0_hat) * np.sqrt(
+                    (A0_err / A0) ** 2 + (e0_hat / y0_hat) ** 2
+                )
+                x0c += x0.tolist()
+                y0c += y0_hat.tolist()
+                e0c += e0_hat.tolist()
+
+        for y1, e1, x1 in zip(y1s, e1s, x1s):
+            y1_fit, A1, B1, A1_err, B1_err = self.model(r1, y1, e1, x1)
+            if A1 > B1 and B1 > 0:
+                y1_hat = y1 - B1
+                e1_hat = e1**2 + B1_err**2
+                y1_hat = y1_hat / A1
+                e1_hat = np.abs(y1_hat) * np.sqrt(
+                    (A1_err / A1) ** 2 + (e1_hat / y1_hat) ** 2
+                )
+                x1c += x1.tolist()
+                y1c += y1_hat.tolist()
+                e1c += e1_hat.tolist()
+
+        for y2, e2, x2 in zip(y2s, e2s, x2s):
+            y2_fit, A2, B2, A2_err, B2_err = self.model(r2, y2, e2, x2)
+            if A2 > B2 and B2 > 0:
+                y2_hat = y2 - B2
+                e2_hat = e2**2 + B2_err**2
+                y2_hat = y2_hat / A2
+                e2_hat = np.abs(y2_hat) * np.sqrt(
+                    (A2_err / A2) ** 2 + (e2_hat / y2_hat) ** 2
+                )
+                x2c += x2.tolist()
+                y2c += y2_hat.tolist()
+                e2c += e2_hat.tolist()
+
+        x0c = np.array(x0c)
+        x1c = np.array(x1c)
+        x2c = np.array(x2c)
+
+        y0c = np.array(y0c)
+        y1c = np.array(y1c)
+        y2c = np.array(y2c)
+
+        e0c = np.array(e0c)
+        e1c = np.array(e1c)
+        e2c = np.array(e2c)
+
+        return (x0c, x1c, x2c), (y0c, y1c, y2c), (e0c, e1c, e2c)
 
     def extract_info(self, peak_dict):
         y0s, e0s, x0s = [], [], []
@@ -913,13 +1003,13 @@ class PeakRegionOfInterest:
         return y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s
 
     def fit(self, peak_dict):
-        args = self.extract_info(peak_dict)
+        self.args = self.extract_info(peak_dict)
 
         out = Minimizer(
-            self.objective, self.params, fcn_args=args, nan_policy="omit"
+            self.objective, self.params, fcn_args=self.args, nan_policy="omit"
         )
 
-        result = out.minimize(method="leastsq")
+        result = out.minimize(method="least_squares", loss="soft_l1")
 
         self.params = result.params
 
@@ -2698,44 +2788,44 @@ class PeakEllipsoid:
 
         return jac
 
-    def elastic_net(self, params, lamda=1, epsilon=1e-8):
+    def regularization(self, params, lamda=1, epsilon=1e-8):
         beta = np.array([params[key] for key in params.keys()])
         ridge = lamda * np.array(beta)
-        lasso = lamda * np.sign(beta) * np.sqrt(np.abs(beta) + epsilon)
+        # lasso = lamda * np.sign(beta) * np.sqrt(np.abs(beta) + epsilon)
 
-        return ridge, lasso
+        return ridge  # , lasso
 
-    def elastic_net_jac(self, params, lamda=1, epsilon=1e-8):
-        params_list = list(params.keys())
+    def regularization_jac(self, params, lamda=1, epsilon=1e-8):
+        # params_list = list(params.keys())
 
         beta = np.array([params[key] for key in params.keys()])
 
-        ridge = lamda * np.eye(len(params_list))
-        lasso = lamda * np.diag(
-            0.5 * np.sign(beta) / np.sqrt(np.abs(beta) + epsilon)
-        )
+        ridge = lamda * np.eye(len(beta))
+        # lasso = lamda * np.diag(
+        #     0.5 * np.sign(beta) / np.sqrt(np.abs(beta) + epsilon)
+        # )
 
-        return ridge, lasso
+        return ridge  # , lasso
 
-    def residual(self, params, args_1d, args_2d, args_3d, epsilon=1e-8):
+    def residual(self, params, args_1d, args_2d, args_3d):
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
 
-        ridge, lasso = self.elastic_net(params)
+        ridge = self.regularization(params)
 
-        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge, lasso])
+        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge])
 
         return cost
 
-    def jacobian(self, params, args_1d, args_2d, args_3d, epsilon=1e-8):
+    def jacobian(self, params, args_1d, args_2d, args_3d):
         jac_1d = self.jacobian_1d(params, *args_1d)
         jac_2d = self.jacobian_2d(params, *args_2d)
         jac_3d = self.jacobian_3d(params, *args_3d)
 
-        ridge, lasso = self.elastic_net_jac(params)
+        ridge = self.regularization_jac(params)
 
-        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge, lasso])
+        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge])
 
         return jac
 
@@ -2888,6 +2978,7 @@ class PeakEllipsoid:
             self.residual,
             self.params,
             fcn_args=(args_1d, args_2d, args_3d),
+            reduce_fcn="neglogentropy",
             nan_policy="omit",
         )
 
@@ -3212,7 +3303,9 @@ class PeakEllipsoid:
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
         pk = (ellipsoid <= 1**2) & (e > 0)
-        bkg = (ellipsoid > 1**2) & (ellipsoid < np.cbrt(2) ** 2) & (e > 0)
+        pk = scipy.ndimage.binary_dilation(pk)
+
+        bkg = scipy.ndimage.binary_dilation(pk) & ~pk & (ellipsoid > 1**2)
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
@@ -3251,9 +3344,10 @@ class PeakEllipsoid:
 
         self.info = [d3x, b, b_err]
 
-        freq = y
-        freq[y <= 0] = np.nan
+        freq = y.copy()
+        freq[~(pk | bkg)] = np.nan
         freq -= b
+        freq[freq < 0] = np.nan
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()

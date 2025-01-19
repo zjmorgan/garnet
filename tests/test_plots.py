@@ -183,6 +183,9 @@ def test_peak_plot():
 
     c, S, *best_fit = ellipsoid.best_fit
 
+    hkl = [1, 2, 3]
+    d = 3.14
+
     wavelength = 3.2887
 
     angles = 60, 0
@@ -202,7 +205,7 @@ def test_peak_plot():
 
     plot.add_ellipsoid(c, S)
 
-    plot.add_peak_info(wavelength, angles, goniometer)
+    plot.add_peak_info(hkl, d, wavelength, angles, goniometer)
 
     plot.add_peak_stats(
         ellipsoid.redchi2, ellipsoid.intensity, ellipsoid.sigma

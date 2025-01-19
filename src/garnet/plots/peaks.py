@@ -16,87 +16,72 @@ from matplotlib.patches import Ellipse
 from matplotlib.transforms import Affine2D
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
-import scipy.special
-
 from garnet.plots.base import BasePlot
 
 
-class RadiusPlot(BasePlot):
-    def __init__(self, r, y, y_fit):
-        super(RadiusPlot, self).__init__()
+class RegionOfInterestPlot(BasePlot):
+    def __init__(self, x, y, e, r):
+        super(RegionOfInterestPlot, self).__init__()
 
         plt.close("all")
 
         self.fig, self.ax = plt.subplots(
-            1, 3, figsize=(6.4 * 3, 4.8), layout="constrained"
+            1,
+            3,
+            figsize=(6.4 * 3, 4.8),
+            layout="constrained",
+            sharex=True,
+            sharey=True,
         )
 
-        self.add_radius_fit(r, y, y_fit)
+        self.plot_peaks(*x, *y, *e)
 
-    def add_radius_fit(self, r, y, y_fit):
-        ax = self.ax[0]
+        self.plot_peak_bins(*x, *y)
 
-        ax.plot(r, y, "o", color="C0")
-        ax.plot(r, y_fit, ".", color="C1")
-        ax.minorticks_on()
-        ax.set_xlabel(r"$r$ [$\AA^{-1}$]")
+        self.draw_boundary(r[0], r[1], r[1])
 
-    def add_sphere(self, r_cut, A, sigma):
-        self.ax[0].axvline(x=r_cut, color="k", linestyle="--")
+    def plot_peaks(self, x0, x1, x2, y0, y1, y2, e0, e1, e2):
+        self.ax[0].errorbar(x0, y0, e0, fmt=".", color="C0")
+        self.ax[1].errorbar(x1, y1, e1, fmt=".", color="C1")
+        self.ax[2].errorbar(x2, y2, e2, fmt=".", color="C2")
 
-        xlim = list(self.ax[0].get_xlim())
-        xlim[0] = 0
+        self.ax[0].minorticks_on()
+        self.ax[2].minorticks_on()
+        self.ax[1].minorticks_on()
 
-        x = np.linspace(*xlim, 256)
+        self.ax[0].set_xlabel("$\Delta |Q|$ [$\AA^{-1}$]")
+        self.ax[1].set_xlabel("$\Delta Q_1$ [$\AA^{-1}$]")
+        self.ax[2].set_xlabel("$\Delta Q_2$ [$\AA^{-1}$]")
 
-        z = x / sigma
+    def plot_peak_bins(self, x0, x1, x2, y0, y1, y2):
+        mask0 = y0 > 0
+        mask1 = y1 > 0
+        mask2 = y2 > 0
 
-        y = A * (
-            scipy.special.erf(z / np.sqrt(2))
-            - np.sqrt(2 / np.pi) * z * np.exp(-0.5 * z**2)
-        )
+        x0_bins = np.histogram_bin_edges(x0[mask0], bins="auto")
+        x1_bins = np.histogram_bin_edges(x1[mask1], bins="auto")
+        x2_bins = np.histogram_bin_edges(x2[mask2], bins="auto")
 
-        self.ax[0].plot(x, y, "-", color="C1")
-        self.ax[0].set_ylabel(r"# [$I/\sigma=10$]")
+        w0_bins, _ = np.histogram(x0[mask0], bins=x0_bins, weights=y0[mask0])
+        w1_bins, _ = np.histogram(x1[mask1], bins=x1_bins, weights=y1[mask1])
+        w2_bins, _ = np.histogram(x2[mask2], bins=x2_bins, weights=y2[mask2])
 
-    def add_profile(self, hist, r, l):
-        ax = self.ax[1]
+        w0_bins /= w0_bins.max()
+        w1_bins /= w1_bins.max()
+        w2_bins /= w2_bins.max()
 
-        cmap = plt.get_cmap("turbo")
+        self.ax[0].stairs(w0_bins, x0_bins, color="k", zorder=100)
+        self.ax[1].stairs(w1_bins, x1_bins, color="k", zorder=100)
+        self.ax[2].stairs(w2_bins, x2_bins, color="k", zorder=100)
 
-        norm = plt.Normalize(vmin=np.min(l), vmax=np.max(l))
+    def draw_boundary(self, r0, r1, r2):
+        self.ax[0].axvline(r0, linestyle="--", color="k", linewidth=1)
+        self.ax[1].axvline(r1, linestyle="--", color="k", linewidth=1)
+        self.ax[2].axvline(r2, linestyle="--", color="k", linewidth=1)
 
-        for i, vals in enumerate(hist):
-            ax.plot(r, vals, "o-", color=cmap(norm(l[i])))
-
-        ax.set_xlabel(r"$|\Delta{Q}|$ [$\AA^{-1}$]")
-        ax.minorticks_on()
-
-        im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-        cb = self.fig.colorbar(im, ax=ax)
-        cb.ax.set_ylabel(r"$\lambda$ [$\AA$]")
-        cb.ax.minorticks_on()
-
-    def add_projection(self, hist, r, t):
-        ax = self.ax[2]
-
-        cmap = plt.get_cmap("copper")
-
-        norm = plt.Normalize(vmin=np.min(t), vmax=np.max(t))
-
-        for i, vals in enumerate(hist):
-            ax.plot(r, vals, "o", color=cmap(norm(t[i])))
-            ax.step(r, vals, where="mid", color=cmap(norm(t[i])))
-
-        ax.set_xlabel(r"$\Delta{Q}_r$ [$\AA^{-1}$]")
-        ax.minorticks_on()
-
-        im = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-        cb = self.fig.colorbar(im, ax=ax)
-        cb.ax.set_ylabel(r"$\theta$")
-        cb.ax.minorticks_on()
-        tick_labels = ["${:.1f}^\circ$".format(t) for t in cb.get_ticks()]
-        cb.set_ticklabels(tick_labels)
+        self.ax[0].axvline(-r0, linestyle="--", color="k", linewidth=1)
+        self.ax[1].axvline(-r1, linestyle="--", color="k", linewidth=1)
+        self.ax[2].axvline(-r2, linestyle="--", color="k", linewidth=1)
 
 
 class PeakPlot(BasePlot):
@@ -1274,12 +1259,16 @@ class PeakPlot(BasePlot):
         else:
             return "\\infty"
 
-    def add_peak_info(self, wavelength, angles, gon):
+    def add_peak_info(self, hkl, d, wavelength, angles, gon):
         """
         Add peak information.
 
         Parameters
         ----------
+        hkl : list
+            Miller indices.
+        d : float,
+            Interplanar d-spacing.
         wavelength : float
             Wavelength.
         angles : list
@@ -1288,6 +1277,9 @@ class PeakPlot(BasePlot):
             Goniometer Euler angles.
 
         """
+
+        self.cb_el.ax.set_ylabel(r"$({:.2f}, {:.2f}, {:.2f})$".format(*hkl))
+        self.cb_proj.ax.set_ylabel(r"$d={:.4f}$ [$\AA$]".format(d))
 
         ellip = self.ellip
 
