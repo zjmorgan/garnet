@@ -733,14 +733,9 @@ class BaseDataModel:
 
         """
 
-        dQ_dt = (
-            4 * np.pi / lamda * np.cos(np.deg2rad(two_theta) * 0.5) * self.dt
-        )
-        dQ_dl = (
-            4 * np.pi / lamda**2 * np.sin(np.deg2rad(two_theta) * 0.5) * 0.01
-        )
+        dQ = 4 * np.pi / lamda * np.cos(np.deg2rad(two_theta) * 0.5) * self.dt
 
-        return np.min([dQ_dl, dQ_dt])
+        return dQ
 
     def bin_in_Q(self, md, extents, bins, projections):
         """

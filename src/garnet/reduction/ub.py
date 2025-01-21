@@ -664,8 +664,7 @@ class Optimization:
             if np.isclose(gamma, sig_gamma):
                 sig_gamma = 0
 
-            SetUB(Workspace=self.peaks, UB=UB)
-
-            mtd[self.peaks].sample().getOrientedLattice().setError(
-                sig_a, sig_b, sig_c, sig_alpha, sig_beta, sig_gamma
-            )
+            ol = mtd[self.peaks].sample().getOrientedLattice()
+            ol.setUB(UB)
+            ol.setModUB(UB @ ol.getModHKL())
+            ol.setError(sig_a, sig_b, sig_c, sig_alpha, sig_beta, sig_gamma)

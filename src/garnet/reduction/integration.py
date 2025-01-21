@@ -210,6 +210,8 @@ class Integration(SubPlan):
 
             data.delete_workspace("md")
 
+        peaks.remove_weak_peaks("combine")
+
         peaks.save_peaks(result_file, "combine")
 
         # ---
@@ -218,7 +220,7 @@ class Integration(SubPlan):
             opt = Optimization("combine")
             opt.optimize_lattice(self.params["Cell"])
 
-            ub_file = os.path.splitext(output_file)[0] + ".mat"
+            ub_file = os.path.splitext(result_file)[0] + ".mat"
 
             ub = UBModel("combine")
             ub.save_UB(ub_file)
@@ -873,7 +875,7 @@ class PeakRegionOfInterest:
         B_err = np.sqrt(var_B)
 
         if A == 0:
-            B_err = np.sqrt(residual_var / np.nansum(w))
+            B_err = np.sqrt(residual_var / sum_w)
             A_err = 0
 
         return y, A, B, A_err, B_err
@@ -899,7 +901,6 @@ class PeakRegionOfInterest:
         return np.concatenate([*res, r_ridge])
 
     def extract_fit(self):
-        y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s = self.args
         r0 = self.params["r0"].value
         r1 = self.params["r1"].value
         r2 = self.params["r2"].value
@@ -908,9 +909,18 @@ class PeakRegionOfInterest:
         y1c, e1c, x1c = [], [], []
         y2c, e2c, x2c = [], [], []
 
-        for y0, e0, x0 in zip(y0s, e0s, x0s):
+        for y0, y1, y2, e0, e1, e2, x0, x1, x2 in zip(*self.args):
             y0_fit, A0, B0, A0_err, B0_err = self.model(r0, y0, e0, x0)
-            if A0 > B0 and B0 > 0:
+            y1_fit, A1, B1, A1_err, B1_err = self.model(r1, y1, e1, x1)
+            y2_fit, A2, B2, A2_err, B2_err = self.model(r2, y2, e2, x2)
+            if (
+                A0 > B0
+                and B0 > 0
+                and A1 > B1
+                and B1 > 0
+                and A2 > B2
+                and B2 > 0
+            ):
                 y0_hat = y0 - B0
                 e0_hat = e0**2 + B0_err**2
                 y0_hat = y0_hat / A0
@@ -921,9 +931,6 @@ class PeakRegionOfInterest:
                 y0c += y0_hat.tolist()
                 e0c += e0_hat.tolist()
 
-        for y1, e1, x1 in zip(y1s, e1s, x1s):
-            y1_fit, A1, B1, A1_err, B1_err = self.model(r1, y1, e1, x1)
-            if A1 > B1 and B1 > 0:
                 y1_hat = y1 - B1
                 e1_hat = e1**2 + B1_err**2
                 y1_hat = y1_hat / A1
@@ -934,9 +941,6 @@ class PeakRegionOfInterest:
                 y1c += y1_hat.tolist()
                 e1c += e1_hat.tolist()
 
-        for y2, e2, x2 in zip(y2s, e2s, x2s):
-            y2_fit, A2, B2, A2_err, B2_err = self.model(r2, y2, e2, x2)
-            if A2 > B2 and B2 > 0:
                 y2_hat = y2 - B2
                 e2_hat = e2**2 + B2_err**2
                 y2_hat = y2_hat / A2
@@ -2843,7 +2847,7 @@ class PeakEllipsoid:
         if not y_scale > 0 or not x_scale > 0:
             return None
 
-        if (np.array(counts.shape) < 9).any():
+        if (np.array(counts.shape) < 5).any():
             return None
 
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
@@ -2855,19 +2859,19 @@ class PeakEllipsoid:
         y0_min = np.nanmin(y0)
         y0_max = np.nanmax(y0)
 
-        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 13:
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 5:
             return None
 
         y1_min = np.nanmin(y1)
         y1_max = np.nanmax(y1)
 
-        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 13:
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 5:
             return None
 
         y2_min = np.nanmin(y2)
         y2_max = np.nanmax(y2)
 
-        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 13:
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 5:
             return None
 
         self.params.add("A1d_0", value=y0_max, min=0, max=2 * y0_max)
@@ -2904,19 +2908,19 @@ class PeakEllipsoid:
         y0_min = np.nanmin(y0)
         y0_max = np.nanmax(y0)
 
-        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 13:
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 5:
             return None
 
         y1_min = np.nanmin(y1)
         y1_max = np.nanmax(y1)
 
-        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 13:
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 5:
             return None
 
         y2_min = np.nanmin(y2)
         y2_max = np.nanmax(y2)
 
-        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 13:
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 5:
             return None
 
         self.params.add("A2d_0", value=y0_max, min=0, max=2 * y0_max)
@@ -2959,7 +2963,7 @@ class PeakEllipsoid:
         y_min = np.nanmin(y3d)
         y_max = np.nanmax(y3d)
 
-        if np.isclose(y_max, y_min) or (y > 0).sum() <= 13:
+        if np.isclose(y_max, y_min) or (y > 0).sum() <= 5:
             return None
 
         self.params.add("A3d", value=y_max, min=0, max=2 * y_max)
@@ -2978,7 +2982,7 @@ class PeakEllipsoid:
             self.residual,
             self.params,
             fcn_args=(args_1d, args_2d, args_3d),
-            reduce_fcn="neglogentropy",
+            reduce_fcn="negentropy",
             nan_policy="omit",
         )
 

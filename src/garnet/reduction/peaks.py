@@ -708,6 +708,13 @@ class PeaksModel:
             LHSWorkspace=peaks, RHSWorkspace=sat_peaks, OutputWorkspace=peaks
         )
 
+        ol = mtd[peaks].sample().getOrientedLattice()
+
+        ol.setMaxOrder(max_order)
+        ol.setModVec1(V3D(*mod_vec_1))
+        ol.setModVec2(V3D(*mod_vec_2))
+        ol.setModVec3(V3D(*mod_vec_3))
+
         DeleteWorkspace(Workspace=sat_peaks)
 
     def predict_satellite_peaks(
