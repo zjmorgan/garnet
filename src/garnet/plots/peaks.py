@@ -20,7 +20,7 @@ from garnet.plots.base import BasePlot
 
 
 class RegionOfInterestPlot(BasePlot):
-    def __init__(self, x, y, e, r):
+    def __init__(self, x, y, e, Q, k, r, r_cut):
         super(RegionOfInterestPlot, self).__init__()
 
         plt.close("all")
@@ -34,13 +34,13 @@ class RegionOfInterestPlot(BasePlot):
             sharey=True,
         )
 
-        self.plot_peaks(*x, *y, *e)
+        self.plot_peaks(*x, *y, *e, r_cut)
 
         self.plot_peak_bins(*x, *y)
 
-        self.draw_boundary(r[0], r[1], r[1])
+        self.draw_boundary(Q, k, r)
 
-    def plot_peaks(self, x0, x1, x2, y0, y1, y2, e0, e1, e2):
+    def plot_peaks(self, x0, x1, x2, y0, y1, y2, e0, e1, e2, r_cut):
         self.ax[0].errorbar(x0, y0, e0, fmt=".", color="C0")
         self.ax[1].errorbar(x1, y1, e1, fmt=".", color="C1")
         self.ax[2].errorbar(x2, y2, e2, fmt=".", color="C2")
@@ -52,6 +52,14 @@ class RegionOfInterestPlot(BasePlot):
         self.ax[0].set_xlabel("$\Delta |Q|$ [$\AA^{-1}$]")
         self.ax[1].set_xlabel("$\Delta Q_1$ [$\AA^{-1}$]")
         self.ax[2].set_xlabel("$\Delta Q_2$ [$\AA^{-1}$]")
+
+        self.ax[0].set_ylim(-0.5, 2.5)
+        self.ax[1].set_ylim(-0.5, 2.5)
+        self.ax[2].set_ylim(-0.5, 2.5)
+
+        self.ax[0].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
+        self.ax[1].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
+        self.ax[2].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
 
     def plot_peak_bins(self, x0, x1, x2, y0, y1, y2):
         mask0 = y0 > 0
@@ -74,14 +82,39 @@ class RegionOfInterestPlot(BasePlot):
         self.ax[1].stairs(w1_bins, x1_bins, color="k", zorder=100)
         self.ax[2].stairs(w2_bins, x2_bins, color="k", zorder=100)
 
-    def draw_boundary(self, r0, r1, r2):
-        self.ax[0].axvline(r0, linestyle="--", color="k", linewidth=1)
-        self.ax[1].axvline(r1, linestyle="--", color="k", linewidth=1)
-        self.ax[2].axvline(r2, linestyle="--", color="k", linewidth=1)
+    def draw_boundary(self, Q, k, params):
+        r0, r1, r2, dQ, dk = params
 
-        self.ax[0].axvline(-r0, linestyle="--", color="k", linewidth=1)
-        self.ax[1].axvline(-r1, linestyle="--", color="k", linewidth=1)
-        self.ax[2].axvline(-r2, linestyle="--", color="k", linewidth=1)
+        Q_min, Q_max = np.min(Q), np.max(Q)
+        k_min, k_max = np.min(k), np.max(k)
+
+        s0_max = 1 + k_max * dk
+        s1_max = s2_max = 1 + Q_max * dQ
+
+        s0_min = 1 + k_min * dk
+        s1_min = s2_min = 1 + Q_min * dQ
+
+        self.ax[0].axvline(r0 * s0_max, linestyle="--", color="k", linewidth=1)
+        self.ax[1].axvline(r1 * s1_max, linestyle="--", color="k", linewidth=1)
+        self.ax[2].axvline(r2 * s2_max, linestyle="--", color="k", linewidth=1)
+
+        self.ax[0].axvline(
+            -r0 * s0_max, linestyle="--", color="k", linewidth=1
+        )
+        self.ax[1].axvline(
+            -r1 * s1_max, linestyle="--", color="k", linewidth=1
+        )
+        self.ax[2].axvline(
+            -r2 * s2_max, linestyle="--", color="k", linewidth=1
+        )
+
+        self.ax[0].axvline(r0 * s0_min, linestyle=":", color="k", linewidth=1)
+        self.ax[1].axvline(r1 * s1_min, linestyle=":", color="k", linewidth=1)
+        self.ax[2].axvline(r2 * s2_min, linestyle=":", color="k", linewidth=1)
+
+        self.ax[0].axvline(-r0 * s0_min, linestyle=":", color="k", linewidth=1)
+        self.ax[1].axvline(-r1 * s1_min, linestyle=":", color="k", linewidth=1)
+        self.ax[2].axvline(-r2 * s2_min, linestyle=":", color="k", linewidth=1)
 
 
 class PeakPlot(BasePlot):

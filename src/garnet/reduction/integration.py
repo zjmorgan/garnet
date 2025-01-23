@@ -174,6 +174,7 @@ class Integration(SubPlan):
                 peaks.predict_satellite_peaks(
                     "peaks",
                     "md",
+                    self.params["Centering"],
                     lamda_min,
                     lamda_max,
                     sat_min_d,
@@ -555,21 +556,21 @@ class Integration(SubPlan):
 
         roi = PeakRegionOfInterest(r_cut)
 
-        rprof, rproj = roi.fit(peak_dict)
+        params = roi.fit(peak_dict)
 
-        x, y, e = roi.extract_fit()
+        x, y, e, Q, k = roi.extract_fit()
 
-        plot = RegionOfInterestPlot(x, y, e, [rprof, rproj])
+        plot = RegionOfInterestPlot(x, y, e, Q, k, params, r_cut)
         plot.save_plot(filename)
 
-        return rprof * 2, rproj * 2
+        return params
 
     def fit_peaks(self, key_value):
         key, value = key_value
 
         data_info, peak_info = value
 
-        Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = data_info
+        Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections = data_info
 
         peak_file, hkl, d, wavelength, angles, goniometer = peak_info
 
@@ -577,7 +578,7 @@ class Integration(SubPlan):
 
         params = None
         try:
-            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ, Qmod)
+            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ, Q)
         except Exception as e:
             print("Exception fitting data: {}".format(e))
 
@@ -647,13 +648,14 @@ class Integration(SubPlan):
 
         for i in range(n_peak):
             d = peak.get_d_spacing(i)
-            Qmod = 2 * np.pi / d
+            Q = 2 * np.pi / d
 
             h, k, l = peak.get_hkl(i)
 
             hkl = [h, k, l]
 
-            wavelength = peak.get_wavelength(i)
+            lamda = peak.get_wavelength(i)
+            k = 2 * np.pi / lamda
 
             angles = peak.get_angles(i)
 
@@ -665,11 +667,11 @@ class Integration(SubPlan):
 
             peak_name = peak.get_peak_name(i)
 
-            dQ = data.get_resolution_in_Q(wavelength, two_theta)
+            dQ = data.get_resolution_in_Q(lamda, two_theta)
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = UB, hkl, wavelength, R, two_theta, az_phi, r_cut, dQ
+            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, dQ
 
             # ---
 
@@ -679,7 +681,7 @@ class Integration(SubPlan):
 
             counts = data.extract_counts("md_bin")
 
-            data_info = (Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections)
+            data_info = (Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections)
 
             peak_file = self.get_plot_file(peak_name)
 
@@ -688,7 +690,7 @@ class Integration(SubPlan):
             if not os.path.exists(directory):
                 os.mkdir(directory)
 
-            peak_info = (peak_file, hkl, d, wavelength, angles, goniometer)
+            peak_info = (peak_file, hkl, d, lamda, angles, goniometer)
 
             peak_dict[i] = data_info, peak_info
 
@@ -769,7 +771,14 @@ class Integration(SubPlan):
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
         else:
-            dQ_cut = [r_cut[0]] + 2 * [r_cut[1]]
+            r0, r1, r2, dQ, dk = r_cut
+            k = 2 * np.pi / lamda
+            Q = 2 * k * np.sin(0.5 * np.deg2rad(two_theta))
+            dQ_cut = [
+                2 * r0 * (1 + k * dk),
+                2 * r1 * (1 + Q * dQ),
+                2 * r2 * (1 + Q * dQ),
+            ]
 
         Q0_box, Q1_box, Q2_box = [], [], []
 
@@ -808,6 +817,8 @@ class Integration(SubPlan):
 
         bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
+        bins[bins < 10] = 10
+
         extents = np.vstack((min_adjusted, max_adjusted)).T
 
         return bins, extents, projections
@@ -830,14 +841,17 @@ class PeakRegionOfInterest:
     def __init__(self, r_cut):
         self.params = Parameters()
 
-        self.params.add("r0", value=r_cut / 2, min=0.01, max=2 * r_cut)
-        self.params.add("r1", value=r_cut / 2, min=0.01, max=2 * r_cut)
+        self.params.add("r0", value=r_cut / 2, min=0.02, max=2 * r_cut)
+        self.params.add("r1", value=r_cut / 2, min=0.02, max=2 * r_cut)
         self.params.add("r2", expr="r1")
 
-    def model(self, r, y, e, x):
+        self.params.add("dk", value=0, min=0, max=r_cut * 10)
+        self.params.add("dQ", value=0, min=0, max=r_cut * 10)
+
+    def model(self, r, delta, y, e, x, kappa):
         scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=1))
 
-        sigma = r / scale
+        sigma = r / scale * (1 + delta * kappa)
 
         z = x / sigma
 
@@ -880,20 +894,25 @@ class PeakRegionOfInterest:
 
         return y, A, B, A_err, B_err
 
-    def objective(self, params, y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s):
+    def objective(self, params, *args):
         r0 = params["r0"].value
         r1 = params["r1"].value
         r2 = params["r2"].value
 
+        dQ = params["dQ"].value
+        dk = params["dk"].value
+
+        y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s, Qs, ks = args
+
         res = []
-        for y0, e0, x0 in zip(y0s, e0s, x0s):
-            y0_fit, A, B, A_err, B_err = self.model(r0, y0, e0, x0)
+        for y0, e0, x0, k in zip(y0s, e0s, x0s, ks):
+            y0_fit, A, B, A_err, B_err = self.model(r0, dk, y0, e0, x0, k)
             res.append(((y0_fit - y0) / e0).flatten())
-        for y1, e1, x1 in zip(y1s, e1s, x1s):
-            y1_fit, A, B, A_err, B_err = self.model(r1, y1, e1, x1)
+        for y1, e1, x1, Q in zip(y1s, e1s, x1s, Qs):
+            y1_fit, A, B, A_err, B_err = self.model(r1, dQ, y1, e1, x1, Q)
             res.append(((y1_fit - y1) / e1).flatten())
-        for y2, e2, x2 in zip(y2s, e2s, x2s):
-            y2_fit, A, B, A_err, B_err = self.model(r2, y2, e2, x2)
+        for y2, e2, x2, Q in zip(y2s, e2s, x2s, Qs):
+            y2_fit, A, B, A_err, B_err = self.model(r2, dQ, y2, e2, x2, Q)
             res.append(((y2_fit - y2) / e2).flatten())
 
         r_ridge = [r0, r1, r2]
@@ -905,14 +924,19 @@ class PeakRegionOfInterest:
         r1 = self.params["r1"].value
         r2 = self.params["r2"].value
 
+        dQ = self.params["dQ"].value
+        dk = self.params["dk"].value
+
         y0c, e0c, x0c = [], [], []
         y1c, e1c, x1c = [], [], []
         y2c, e2c, x2c = [], [], []
 
-        for y0, y1, y2, e0, e1, e2, x0, x1, x2 in zip(*self.args):
-            y0_fit, A0, B0, A0_err, B0_err = self.model(r0, y0, e0, x0)
-            y1_fit, A1, B1, A1_err, B1_err = self.model(r1, y1, e1, x1)
-            y2_fit, A2, B2, A2_err, B2_err = self.model(r2, y2, e2, x2)
+        Qs, ks = [], []
+
+        for y0, y1, y2, e0, e1, e2, x0, x1, x2, Q, k in zip(*self.args):
+            y0_fit, A0, B0, A0_err, B0_err = self.model(r0, dk, y0, e0, x0, k)
+            y1_fit, A1, B1, A1_err, B1_err = self.model(r1, dQ, y1, e1, x1, Q)
+            y2_fit, A2, B2, A2_err, B2_err = self.model(r2, dQ, y2, e2, x2, Q)
             if (
                 A0 > B0
                 and B0 > 0
@@ -951,6 +975,9 @@ class PeakRegionOfInterest:
                 y2c += y2_hat.tolist()
                 e2c += e2_hat.tolist()
 
+                Qs.append(Q)
+                ks.append(k)
+
         x0c = np.array(x0c)
         x1c = np.array(x1c)
         x2c = np.array(x2c)
@@ -963,15 +990,21 @@ class PeakRegionOfInterest:
         e1c = np.array(e1c)
         e2c = np.array(e2c)
 
-        return (x0c, x1c, x2c), (y0c, y1c, y2c), (e0c, e1c, e2c)
+        Qs = np.array(Qs)
+        ks = np.array(ks)
+
+        return (x0c, x1c, x2c), (y0c, y1c, y2c), (e0c, e1c, e2c), Qs, ks
 
     def extract_info(self, peak_dict):
         y0s, e0s, x0s = [], [], []
         y1s, e1s, x1s = [], [], []
         y2s, e2s, x2s = [], [], []
 
+        Qs, ks = [], []
+
         for key in peak_dict.keys():
-            Q0, Q1, Q2, counts, y, e, dQ, Qmod, projections = peak_dict[key][0]
+            data_info = peak_dict[key][0]
+            Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections = data_info
             mask = e > 0
 
             y[~mask] = np.nan
@@ -980,7 +1013,7 @@ class PeakRegionOfInterest:
             c0 = np.nanmean(counts > 0, axis=(1, 2))
             y0 = np.nansum(y, axis=(1, 2)) / c0
             e0 = np.sqrt(np.nansum(e**2, axis=(1, 2))) / c0
-            x0 = Q0[:, 0, 0] - Qmod
+            x0 = Q0[:, 0, 0] - Q
 
             y0s.append(y0)
             e0s.append(e0)
@@ -1004,7 +1037,10 @@ class PeakRegionOfInterest:
             e2s.append(e2)
             x2s.append(x2)
 
-        return y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s
+            Qs.append(Q)
+            ks.append(k)
+
+        return y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s, Qs, ks
 
     def fit(self, peak_dict):
         self.args = self.extract_info(peak_dict)
@@ -1019,8 +1055,12 @@ class PeakRegionOfInterest:
 
         r0 = result.params["r0"].value
         r1 = result.params["r1"].value
+        r2 = result.params["r2"].value
 
-        return r0, r1
+        dQ = result.params["dQ"].value
+        dk = result.params["dk"].value
+
+        return r0, r1, r2, dQ, dk
 
 
 class PeakSphere:
@@ -2847,7 +2887,7 @@ class PeakEllipsoid:
         if not y_scale > 0 or not x_scale > 0:
             return None
 
-        if (np.array(counts.shape) < 5).any():
+        if (np.array(counts.shape) < 3).any():
             return None
 
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
@@ -2859,19 +2899,19 @@ class PeakEllipsoid:
         y0_min = np.nanmin(y0)
         y0_max = np.nanmax(y0)
 
-        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 5:
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 3:
             return None
 
         y1_min = np.nanmin(y1)
         y1_max = np.nanmax(y1)
 
-        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 5:
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 3:
             return None
 
         y2_min = np.nanmin(y2)
         y2_max = np.nanmax(y2)
 
-        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 5:
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 3:
             return None
 
         self.params.add("A1d_0", value=y0_max, min=0, max=2 * y0_max)
@@ -2908,19 +2948,19 @@ class PeakEllipsoid:
         y0_min = np.nanmin(y0)
         y0_max = np.nanmax(y0)
 
-        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 5:
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 3:
             return None
 
         y1_min = np.nanmin(y1)
         y1_max = np.nanmax(y1)
 
-        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 5:
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 3:
             return None
 
         y2_min = np.nanmin(y2)
         y2_max = np.nanmax(y2)
 
-        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 5:
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 3:
             return None
 
         self.params.add("A2d_0", value=y0_max, min=0, max=2 * y0_max)
@@ -2963,7 +3003,7 @@ class PeakEllipsoid:
         y_min = np.nanmin(y3d)
         y_max = np.nanmax(y3d)
 
-        if np.isclose(y_max, y_min) or (y > 0).sum() <= 5:
+        if np.isclose(y_max, y_min) or (y > 0).sum() <= 3:
             return None
 
         self.params.add("A3d", value=y_max, min=0, max=2 * y_max)
@@ -3309,7 +3349,8 @@ class PeakEllipsoid:
         pk = (ellipsoid <= 1**2) & (e > 0)
         pk = scipy.ndimage.binary_dilation(pk)
 
-        bkg = scipy.ndimage.binary_dilation(pk) & ~pk & (ellipsoid > 1**2)
+        bkg = (ellipsoid > 1**2) & (e > 0)
+        bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
@@ -3320,8 +3361,9 @@ class PeakEllipsoid:
         # b = np.nansum(y_bkg/e_bkg**2)/np.nansum(1/e_bkg**2)
         # b_err = 1/np.sqrt(np.nansum(1/e_bkg**2))
 
-        b = np.nanmean(y_bkg)
-        b_err = np.sqrt(np.nanmean(e_bkg**2))
+        N = np.nansum(e_bkg > 0)
+        b = np.nansum(y_bkg) / N
+        b_err = np.sqrt(np.nansum(e_bkg**2)) / N
 
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
@@ -3356,8 +3398,9 @@ class PeakEllipsoid:
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()
 
-        b_raw = np.nanmean(c_bkg)
-        b_raw_err = np.sqrt(np.nanmean(c_bkg))
+        N = np.nansum(c_bkg > 0)
+        b_raw = np.nansum(c_bkg) / N
+        b_raw_err = np.sqrt(np.nansum(c_bkg)) / N
 
         intens_raw = np.nansum(c_pk - b_raw)
         sig_raw = np.sqrt(np.nansum(c_pk + b_raw_err**2))

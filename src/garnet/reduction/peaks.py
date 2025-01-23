@@ -573,27 +573,31 @@ class PeaksModel:
         """
         Predict peak Q-sample locations with UB and lattice centering.
 
-        +--------+-----------------------+
-        | Symbol | Reflection condition  |
-        +========+=======================+
-        | P      | None                  |
-        +--------+-----------------------+
-        | I      | :math:`h+k+l=2n`      |
-        +--------+-----------------------+
-        | F      | :math:`h,k,l` unmixed |
-        +--------+-----------------------+
-        | R      | None                  |
-        +--------+-----------------------+
-        | R(obv) | :math:`-h+k+l=3n`     |
-        +--------+-----------------------+
-        | R(rev) | :math:`h-k+l=3n`      |
-        +--------+-----------------------+
-        | A      | :math:`k+l=2n`        |
-        +--------+-----------------------+
-        | B      | :math:`l+h=2n`        |
-        +--------+-----------------------+
-        | C      | :math:`h+k=2n`        |
-        +--------+-----------------------+
+        +--------+----------------------------------------+
+        | Symbol | Reflection condition                   |
+        +========+========================================+
+        | P      | None                                   |
+        +--------+----------------------------------------+
+        | I      | :math:`h+k+l=2n`                       |
+        +--------+----------------------------------------+
+        | F      | :math:`h,k,l` unmixed                  |
+        +--------+----------------------------------------+
+        | R      | :math:`-h+k+l=3n` or :math:`-h+k+l=3n` |
+        +--------+----------------------------------------+
+        | R(obv) | :math:`-h+k+l=3n`                      |
+        +--------+----------------------------------------+
+        | R(rev) | :math:`h-k+l=3n`                       |
+        +--------+----------------------------------------+
+        | A      | :math:`k+l=2n`                         |
+        +--------+----------------------------------------+
+        | B      | :math:`l+h=2n`                         |
+        +--------+----------------------------------------+
+        | C      | :math:`h+k=2n`                         |
+        +--------+----------------------------------------+
+
+        Note
+        ----
+        R-centering refers to obverse/reverse conditions, a common twin law.
 
         Parameters
         ----------
@@ -651,6 +655,7 @@ class PeaksModel:
     def predict_modulated_peaks(
         self,
         peaks,
+        centering,
         d_min,
         lamda_min,
         lamda_max,
@@ -704,6 +709,47 @@ class PeaksModel:
             MaxDSpacing=d_max * 10,
         )
 
+        for no in range(mtd[sat_peaks].getNumberPeaks()):
+            peak = mtd[sat_peaks].getPeak(no)
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+
+            forbidden = False
+            if centering == "I":
+                if (h + k + l) % 2 != 0:
+                    forbidden = True
+            elif centering == "F":
+                if not ((h % 2 == 0) == (k % 2 == 0) == (l % 2 == 0)):
+                    forbidden = True
+            elif centering == "A":
+                if h % 2 != 0:
+                    forbidden = True
+            elif centering == "B":
+                if k % 2 != 0:
+                    forbidden = True
+            elif centering == "C":
+                if l % 2 != 0:
+                    forbidden = True
+            elif centering == "R":
+                if (-h + k + l) % 3 != 0 and (h - k + l) % 3 != 0:
+                    forbidden = True
+            elif centering == "R(obv)":
+                if (-h + k + l) % 3 != 0:
+                    forbidden = True
+            elif centering == "R(rev)":
+                if (h - k + l) % 3 != 0:
+                    forbidden = True
+
+            if forbidden:
+                peak.setRunNumber(-1)
+
+        FilterPeaks(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
+            FilterVariable="RunNumber",
+            FilterValue=-1,
+            Operator="!=",
+        )
+
         CombinePeaksWorkspaces(
             LHSWorkspace=peaks, RHSWorkspace=sat_peaks, OutputWorkspace=peaks
         )
@@ -721,6 +767,7 @@ class PeaksModel:
         self,
         peaks_ws,
         data_ws,
+        centering,
         lamda_min,
         lamda_max,
         d_min,
@@ -739,12 +786,14 @@ class PeaksModel:
             Reference peaks table.
         data_ws : str
             Q-sample data with goniometer(s).
-        d_min : float
-            The lower d-spacing resolution to predict peaks.
+        centering : str
+            Lattice centering that provides the reflection condition.
         lamda_min : float
             Minimum wavelength.
         lamda_max : float
             Maximum wavelength.
+        d_min : float
+            The lower d-spacing resolution to predict peaks.
         mod_vec_1, mod_vec_2, mod_vec_3 : list, optional
             Modulation vectors. The default is [0,0,0].
         max_order : int, optional
@@ -761,6 +810,7 @@ class PeaksModel:
 
             self.predict_modulated_peaks(
                 peaks_ws,
+                centering,
                 d_min,
                 lamda_min,
                 lamda_max,
