@@ -1026,6 +1026,9 @@ class PeaksModel:
                 "bkg_err",
                 "intens",
                 "sig",
+                "Qx",
+                "Qy",
+                "Qz",
             ]
 
             for key in keys:
@@ -1388,6 +1391,9 @@ class PeakModel:
             "bkg_err",
             "intens",
             "sig",
+            "Qx",
+            "Qy",
+            "Qz",
         ]
 
         vals = [run, h, k, l, m, n, p] + values

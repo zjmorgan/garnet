@@ -1084,6 +1084,8 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=event_name,
                 NumberOfBins=1,
                 FilterByTimeStop=time_cut,
+                FilterByTofMin=100,
+                FilterByTofMax=16600,
             )
 
         # FilterBadPulses(InputWorkspace=event_name,

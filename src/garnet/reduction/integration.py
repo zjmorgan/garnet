@@ -619,7 +619,7 @@ class Integration(SubPlan):
                 except Exception as e:
                     print("Exception saving figure: {}".format(e))
 
-            value = I, sigma, shape, ellipsoid.info
+            value = I, sigma, shape, [*ellipsoid.info, *shape[:3]]
 
         return key, value
 
@@ -671,7 +671,7 @@ class Integration(SubPlan):
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, dQ
+            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut
 
             # ---
 
@@ -680,6 +680,18 @@ class Integration(SubPlan):
             y, e, Q0, Q1, Q2 = data.bin_in_Q("md", extents, bins, projections)
 
             counts = data.extract_counts("md_bin")
+
+            # ratio = np.array([((counts.sum(axis=(1,2)) > 0)*1.0).mean(),
+            #                   ((counts.sum(axis=(0,2)) > 0)*1.0).mean(),
+            #                   ((counts.sum(axis=(0,1)) > 0)*1.0).mean()])
+
+            # bins = np.ceil(bins*ratio).astype(int)
+
+            # bins[bins < 10] = 10
+
+            # y, e, Q0, Q1, Q2 = data.bin_in_Q("md", extents, bins, projections)
+
+            # counts = data.extract_counts("md_bin")
 
             data_info = (Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections)
 
@@ -757,7 +769,7 @@ class Integration(SubPlan):
 
         return np.einsum("ij,j...->i...", W, [Q0, Q1, Q2])
 
-    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut, dr):
+    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut):
         n, u, v = self.bin_axes(R, two_theta, az_phi)
 
         projections = [n, u, v]
@@ -768,17 +780,21 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
+        n_bins = 7
+
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
         else:
-            r0, r1, r2, dQ, dk = r_cut
+            (r0, r1, r2), (dr0, dr1, dr2) = r_cut
             k = 2 * np.pi / lamda
             Q = 2 * k * np.sin(0.5 * np.deg2rad(two_theta))
             dQ_cut = [
-                2 * r0 * (1 + k * dk),
-                2 * r1 * (1 + Q * dQ),
-                2 * r2 * (1 + Q * dQ),
+                2 * r0 * (1 + dr0 * k),
+                2 * r1 * (1 + dr1 * k),
+                2 * r2 * (1 + dr2 * Q),
             ]
+
+        bin_sizes = np.array(dQ_cut) / n_bins
 
         Q0_box, Q1_box, Q2_box = [], [], []
 
@@ -803,14 +819,9 @@ class Integration(SubPlan):
         dQ1 = np.min([np.max(np.abs(Q1_box)), dQ1_cut])
         dQ2 = np.min([np.max(np.abs(Q2_box)), dQ2_cut])
 
-        dQ = 2 * dQ0, 2 * dQ1, 2 * dQ2
-
         extents = np.array(
             [[Q0 - dQ0, Q0 + dQ0], [Q1 - dQ1, Q1 + dQ1], [Q2 - dQ2, Q2 + dQ2]]
         )
-
-        bin_sizes = np.array([dQ]) / 30
-        bin_sizes[bin_sizes < dr] = dr
 
         min_adjusted = np.floor(extents[:, 0] / bin_sizes) * bin_sizes
         max_adjusted = np.ceil(extents[:, 1] / bin_sizes) * bin_sizes
@@ -818,6 +829,7 @@ class Integration(SubPlan):
         bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
         bins[bins < 10] = 10
+        bins[bins > 50] = 50
 
         extents = np.vstack((min_adjusted, max_adjusted)).T
 
@@ -841,27 +853,23 @@ class PeakRegionOfInterest:
     def __init__(self, r_cut):
         self.params = Parameters()
 
-        self.params.add("r0", value=r_cut / 2, min=0.02, max=2 * r_cut)
-        self.params.add("r1", value=r_cut / 2, min=0.02, max=2 * r_cut)
-        self.params.add("r2", expr="r1")
+        self.params.add("r0", value=r_cut / 2, min=0.001, max=2 * r_cut)
+        self.params.add("r1", value=r_cut / 2, min=0.001, max=2 * r_cut)
+        self.params.add("r2", value=r_cut / 2, min=0.001, max=2 * r_cut)
 
-        self.params.add("dk", value=0, min=0, max=r_cut * 10)
-        self.params.add("dQ", value=0, min=0, max=r_cut * 10)
+        self.params.add("dr0", value=0, min=0, max=r_cut * 10)
+        self.params.add("dr1", value=0, min=0, max=r_cut * 10)
+        self.params.add("dr2", value=0, min=0, max=r_cut * 10)
 
-    def model(self, r, delta, y, e, x, kappa):
-        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=1))
-
-        sigma = r / scale * (1 + delta * kappa)
-
-        z = x / sigma
-
+    def calculate_fit(self, y, z, e):
         y_hat = np.exp(-0.5 * z**2)
 
         y_bar = np.nanmean(y)
         y_hat_bar = np.nanmean(y_hat)
 
-        w = 1 / e**2
+        w = 1 / (e**2 + 1e-16)
         w[np.isinf(w)] = np.nan
+        y[np.isinf(y)] = np.nan
 
         sum_w = np.nansum(w)
         num = np.nansum(w * (y_hat - y_hat_bar) * (y - y_bar))
@@ -871,14 +879,17 @@ class PeakRegionOfInterest:
         B = y_bar - A * y_hat_bar
         M = 2
 
-        if A < 0:
-            A, B, M = 0, np.nansum(w * y) / sum_w, 1
+        if A <= 0 or not np.isfinite(A):
+            if sum_w > 0:
+                A, B, M = 0, np.nansum(w * y) / sum_w, 1
+            else:
+                A, B, M = 0, 0, 0
 
-        y = A * y_hat + B
+        y_fit = A * y_hat + B
 
-        residuals = y - (A * y_hat + B)
+        residuals = y_fit - (A * y_hat + B)
 
-        N = np.nansum(~np.isnan(y))
+        N = np.nansum(np.isfinite(y))
 
         residual_var = np.nansum(w * residuals**2) / (N - M)
 
@@ -889,33 +900,59 @@ class PeakRegionOfInterest:
         B_err = np.sqrt(var_B)
 
         if A == 0:
-            B_err = np.sqrt(residual_var / sum_w)
+            if sum_w > 0:
+                B_err = np.sqrt(residual_var / sum_w)
+            else:
+                B_err = 0
             A_err = 0
 
-        return y, A, B, A_err, B_err
+        return A, B, A_err, B_err, y_fit
+
+    def model(self, r, delta, y, e, x, kappa):
+        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=1))
+
+        sigma = r / scale * (1 + delta * kappa)
+
+        z = x / sigma
+
+        A, B, A_err, B_err, y_fit = self.calculate_fit(y, z, e)
+
+        xc = 0
+        if A > 0:
+            w = y - B
+            mask = np.abs(z) < scale
+            sum_w = np.nansum(w[mask])
+            if sum_w > 0 and sum_w < np.inf:
+                sum_wx = np.nansum(w[mask] * x[mask])
+                xc = sum_wx / sum_w
+                # z = (x - xc) / sigma
+                # A, B, A_err, B_err, y_fit = self.calculate_fit(y, z, e)
+
+        return y_fit, x - xc, A, B, A_err, B_err
 
     def objective(self, params, *args):
         r0 = params["r0"].value
         r1 = params["r1"].value
         r2 = params["r2"].value
 
-        dQ = params["dQ"].value
-        dk = params["dk"].value
+        dr0 = params["dr0"].value
+        dr1 = params["dr1"].value
+        dr2 = params["dr2"].value
 
         y0s, y1s, y2s, e0s, e1s, e2s, x0s, x1s, x2s, Qs, ks = args
 
         res = []
         for y0, e0, x0, k in zip(y0s, e0s, x0s, ks):
-            y0_fit, A, B, A_err, B_err = self.model(r0, dk, y0, e0, x0, k)
+            y0_fit, c0, A, B, A_err, B_err = self.model(r0, dr0, y0, e0, x0, k)
             res.append(((y0_fit - y0) / e0).flatten())
         for y1, e1, x1, Q in zip(y1s, e1s, x1s, Qs):
-            y1_fit, A, B, A_err, B_err = self.model(r1, dQ, y1, e1, x1, Q)
+            y1_fit, c1, A, B, A_err, B_err = self.model(r1, dr1, y1, e1, x1, k)
             res.append(((y1_fit - y1) / e1).flatten())
         for y2, e2, x2, Q in zip(y2s, e2s, x2s, Qs):
-            y2_fit, A, B, A_err, B_err = self.model(r2, dQ, y2, e2, x2, Q)
+            y2_fit, c2, A, B, A_err, B_err = self.model(r2, dr2, y2, e2, x2, Q)
             res.append(((y2_fit - y2) / e2).flatten())
 
-        r_ridge = [r0, r1, r2]
+        r_ridge = [r0, r1, r2, dr0, dr1, dr2]
 
         return np.concatenate([*res, r_ridge])
 
@@ -924,8 +961,9 @@ class PeakRegionOfInterest:
         r1 = self.params["r1"].value
         r2 = self.params["r2"].value
 
-        dQ = self.params["dQ"].value
-        dk = self.params["dk"].value
+        dr0 = self.params["dr0"].value
+        dr1 = self.params["dr1"].value
+        dr2 = self.params["dr2"].value
 
         y0c, e0c, x0c = [], [], []
         y1c, e1c, x1c = [], [], []
@@ -934,9 +972,15 @@ class PeakRegionOfInterest:
         Qs, ks = [], []
 
         for y0, y1, y2, e0, e1, e2, x0, x1, x2, Q, k in zip(*self.args):
-            y0_fit, A0, B0, A0_err, B0_err = self.model(r0, dk, y0, e0, x0, k)
-            y1_fit, A1, B1, A1_err, B1_err = self.model(r1, dQ, y1, e1, x1, Q)
-            y2_fit, A2, B2, A2_err, B2_err = self.model(r2, dQ, y2, e2, x2, Q)
+            y0_fit, c0, A0, B0, A0_err, B0_err = self.model(
+                r0, dr0, y0, e0, x0, k
+            )
+            y1_fit, c1, A1, B1, A1_err, B1_err = self.model(
+                r1, dr1, y1, e1, x1, k
+            )
+            y2_fit, c2, A2, B2, A2_err, B2_err = self.model(
+                r2, dr2, y2, e2, x2, Q
+            )
             if (
                 A0 > B0
                 and B0 > 0
@@ -951,7 +995,7 @@ class PeakRegionOfInterest:
                 e0_hat = np.abs(y0_hat) * np.sqrt(
                     (A0_err / A0) ** 2 + (e0_hat / y0_hat) ** 2
                 )
-                x0c += x0.tolist()
+                x0c += c0.tolist()
                 y0c += y0_hat.tolist()
                 e0c += e0_hat.tolist()
 
@@ -961,7 +1005,7 @@ class PeakRegionOfInterest:
                 e1_hat = np.abs(y1_hat) * np.sqrt(
                     (A1_err / A1) ** 2 + (e1_hat / y1_hat) ** 2
                 )
-                x1c += x1.tolist()
+                x1c += c1.tolist()
                 y1c += y1_hat.tolist()
                 e1c += e1_hat.tolist()
 
@@ -971,7 +1015,7 @@ class PeakRegionOfInterest:
                 e2_hat = np.abs(y2_hat) * np.sqrt(
                     (A2_err / A2) ** 2 + (e2_hat / y2_hat) ** 2
                 )
-                x2c += x2.tolist()
+                x2c += c2.tolist()
                 y2c += y2_hat.tolist()
                 e2c += e2_hat.tolist()
 
@@ -1057,10 +1101,11 @@ class PeakRegionOfInterest:
         r1 = result.params["r1"].value
         r2 = result.params["r2"].value
 
-        dQ = result.params["dQ"].value
-        dk = result.params["dk"].value
+        dr0 = result.params["dr0"].value
+        dr1 = result.params["dr1"].value
+        dr2 = result.params["dr2"].value
 
-        return r0, r1, r2, dQ, dk
+        return (r0, r1, r2), (dr0, dr1, dr2)
 
 
 class PeakSphere:
@@ -1123,9 +1168,9 @@ class PeakEllipsoid:
         self.params = Parameters()
 
     def update_constraints(self, x0, x1, x2, dx):
-        r0 = (x0[:, 0, 0][1] - x0[:, 0, 0][0]) * 4
-        r1 = (x1[0, :, 0][1] - x1[0, :, 0][0]) * 4
-        r2 = (x2[0, 0, :][1] - x2[0, 0, :][0]) * 4
+        dx0 = x0[:, 0, 0][1] - x0[:, 0, 0][0]
+        dx1 = x1[0, :, 0][1] - x1[0, :, 0][0]
+        dx2 = x2[0, 0, :][1] - x2[0, 0, :][0]
 
         r0_max = (x0[:, 0, 0][-1] - x0[:, 0, 0][0]) / 2
         r1_max = (x1[0, :, 0][-1] - x1[0, :, 0][0]) / 2
@@ -1136,23 +1181,27 @@ class PeakEllipsoid:
         c2 = (x2[0, 0, :][-1] + x2[0, 0, :][0]) / 2
 
         c0_min, c1_min, c2_min = (
-            c0 - r0_max / 2,
-            c1 - r1_max / 2,
-            c2 - r2_max / 2,
+            c0 - r0_max,
+            c1 - r1_max,
+            c2 - r2_max,
         )
         c0_max, c1_max, c2_max = (
-            c0 + r0_max / 2,
-            c1 + r1_max / 2,
-            c2 + r2_max / 2,
+            c0 + r0_max,
+            c1 + r1_max,
+            c2 + r2_max,
         )
+
+        r0 = 4 * dx0
+        r1 = 4 * dx1
+        r2 = 4 * dx2
 
         self.params.add("c0", value=c0, min=c0_min, max=c0_max)
         self.params.add("c1", value=c1, min=c1_min, max=c1_max)
         self.params.add("c2", value=c2, min=c2_min, max=c2_max)
 
-        self.params.add("r0", value=r0, min=dx, max=r0_max)
-        self.params.add("r1", value=r1, min=dx, max=r1_max)
-        self.params.add("r2", value=r2, min=dx, max=r2_max)
+        self.params.add("r0", value=r0, min=dx0, max=r0_max)
+        self.params.add("r1", value=r1, min=dx1, max=r1_max)
+        self.params.add("r2", value=r2, min=dx2, max=r2_max)
 
         self.params.add("u0", value=0.0, min=-np.pi / 6, max=np.pi / 6)
         self.params.add("u1", value=0.0, min=-np.pi / 6, max=np.pi / 6)
@@ -1197,6 +1246,7 @@ class PeakEllipsoid:
     def normalize(self, x0, x1, x2, counts, y, e, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
+        c_int = 1
         if mode == "1d_0":
             c_int = np.mean(counts > 0, axis=(1, 2))
             c_int /= np.max(c_int)
@@ -1234,16 +1284,52 @@ class PeakEllipsoid:
             y_int = np.nansum(y, axis=2) / c_int
             e_int = np.sqrt(np.nansum(e**2, axis=2)) / c_int
         elif mode == "3d":
-            c_int = dx0 * dx1 * dx2
+            c_int *= dx0 * dx1 * dx2
             y_int = y.copy() / c_int
             e_int = e.copy() / c_int
 
-        mask = (
-            (y_int > 0) & np.isfinite(y_int) & (e_int > 0) & np.isfinite(e_int)
-        )
+        # w = 1/e**2
+        # w[~np.isfinite(w)] = np.nan
+
+        # if mode == "1d_0":
+        #     c_int = dx0
+        #     w_int = np.nansum(w, axis=(1, 2))
+        #     y_int = np.nansum(y*w, axis=(1, 2)) / w_int
+        # elif mode == "1d_1":
+        #     c_int = dx1
+        #     w_int = np.nansum(w, axis=(0, 2))
+        #     y_int = np.nansum(y*w, axis=(0, 2)) / w_int
+        # elif mode == "1d_2":
+        #     c_int = dx2
+        #     w_int = np.nansum(w, axis=(0, 1))
+        #     y_int = np.nansum(y*w, axis=(0, 1)) / w_int
+        # elif mode == "2d_0":
+        #     c_int = dx1*dx2
+        #     w_int = np.nansum(w, axis=0)
+        #     y_int = np.nansum(y*w, axis=0) / w_int
+        # elif mode == "2d_1":
+        #     c_int = dx0*dx2
+        #     w_int = np.nansum(w, axis=1)
+        #     y_int = np.nansum(y*w, axis=1) / w_int
+        # elif mode == "2d_2":
+        #     c_int = dx0*dx1
+        #     w_int = np.nansum(w, axis=2)
+        #     y_int = np.nansum(y*w, axis=2) / w_int
+        # elif mode == "3d":
+        #     c_int = dx0*dx1*dx2
+        #     w_int = w.copy()
+        #     y_int = y.copy()
+
+        # e_int = np.sqrt(1 / w_int)
+
+        mask = (e_int > 0) & np.isfinite(e_int)
 
         y_int[~mask] = np.nan
         e_int[~mask] = np.nan
+
+        # mask = e_int < 0.1 * y_int
+
+        e_int = np.sqrt(e_int**2 + np.nanstd(y_int) ** 2 / y_int.size)
 
         return y_int, e_int
 
@@ -1838,7 +1924,7 @@ class PeakEllipsoid:
 
         return -0.5 * lp * np.array([l0, l1, l2])
 
-    def residual_1d(self, params, x0, x1, x2, ys, es, norm=False):
+    def residual_1d(self, params, x0, x1, x2, ys, es):
         y0, y1, y2 = ys
         e0, e1, e2 = es
 
@@ -1883,15 +1969,6 @@ class PeakEllipsoid:
         y0_lorentz = self.lorentzian(*args, "1d_0")
         y1_lorentz = self.lorentzian(*args, "1d_1")
         y2_lorentz = self.lorentzian(*args, "1d_2")
-
-        if norm:
-            y0_gauss /= self.gaussian_integral(inv_S, "1d_0")
-            y1_gauss /= self.gaussian_integral(inv_S, "1d_1")
-            y2_gauss /= self.gaussian_integral(inv_S, "1d_2")
-
-            y0_lorentz /= self.lorentzian_integral(inv_S, "1d_0")
-            y1_lorentz /= self.lorentzian_integral(inv_S, "1d_1")
-            y2_lorentz /= self.lorentzian_integral(inv_S, "1d_2")
 
         diff = []
 
@@ -2095,7 +2172,7 @@ class PeakEllipsoid:
 
         return jac[:, mask]
 
-    def residual_2d(self, params, x0, x1, x2, ys, es, norm=False):
+    def residual_2d(self, params, x0, x1, x2, ys, es):
         y0, y1, y2 = ys
         e0, e1, e2 = es
 
@@ -2145,15 +2222,6 @@ class PeakEllipsoid:
         y0_lorentz = self.lorentzian(*args, "2d_0")
         y1_lorentz = self.lorentzian(*args, "2d_1")
         y2_lorentz = self.lorentzian(*args, "2d_2")
-
-        if norm:
-            y0_gauss /= self.gaussian_integral(inv_S, "2d_0")
-            y1_gauss /= self.gaussian_integral(inv_S, "2d_1")
-            y2_gauss /= self.gaussian_integral(inv_S, "1d_2")
-
-            y0_lorentz /= self.lorentzian_integral(inv_S, "2d_0")
-            y1_lorentz /= self.lorentzian_integral(inv_S, "2d_1")
-            y2_lorentz /= self.lorentzian_integral(inv_S, "2d_2")
 
         diff = []
 
@@ -2393,7 +2461,7 @@ class PeakEllipsoid:
 
         return jac[:, mask]
 
-    def residual_3d(self, params, x0, x1, x2, y, e, norm=False):
+    def residual_3d(self, params, x0, x1, x2, y, e):
         c0 = params["c0"]
         c1 = params["c1"]
         c2 = params["c2"]
@@ -2418,10 +2486,6 @@ class PeakEllipsoid:
 
         y_gauss = self.gaussian(*args, "3d")
         y_lorentz = self.lorentzian(*args, "3d")
-
-        if norm:
-            y_gauss /= self.gaussian_integral(inv_S, "3d")
-            y_lorentz /= self.lorentzian_integral(inv_S, "3d")
 
         diff = []
 
@@ -2513,343 +2577,18 @@ class PeakEllipsoid:
 
         return jac[:, mask]
 
-    def integral_1d(self, params):
-        r0 = params["r0"]
-        r1 = params["r1"]
-        r2 = params["r2"]
-
-        u0 = params["u0"]
-        u1 = params["u1"]
-        u2 = params["u2"]
-
-        A0 = params["A1d_0"]
-        A1 = params["A1d_1"]
-        A2 = params["A1d_2"]
-
-        H0 = params["H1d_0"]
-        H1 = params["H1d_1"]
-        H2 = params["H1d_2"]
-
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
-        y0_gauss = self.gaussian_integral(inv_S, "1d_0")
-        y1_gauss = self.gaussian_integral(inv_S, "1d_1")
-        y2_gauss = self.gaussian_integral(inv_S, "1d_2")
-
-        y0_lorentz = self.lorentzian_integral(inv_S, "1d_0")
-        y1_lorentz = self.lorentzian_integral(inv_S, "1d_1")
-        y2_lorentz = self.lorentzian_integral(inv_S, "1d_2")
-
-        I0 = A0 * y0_gauss + H0 * y0_lorentz
-        I1 = A1 * y1_gauss + H1 * y1_lorentz
-        I2 = A2 * y2_gauss + H2 * y2_lorentz
-
-        return I0, I1, I2
-
-    def integral_jac_1d(self, params):
-        params_list = list(params.keys())
-
-        r0 = params["r0"]
-        r1 = params["r1"]
-        r2 = params["r2"]
-
-        u0 = params["u0"]
-        u1 = params["u1"]
-        u2 = params["u2"]
-
-        A0 = params["A1d_0"]
-        A1 = params["A1d_1"]
-        A2 = params["A1d_2"]
-
-        H0 = params["H1d_0"]
-        H1 = params["H1d_1"]
-        H2 = params["H1d_2"]
-
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
-        y0_gauss = self.gaussian_integral(inv_S, "1d_0")
-        y1_gauss = self.gaussian_integral(inv_S, "1d_1")
-        y2_gauss = self.gaussian_integral(inv_S, "1d_2")
-
-        y0_lorentz = self.lorentzian_integral(inv_S, "1d_0")
-        y1_lorentz = self.lorentzian_integral(inv_S, "1d_1")
-        y2_lorentz = self.lorentzian_integral(inv_S, "1d_2")
-
-        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
-        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
-
-        yr0_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="1d_0")
-        yr1_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="1d_1")
-        yr2_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="1d_2")
-
-        yr0_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="1d_0")
-        yr1_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="1d_1")
-        yr2_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="1d_2")
-
-        dr0_0, dr1_0, dr2_0 = A0 * yr0_gauss + H0 * yr0_lorentz
-        dr0_1, dr1_1, dr2_1 = A1 * yr1_gauss + H1 * yr1_lorentz
-        dr0_2, dr1_2, dr2_2 = A2 * yr2_gauss + H2 * yr2_lorentz
-
-        yu0_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="1d_0")
-        yu1_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="1d_1")
-        yu2_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="1d_2")
-
-        yu0_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="1d_0")
-        yu1_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="1d_1")
-        yu2_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="1d_2")
-
-        du0_0, du1_0, du2_0 = A0 * yu0_gauss + H0 * yu0_lorentz
-        du0_1, du1_1, du2_1 = A1 * yu1_gauss + H1 * yu1_lorentz
-        du0_2, du1_2, du2_2 = A2 * yu2_gauss + H2 * yu2_lorentz
-
-        n_params = len(params)
-
-        jac0 = np.zeros(n_params)
-        jac1 = np.zeros(n_params)
-        jac2 = np.zeros(n_params)
-
-        jac0[params_list.index("A1d_0")] = y0_gauss
-        jac0[params_list.index("H1d_0")] = y0_lorentz
-        jac0[params_list.index("r0")] = dr0_0
-        jac0[params_list.index("r1")] = dr1_0
-        jac0[params_list.index("r2")] = dr2_0
-        jac0[params_list.index("u0")] = du0_0
-        jac0[params_list.index("u1")] = du1_0
-        jac0[params_list.index("u2")] = du2_0
-
-        jac1[params_list.index("A1d_1")] = y1_gauss
-        jac1[params_list.index("H1d_1")] = y1_lorentz
-        jac1[params_list.index("r0")] = dr0_1
-        jac1[params_list.index("r1")] = dr1_1
-        jac1[params_list.index("r2")] = dr2_1
-        jac1[params_list.index("u0")] = du0_1
-        jac1[params_list.index("u1")] = du1_1
-        jac1[params_list.index("u2")] = du2_1
-
-        jac2[params_list.index("A1d_2")] = y2_gauss
-        jac2[params_list.index("H1d_2")] = y2_lorentz
-        jac2[params_list.index("r0")] = dr0_2
-        jac2[params_list.index("r1")] = dr1_2
-        jac2[params_list.index("r2")] = dr2_2
-        jac2[params_list.index("u0")] = du0_2
-        jac2[params_list.index("u1")] = du1_2
-        jac2[params_list.index("u2")] = du2_2
-
-        return jac0, jac1, jac2
-
-    def integral_2d(self, params):
-        r0 = params["r0"]
-        r1 = params["r1"]
-        r2 = params["r2"]
-
-        u0 = params["u0"]
-        u1 = params["u1"]
-        u2 = params["u2"]
-
-        A0 = params["A2d_0"]
-        A1 = params["A2d_1"]
-        A2 = params["A2d_2"]
-
-        H0 = params["H2d_0"]
-        H1 = params["H2d_1"]
-        H2 = params["H2d_2"]
-
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
-        y0_gauss = self.gaussian_integral(inv_S, "2d_0")
-        y1_gauss = self.gaussian_integral(inv_S, "2d_1")
-        y2_gauss = self.gaussian_integral(inv_S, "2d_2")
-
-        y0_lorentz = self.lorentzian_integral(inv_S, "1d_0")
-        y1_lorentz = self.lorentzian_integral(inv_S, "2d_1")
-        y2_lorentz = self.lorentzian_integral(inv_S, "2d_2")
-
-        I0 = A0 * y0_gauss + H0 * y0_lorentz
-        I1 = A1 * y1_gauss + H1 * y1_lorentz
-        I2 = A2 * y2_gauss + H2 * y2_lorentz
-
-        return I0, I1, I2
-
-    def integral_jac_2d(self, params):
-        params_list = list(params.keys())
-
-        r0 = params["r0"]
-        r1 = params["r1"]
-        r2 = params["r2"]
-
-        u0 = params["u0"]
-        u1 = params["u1"]
-        u2 = params["u2"]
-
-        A0 = params["A2d_0"]
-        A1 = params["A2d_1"]
-        A2 = params["A2d_2"]
-
-        H0 = params["H2d_0"]
-        H1 = params["H2d_1"]
-        H2 = params["H2d_2"]
-
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
-        y0_gauss = self.gaussian_integral(inv_S, "2d_0")
-        y1_gauss = self.gaussian_integral(inv_S, "2d_1")
-        y2_gauss = self.gaussian_integral(inv_S, "2d_2")
-
-        y0_lorentz = self.lorentzian_integral(inv_S, "2d_0")
-        y1_lorentz = self.lorentzian_integral(inv_S, "2d_1")
-        y2_lorentz = self.lorentzian_integral(inv_S, "2d_2")
-
-        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
-        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
-
-        yr0_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="2d_0")
-        yr1_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="2d_1")
-        yr2_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="2d_2")
-
-        yr0_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="2d_0")
-        yr1_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="2d_1")
-        yr2_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="2d_2")
-
-        dr0_0, dr1_0, dr2_0 = A0 * yr0_gauss + H0 * yr0_lorentz
-        dr0_1, dr1_1, dr2_1 = A1 * yr1_gauss + H1 * yr1_lorentz
-        dr0_2, dr1_2, dr2_2 = A2 * yr2_gauss + H2 * yr2_lorentz
-
-        yu0_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="2d_0")
-        yu1_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="2d_1")
-        yu2_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="2d_2")
-
-        yu0_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="2d_0")
-        yu1_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="2d_1")
-        yu2_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="2d_2")
-
-        du0_0, du1_0, du2_0 = A0 * yu0_gauss + H0 * yu0_lorentz
-        du0_1, du1_1, du2_1 = A1 * yu1_gauss + H1 * yu1_lorentz
-        du0_2, du1_2, du2_2 = A2 * yu2_gauss + H2 * yu2_lorentz
-
-        n_params = len(params)
-
-        jac0 = np.zeros(n_params)
-        jac1 = np.zeros(n_params)
-        jac2 = np.zeros(n_params)
-
-        jac0[params_list.index("A2d_0")] = y0_gauss
-        jac0[params_list.index("H2d_0")] = y0_lorentz
-        jac0[params_list.index("r0")] = dr0_0
-        jac0[params_list.index("r1")] = dr1_0
-        jac0[params_list.index("r2")] = dr2_0
-        jac0[params_list.index("u0")] = du0_0
-        jac0[params_list.index("u1")] = du1_0
-        jac0[params_list.index("u2")] = du2_0
-
-        jac1[params_list.index("A2d_1")] = y1_gauss
-        jac1[params_list.index("H2d_1")] = y1_lorentz
-        jac1[params_list.index("r0")] = dr0_1
-        jac1[params_list.index("r1")] = dr1_1
-        jac1[params_list.index("r2")] = dr2_1
-        jac1[params_list.index("u0")] = du0_1
-        jac1[params_list.index("u1")] = du1_1
-        jac1[params_list.index("u2")] = du2_1
-
-        jac2[params_list.index("A2d_2")] = y2_gauss
-        jac2[params_list.index("H2d_2")] = y2_lorentz
-        jac2[params_list.index("r0")] = dr0_2
-        jac2[params_list.index("r1")] = dr1_2
-        jac2[params_list.index("r2")] = dr2_2
-        jac2[params_list.index("u0")] = du0_2
-        jac2[params_list.index("u1")] = du1_2
-        jac2[params_list.index("u2")] = du2_2
-
-        return jac0, jac1, jac2
-
-    def integral_3d(self, params):
-        r0 = params["r0"]
-        r1 = params["r1"]
-        r2 = params["r2"]
-
-        u0 = params["u0"]
-        u1 = params["u1"]
-        u2 = params["u2"]
-
-        A = params["A3d"]
-        H = params["H3d"]
-
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
-        y_gauss = self.gaussian_integral(inv_S, "3d")
-
-        y_lorentz = self.lorentzian_integral(inv_S, "3d")
-
-        I = A * y_gauss + H * y_lorentz
-
-        return I
-
-    def integral_jac_3d(self, params):
-        params_list = list(params.keys())
-
-        r0 = params["r0"]
-        r1 = params["r1"]
-        r2 = params["r2"]
-
-        u0 = params["u0"]
-        u1 = params["u1"]
-        u2 = params["u2"]
-
-        A = params["A3d"]
-        H = params["H3d"]
-
-        inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
-        y_gauss = self.gaussian_integral(inv_S, "3d")
-        y_lorentz = self.lorentzian_integral(inv_S, "3d")
-
-        dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
-        du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
-
-        yr_gauss = self.gaussian_integral_jac_S(inv_S, dr, mode="3d")
-
-        yr_lorentz = self.lorentzian_integral_jac_S(inv_S, dr, mode="3d")
-
-        dr0, dr1, dr2 = A * yr_gauss + H * yr_lorentz
-
-        yu_gauss = self.gaussian_integral_jac_S(inv_S, du, mode="3d")
-
-        yu_lorentz = self.lorentzian_integral_jac_S(inv_S, du, mode="3d")
-
-        du0, du1, du2 = A * yu_gauss + H * yu_lorentz
-
-        n_params = len(params)
-
-        jac = np.zeros(n_params)
-
-        jac[params_list.index("A3d")] = y_gauss
-        jac[params_list.index("H3d")] = y_lorentz
-        jac[params_list.index("r0")] = dr0
-        jac[params_list.index("r1")] = dr1
-        jac[params_list.index("r2")] = dr2
-        jac[params_list.index("u0")] = du0
-        jac[params_list.index("u1")] = du1
-        jac[params_list.index("u2")] = du2
-
-        return jac
-
-    def regularization(self, params, lamda=1, epsilon=1e-8):
+    def regularization(self, params, lamda=1):
         beta = np.array([params[key] for key in params.keys()])
         ridge = lamda * np.array(beta)
-        # lasso = lamda * np.sign(beta) * np.sqrt(np.abs(beta) + epsilon)
 
-        return ridge  # , lasso
+        return ridge
 
-    def regularization_jac(self, params, lamda=1, epsilon=1e-8):
-        # params_list = list(params.keys())
-
+    def regularization_jac(self, params, lamda=1):
         beta = np.array([params[key] for key in params.keys()])
 
         ridge = lamda * np.eye(len(beta))
-        # lasso = lamda * np.diag(
-        #     0.5 * np.sign(beta) / np.sqrt(np.abs(beta) + epsilon)
-        # )
 
-        return ridge  # , lasso
+        return ridge
 
     def residual(self, params, args_1d, args_2d, args_3d):
         cost_1d = self.residual_1d(params, *args_1d)
@@ -2873,19 +2612,40 @@ class PeakEllipsoid:
 
         return jac
 
-    def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
-        y_scale = 1  # np.nanmax(y)
-        x_scale = 1  # x0[-1,0,0] - x0[0,0,0]
+    def loss(self, r):
+        return np.abs(r).sum()
 
-        y /= y_scale
-        e /= y_scale
+    def interpolate(self, x0, x1, x2, y, e, c):
+        mask = np.isfinite(y) & (y > 0)
+        vx0, vx1, vx2 = x0[mask], x1[mask], x2[mask]
+        vy = y[mask].copy()
+        vc = c[mask].copy()
 
-        x0 /= x_scale
-        x1 /= x_scale
-        x2 /= x_scale
+        gx = np.vstack([x0.ravel(), x1.ravel(), x2.ravel()]).T
 
-        if not y_scale > 0 or not x_scale > 0:
-            return None
+        gy = scipy.interpolate.griddata(
+            (vx0, vx1, vx2), vy, gx, method="linear"
+        )
+        gc = scipy.interpolate.griddata(
+            (vx0, vx1, vx2), vc, gx, method="linear"
+        )
+
+        gy = gy.reshape(*y.shape)
+        gc = gc.reshape(*c.shape)
+
+        ge = e.copy()
+        ge[~mask] = np.abs(gy[~mask])
+
+        mask = np.isfinite(gy) & (gy > 0)
+        gy[~mask] = np.nan
+        ge[~mask] = np.nan
+
+        return gy, ge, gc
+
+    def estimate_envelope(
+        self, x0, x1, x2, c_val, y_val, e_val, report_fit=False
+    ):
+        y, e, counts = self.interpolate(x0, x1, x2, y_val, e_val, c_val)
 
         if (np.array(counts.shape) < 3).any():
             return None
@@ -3022,17 +2782,14 @@ class PeakEllipsoid:
             self.residual,
             self.params,
             fcn_args=(args_1d, args_2d, args_3d),
-            reduce_fcn="negentropy",
+            reduce_fcn=self.loss,
             nan_policy="omit",
         )
 
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            ftol=1e-6,
-            gtol=1e-6,
-            xtol=1e-6,
-            max_nfev=100,
+            max_nfev=200,
             col_deriv=True,
         )
 
@@ -3095,9 +2852,9 @@ class PeakEllipsoid:
         )
 
         y1 = [
-            (y1d_0_fit * y_scale, y1d_0 * y_scale, e1d_0 * y_scale),
-            (y1d_1_fit * y_scale, y1d_1 * y_scale, e1d_1 * y_scale),
-            (y1d_2_fit * y_scale, y1d_2 * y_scale, e1d_2 * y_scale),
+            (y1d_0_fit, y1d_0, e1d_0),
+            (y1d_1_fit, y1d_1, e1d_1),
+            (y1d_2_fit, y1d_2, e1d_2),
         ]
 
         chi2_1d = []
@@ -3160,9 +2917,9 @@ class PeakEllipsoid:
         )
 
         y2 = [
-            (y2d_0_fit * y_scale, y2d_0 * y_scale, e2d_0 * y_scale),
-            (y2d_1_fit * y_scale, y2d_1 * y_scale, e2d_1 * y_scale),
-            (y2d_2_fit * y_scale, y2d_2 * y_scale, e2d_2 * y_scale),
+            (y2d_0_fit, y2d_0, e2d_0),
+            (y2d_1_fit, y2d_1, e2d_1),
+            (y2d_2_fit, y2d_2, e2d_2),
         ]
 
         chi2_2d = []
@@ -3191,7 +2948,7 @@ class PeakEllipsoid:
             + B
         )
 
-        y3 = (y3d_fit * y_scale, y3d * y_scale, e3d * y_scale)
+        y3 = (y3d_fit, y3d, e3d)
 
         chi2 = self.chi_2_fit(x0, x1, x2, c, inv_S, *y3, "3d")
 
@@ -3206,11 +2963,7 @@ class PeakEllipsoid:
 
         # inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
-        x0 *= x_scale
-        x1 *= x_scale
-        x2 *= x_scale
-
-        return c * x_scale, inv_S / x_scale**2, y1, y2, y3
+        return c, inv_S, y1, y2, y3
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)

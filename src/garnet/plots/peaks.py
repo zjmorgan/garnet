@@ -83,16 +83,18 @@ class RegionOfInterestPlot(BasePlot):
         self.ax[2].stairs(w2_bins, x2_bins, color="k", zorder=100)
 
     def draw_boundary(self, Q, k, params):
-        r0, r1, r2, dQ, dk = params
+        (r0, r1, r2), (dr0, dr1, dr2) = params
 
         Q_min, Q_max = np.min(Q), np.max(Q)
         k_min, k_max = np.min(k), np.max(k)
 
-        s0_max = 1 + k_max * dk
-        s1_max = s2_max = 1 + Q_max * dQ
+        s0_max = 1 + k_max * dr0
+        s1_max = 1 + k_max * dr1
+        s2_max = 1 + Q_max * dr2
 
-        s0_min = 1 + k_min * dk
-        s1_min = s2_min = 1 + Q_min * dQ
+        s0_min = 1 + k_min * dr0
+        s1_min = 1 + k_min * dr1
+        s2_min = 1 + Q_min * dr2
 
         self.ax[0].axvline(r0 * s0_max, linestyle="--", color="k", linewidth=1)
         self.ax[1].axvline(r1 * s1_max, linestyle="--", color="k", linewidth=1)
