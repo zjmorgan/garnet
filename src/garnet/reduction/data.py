@@ -1084,7 +1084,7 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=event_name,
                 NumberOfBins=1,
                 FilterByTimeStop=time_cut,
-                FilterByTofMin=100,
+                FilterByTofMin=500,
                 FilterByTofMax=16600,
             )
 
@@ -1606,6 +1606,18 @@ class LaueData(BaseDataModel):
 
                 if self.grouping is not None:
                     self.group_pixels("bkg")
+
+                Rebin(
+                    InputWorkspace="bkg",
+                    Params=[self.k_min, self.k_max, self.k_max],
+                    OutputWorkspace="bkg",
+                )
+
+                MaskDetectorsIf(
+                    InputWorkspace="bkg",
+                    Operator="LessEqual",
+                    OutputWorkspace="bkg",
+                )
 
                 if mtd.doesExist("sa_mask"):
                     MaskDetectors(Workspace="bkg", MaskedWorkspace="sa_mask")
