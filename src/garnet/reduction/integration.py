@@ -9,7 +9,6 @@ import scipy.special
 import scipy.ndimage
 import scipy.linalg
 import scipy.stats
-import astropy.stats
 
 from lmfit import Minimizer, Parameters, fit_report
 
@@ -898,6 +897,28 @@ class PeakCentroid:
     def __init__(self):
         pass
 
+    def sigma_clip(self, y, sigma=3, maxiters=5):
+        mask = np.ones_like(y, dtype=bool)
+
+        for _ in range(maxiters):
+            data = y[mask]
+
+            median = np.median(data)
+            mad = scipy.stats.median_abs_deviation(data, scale="normal")
+
+            if mad == 0:
+                break
+
+            deviation = np.abs(y - median)
+            new_mask = deviation < (sigma * mad)
+
+            if np.all(new_mask == mask):
+                break
+
+            mask = new_mask
+
+        return median
+
     def model(self, y, e, x0, x1, x2):
         print(y.shape, e.shape, x0.shape, x1.shape, x2.shape)
 
@@ -907,10 +928,7 @@ class PeakCentroid:
 
         scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
 
-        clipped_y = astropy.stats.sigma_clip(
-            y, sigma=scale, maxiters=5, cenfunc="median", stdfunc="mad_std"
-        )
-        B = np.nanmedian(clipped_y[~clipped_y.mask])
+        B = self.sigma_clip(y, sigma=scale, maxiters=5)
 
         w = y - B
         w[w < 0] = 0
