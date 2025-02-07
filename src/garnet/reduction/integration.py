@@ -897,7 +897,8 @@ class PeakCentroid:
     def __init__(self):
         pass
 
-    def sigma_clip(self, y, sigma=3, maxiters=5):
+    def sigma_clip(self, array, sigma=3, maxiters=5):
+        y = array[np.isfinite(array)]
         mask = np.ones_like(y, dtype=bool)
 
         for _ in range(maxiters):
@@ -906,7 +907,7 @@ class PeakCentroid:
             median = np.median(data)
             mad = scipy.stats.median_abs_deviation(data, scale="normal")
 
-            if mad == 0:
+            if mad <= 0:
                 break
 
             deviation = np.abs(y - median)
