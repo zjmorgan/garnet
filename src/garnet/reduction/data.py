@@ -524,13 +524,13 @@ class BaseDataModel:
 
         """
 
-        signal = mtd[num].getSignalArray().copy()
-        error_sq = mtd[num].getErrorSquaredArray().copy()
-        mask = signal <= 0
-        signal[mask] = np.nan
-        error_sq[mask] = np.nan
-        mtd[num].setSignalArray(signal)
-        mtd[num].setErrorSquaredArray(error_sq)
+        # signal = mtd[num].getSignalArray().copy()
+        # error_sq = mtd[num].getErrorSquaredArray().copy()
+        # mask = signal <= 0
+        # signal[mask] = np.nan
+        # error_sq[mask] = np.nan
+        # mtd[num].setSignalArray(signal)
+        # mtd[num].setErrorSquaredArray(error_sq)
 
         DivideMD(LHSWorkspace=num, RHSWorkspace=den, OutputWorkspace=ws)
 
