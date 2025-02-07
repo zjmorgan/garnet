@@ -466,6 +466,9 @@ class Optimization:
             a, b, c = ol.a(), ol.b(), ol.c()
             alpha, beta, gamma = ol.alpha(), ol.beta(), ol.gamma()
 
+            self.a, self.b, self.c = a, b, c
+            self.alpha, self.beta, self.gamma = alpha, beta, gamma
+
             return a, b, c, alpha, beta, gamma
 
     def get_orientation_angles(self):
@@ -522,6 +525,11 @@ class Optimization:
         B = scipy.linalg.cholesky(np.linalg.inv(G), lower=False)
 
         return B
+
+    def fixed(self, x):
+        a, b, c = self.a, self.b, self.c
+        alpha, beta, gamma = self.alpha, self.beta, self.gamma
+        return (a, b, c, alpha, beta, gamma, *x)
 
     def cubic(self, x):
         a, *params = x
@@ -606,6 +614,7 @@ class Optimization:
             phi, theta, omega = self.get_orientation_angles()
 
             fun_dict = {
+                "Fixed": self.fixed,
                 "Cubic": self.cubic,
                 "Rhombohedral": self.rhombohedral,
                 "Tetragonal": self.tetragonal,
@@ -616,6 +625,7 @@ class Optimization:
             }
 
             x0_dict = {
+                "Fixed": (),
                 "Cubic": (a,),
                 "Rhombohedral": (a, alpha),
                 "Tetragonal": (a, c),

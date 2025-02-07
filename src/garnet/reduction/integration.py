@@ -9,6 +9,7 @@ import scipy.special
 import scipy.ndimage
 import scipy.linalg
 import scipy.stats
+import astropy.stats
 
 from lmfit import Minimizer, Parameters, fit_report
 
@@ -24,7 +25,7 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["TBB_THREAD_ENABLED"] = "0"
 
-from garnet.plots.peaks import PeakPlot, RegionOfInterestPlot
+from garnet.plots.peaks import PeakPlot, PeakProfilePlot, PeakCentroidPlot
 from garnet.config.instruments import beamlines
 from garnet.reduction.ub import UBModel, Optimization, lattice_group
 from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
@@ -162,9 +163,34 @@ class Integration(SubPlan):
                 lamda_max,
             )
 
+            self.peaks, self.data = peaks, data
+
             r_cut = self.params["Radius"]
 
-            self.peaks, self.data = peaks, data
+            est_file = self.get_plot_file("centroid#{}".format(run))
+
+            self.estimate_peak_centroid("peaks", "md", r_cut, est_file)
+
+            ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
+
+            opt = Optimization("peaks")
+            opt.optimize_lattice("Fixed")
+
+            ub_file = os.path.splitext(ub_file)[0] + ".mat"
+
+            ub = UBModel("peaks")
+            ub.save_UB(ub_file)
+
+            data.load_clear_UB(ub_file, "data", run)
+
+            peaks.predict_peaks(
+                "data",
+                "peaks",
+                self.params["Centering"],
+                self.params["MinD"],
+                lamda_min,
+                lamda_max,
+            )
 
             if self.params["MaxOrder"] > 0:
                 sat_min_d = self.params["MinD"]
@@ -191,7 +217,7 @@ class Integration(SubPlan):
 
             data.save_histograms(md_file, "md", sample_logs=True)
 
-            est_file = self.get_plot_file("run#{}".format(run))
+            est_file = self.get_plot_file("profile#{}".format(run))
 
             params = self.estimate_peak_size("peaks", "md", r_cut, est_file)
 
@@ -551,16 +577,29 @@ class Integration(SubPlan):
 
         return "_d(min)={:.2f}".format(min_d) + "_r(max)={:.2f}".format(max_r)
 
+    def estimate_peak_centroid(self, peaks_ws, data_ws, r_cut, filename):
+        peak_dict = self.extract_peak_info(peaks_ws, r_cut)
+
+        center = PeakCentroid()
+
+        c0, c1, c2, Q = center.fit(peak_dict)
+
+        plot = PeakCentroidPlot(c0, c1, c2, Q, r_cut)
+        plot.save_plot(filename)
+
+        offsets = c0, c1, c2, Q
+        self.update_peak_offsets(peaks_ws, offsets, peak_dict)
+
     def estimate_peak_size(self, peaks_ws, data_ws, r_cut, filename):
         peak_dict = self.extract_peak_info(peaks_ws, r_cut)
 
-        roi = PeakRegionOfInterest(r_cut)
+        roi = PeakProfile(r_cut)
 
         params = roi.fit(peak_dict)
 
         x, y, e, Q, k = roi.extract_fit()
 
-        plot = RegionOfInterestPlot(x, y, e, Q, k, params, r_cut)
+        plot = PeakProfilePlot(x, y, e, Q, k, params, r_cut)
         plot.save_plot(filename)
 
         return params
@@ -681,18 +720,6 @@ class Integration(SubPlan):
 
             counts = data.extract_counts("md_bin")
 
-            # ratio = np.array([((counts.sum(axis=(1,2)) > 0)*1.0).mean(),
-            #                   ((counts.sum(axis=(0,2)) > 0)*1.0).mean(),
-            #                   ((counts.sum(axis=(0,1)) > 0)*1.0).mean()])
-
-            # bins = np.ceil(bins*ratio).astype(int)
-
-            # bins[bins < 10] = 10
-
-            # y, e, Q0, Q1, Q2 = data.bin_in_Q("md", extents, bins, projections)
-
-            # counts = data.extract_counts("md_bin")
-
             data_info = (Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections)
 
             peak_file = self.get_plot_file(peak_name)
@@ -707,6 +734,24 @@ class Integration(SubPlan):
             peak_dict[i] = data_info, peak_info
 
         return peak_dict
+
+    def update_peak_offsets(self, peaks_ws, offsets, peak_dict):
+        peak = PeakModel(peaks_ws)
+
+        offsets = np.array(offsets).T
+
+        for i, value in peak_dict.items():
+            if value is not None:
+                data_info, peak_info = peak_dict[i]
+                c0, c1, c2, Q = offsets[i]
+
+                projections = data_info[-1]
+
+                W = np.column_stack(projections)
+
+                Q0, Q1, Q2 = np.dot(W, [c0 + Q, c1, c2])
+
+                peak.set_peak_center(i, Q0, Q1, Q2)
 
     def update_peak_info(self, peaks_ws, peak_dict):
         peak = PeakModel(peaks_ws)
@@ -849,7 +894,86 @@ class Integration(SubPlan):
             return instance.monochromatic_combine(files)
 
 
-class PeakRegionOfInterest:
+class PeakCentroid:
+    def __init__(self):
+        pass
+
+    def model(self, y, e, x0, x1, x2):
+        print(y.shape, e.shape, x0.shape, x1.shape, x2.shape)
+
+        dx0 = x0[1, 0, 0] - x0[0, 0, 0]
+        dx1 = x1[0, 1, 0] - x1[0, 0, 0]
+        dx2 = x2[0, 0, 1] - x2[0, 0, 0]
+
+        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
+
+        clipped_y = astropy.stats.sigma_clip(
+            y, sigma=scale, maxiters=5, cenfunc="median", stdfunc="mad_std"
+        )
+        B = np.nanmedian(clipped_y[~clipped_y.mask])
+
+        w = y - B
+        w[w < 0] = 0
+
+        wgt = np.nansum(w)
+
+        c0 = np.nansum(x0 * w) / wgt
+        c1 = np.nansum(x1 * w) / wgt
+        c2 = np.nansum(x2 * w) / wgt
+
+        I = np.nansum(y - B) * dx0 * dx1 * dx2
+        sig = np.sqrt(np.nansum(e**2 + B)) * dx0 * dx1 * dx2
+
+        if I > 10 * sig:
+            return np.nan, np.nan, np.nan
+        else:
+            return c0, c1, c2
+
+    def extract_info(self, peak_dict):
+        ys, es = [], []
+        x0s, x1s, x2s = [], [], []
+
+        Qs, ks = [], []
+
+        for key in peak_dict.keys():
+            data_info = peak_dict[key][0]
+            Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections = data_info
+            mask = e > 0
+
+            y[~mask] = np.nan
+            y[~mask] = np.nan
+
+            x0 = Q0 - Q
+            x1 = Q1
+            x2 = Q2
+
+            ys.append(y)
+            es.append(e)
+
+            x0s.append(x0)
+            x1s.append(x1)
+            x2s.append(x2)
+
+            Qs.append(Q)
+            ks.append(k)
+
+        return ys, es, x0s, x1s, x2s, Qs, ks
+
+    def fit(self, peak_dict):
+        args = self.extract_info(peak_dict)
+
+        c0s, c1s, c2s, Qs = [], [], [], []
+        for y, e, x0, x1, x2, Q, k in zip(*args):
+            c0, c1, c2 = self.model(y, e, x0, x1, x2)
+            c0s.append(c0)
+            c1s.append(c1)
+            c2s.append(c2)
+            Qs.append(Q)
+
+        return np.array(c0s), np.array(c1s), np.array(c2s), np.array(Qs)
+
+
+class PeakProfile:
     def __init__(self, r_cut):
         self.params = Parameters()
 
@@ -857,9 +981,9 @@ class PeakRegionOfInterest:
         self.params.add("r1", value=r_cut / 2, min=0.001, max=2 * r_cut)
         self.params.add("r2", value=r_cut / 2, min=0.001, max=2 * r_cut)
 
-        self.params.add("dr0", value=0, min=0, max=r_cut * 10)
-        self.params.add("dr1", value=0, min=0, max=r_cut * 10)
-        self.params.add("dr2", value=0, min=0, max=r_cut * 10)
+        self.params.add("dr0", value=0, min=0, max=r_cut * 10, vary=False)
+        self.params.add("dr1", value=0, min=0, max=r_cut * 10, vary=False)
+        self.params.add("dr2", value=0, min=0, max=r_cut * 10, vary=False)
 
     def calculate_fit(self, y, z, e):
         y_hat = np.exp(-0.5 * z**2)
@@ -925,8 +1049,8 @@ class PeakRegionOfInterest:
             if sum_w > 0 and sum_w < np.inf:
                 sum_wx = np.nansum(w[mask] * x[mask])
                 xc = sum_wx / sum_w
-                # z = (x - xc) / sigma
-                # A, B, A_err, B_err, y_fit = self.calculate_fit(y, z, e)
+                z = (x - xc) / sigma
+                A, B, A_err, B_err, y_fit = self.calculate_fit(y, z, e)
 
         return y_fit, x - xc, A, B, A_err, B_err
 
@@ -1137,6 +1261,7 @@ class PeakSphere:
         return diff
 
     def fit(self, x, y):
+        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=1))
         y_max = np.max(y)
 
         y[y < 0] = 0
@@ -1154,7 +1279,7 @@ class PeakSphere:
 
         self.params = result.params
 
-        return 3.76205 * result.params["sigma"].value
+        return scale * result.params["sigma"].value
 
     def best_fit(self, r):
         A = self.params["A"].value

@@ -19,9 +19,41 @@ from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from garnet.plots.base import BasePlot
 
 
-class RegionOfInterestPlot(BasePlot):
+class PeakCentroidPlot(BasePlot):
+    def __init__(self, c0, c1, c2, Q, r_cut):
+        super(PeakCentroidPlot, self).__init__()
+
+        plt.close("all")
+
+        self.fig, self.ax = plt.subplots(
+            1,
+            3,
+            figsize=(6.4 * 3, 4.8),
+            layout="constrained",
+            sharex=True,
+            sharey=True,
+        )
+
+        self.ax[0].plot(c0, Q, ".", color="C0")
+        self.ax[1].plot(c1, Q, ".", color="C1")
+        self.ax[2].plot(c2, Q, ".", color="C2")
+
+        self.ax[0].minorticks_on()
+        self.ax[2].minorticks_on()
+        self.ax[1].minorticks_on()
+
+        self.ax[0].set_xlabel("$\Delta |Q|$ [$\AA^{-1}$]")
+        self.ax[1].set_xlabel("$\Delta Q_1$ [$\AA^{-1}$]")
+        self.ax[2].set_xlabel("$\Delta Q_2$ [$\AA^{-1}$]")
+
+        self.ax[0].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
+        self.ax[1].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
+        self.ax[2].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
+
+
+class PeakProfilePlot(BasePlot):
     def __init__(self, x, y, e, Q, k, r, r_cut):
-        super(RegionOfInterestPlot, self).__init__()
+        super(PeakProfilePlot, self).__init__()
 
         plt.close("all")
 

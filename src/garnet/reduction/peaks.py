@@ -1514,6 +1514,29 @@ class PeakModel:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
+    def set_peak_center(self, no, c0, c1, c2):
+        """
+        Update the shape of the peak.
+
+        Parameters
+        ----------
+        no : int
+            Peak index number.
+        c0, c1, c2 : float
+            Peak center.
+        """
+
+        R = mtd[self.peaks].getPeak(no).getGoniometerMatrix()
+
+        Q = np.array([c0, c1, c2])
+        Qx, Qy, Qz = R @ Q
+
+        if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
+            mtd[self.peaks].getPeak(no).setQSampleFrame(V3D(c0, c1, c2))
+            return True
+        else:
+            return False
+
     def set_peak_shape(self, no, c0, c1, c2, r0, r1, r2, v0, v1, v2):
         """
         Update the shape of the peak.
@@ -1531,16 +1554,11 @@ class PeakModel:
 
         """
 
-        R = mtd[self.peaks].getPeak(no).getGoniometerMatrix()
-
-        Q = np.array([c0, c1, c2])
-        Qx, Qy, Qz = R @ Q
-
         radii = [0, 0, 0]
 
-        if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
-            mtd[self.peaks].getPeak(no).setQSampleFrame(V3D(c0, c1, c2))
+        valid = self.set_peak_center(no, c0, c1, c2)
 
+        if valid:
             radii = [r0, r1, r2]
 
         shape = PeakShapeEllipsoid(
