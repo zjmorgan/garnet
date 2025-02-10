@@ -20,7 +20,7 @@ from garnet.plots.base import BasePlot
 
 
 class PeakCentroidPlot(BasePlot):
-    def __init__(self, c0, c1, c2, Q, r_cut):
+    def __init__(self, c0, c1, c2, Q, r_cut, d_min):
         super(PeakCentroidPlot, self).__init__()
 
         plt.close("all")
@@ -46,9 +46,21 @@ class PeakCentroidPlot(BasePlot):
         self.ax[1].set_xlabel("$\Delta Q_1$ [$\AA^{-1}$]")
         self.ax[2].set_xlabel("$\Delta Q_2$ [$\AA^{-1}$]")
 
+        self.ax[0].set_xlabel("$|Q|$ [$\AA^{-1}$]")
+
         self.ax[0].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
         self.ax[1].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
         self.ax[2].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
+
+        Q_max = 2 * np.pi / d_min
+
+        self.ax[0].set_ylim(0, 1.2 * Q_max)
+        self.ax[1].set_ylim(0, 1.2 * Q_max)
+        self.ax[2].set_ylim(0, 1.2 * Q_max)
+
+        self.ax[0].axvline(0, linestyle="--", color="k", linewidth=1)
+        self.ax[1].axvline(0, linestyle="--", color="k", linewidth=1)
+        self.ax[2].axvline(0, linestyle="--", color="k", linewidth=1)
 
 
 class PeakProfilePlot(BasePlot):

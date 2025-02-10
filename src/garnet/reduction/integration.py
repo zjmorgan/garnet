@@ -153,11 +153,13 @@ class Integration(SubPlan):
 
             lamda_min, lamda_max = data.wavelength_band
 
+            d_min = self.params["MinD"]
+
             peaks.predict_peaks(
                 "data",
                 "peaks",
                 self.params["Centering"],
-                self.params["MinD"],
+                d_min,
                 lamda_min,
                 lamda_max,
             )
@@ -168,7 +170,7 @@ class Integration(SubPlan):
 
             est_file = self.get_plot_file("centroid#{}".format(run))
 
-            self.estimate_peak_centroid("peaks", "md", r_cut, est_file)
+            self.estimate_peak_centroid("peaks", r_cut, d_min, est_file)
 
             ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
 
@@ -186,13 +188,13 @@ class Integration(SubPlan):
                 "data",
                 "peaks",
                 self.params["Centering"],
-                self.params["MinD"],
+                d_min,
                 lamda_min,
                 lamda_max,
             )
 
             if self.params["MaxOrder"] > 0:
-                sat_min_d = self.params["MinD"]
+                sat_min_d = d_min
                 if self.params.get("SatMinD") is not None:
                     sat_min_d = self.params["SatMinD"]
 
@@ -218,7 +220,7 @@ class Integration(SubPlan):
 
             est_file = self.get_plot_file("profile#{}".format(run))
 
-            params = self.estimate_peak_size("peaks", "md", r_cut, est_file)
+            params = self.estimate_peak_size("peaks", r_cut, est_file)
 
             peak_dict = self.extract_peak_info("peaks", params)
 
@@ -576,20 +578,20 @@ class Integration(SubPlan):
 
         return "_d(min)={:.2f}".format(min_d) + "_r(max)={:.2f}".format(max_r)
 
-    def estimate_peak_centroid(self, peaks_ws, data_ws, r_cut, filename):
+    def estimate_peak_centroid(self, peaks_ws, r_cut, d_min, filename):
         peak_dict = self.extract_peak_info(peaks_ws, r_cut)
 
         center = PeakCentroid()
 
         c0, c1, c2, Q = center.fit(peak_dict)
 
-        plot = PeakCentroidPlot(c0, c1, c2, Q, r_cut)
+        plot = PeakCentroidPlot(c0, c1, c2, Q, r_cut, d_min)
         plot.save_plot(filename)
 
         offsets = c0, c1, c2, Q
         self.update_peak_offsets(peaks_ws, offsets, peak_dict)
 
-    def estimate_peak_size(self, peaks_ws, data_ws, r_cut, filename):
+    def estimate_peak_size(self, peaks_ws, r_cut, filename):
         peak_dict = self.extract_peak_info(peaks_ws, r_cut)
 
         roi = PeakProfile(r_cut)
@@ -737,20 +739,22 @@ class Integration(SubPlan):
     def update_peak_offsets(self, peaks_ws, offsets, peak_dict):
         peak = PeakModel(peaks_ws)
 
-        offsets = np.array(offsets).T
+        c0, c1, c2, Q = offsets
 
         for i, value in peak_dict.items():
             if value is not None:
                 data_info, peak_info = peak_dict[i]
-                c0, c1, c2, Q = offsets[i]
 
                 projections = data_info[-1]
 
                 W = np.column_stack(projections)
 
-                Q0, Q1, Q2 = np.dot(W, [c0 + Q, c1, c2])
+                vec = [c0[i] + Q[i], c1[i], c2[i]]
 
-                peak.set_peak_center(i, Q0, Q1, Q2)
+                if np.isfinite(vec).all():
+                    Q0, Q1, Q2 = np.dot(W, vec)
+
+                    peak.set_peak_center(i, Q0, Q1, Q2)
 
     def update_peak_info(self, peaks_ws, peak_dict):
         peak = PeakModel(peaks_ws)
@@ -921,11 +925,9 @@ class PeakCentroid:
         return median
 
     def model(self, y, e, x0, x1, x2):
-        print(y.shape, e.shape, x0.shape, x1.shape, x2.shape)
-
-        dx0 = x0[1, 0, 0] - x0[0, 0, 0]
-        dx1 = x1[0, 1, 0] - x1[0, 0, 0]
-        dx2 = x2[0, 0, 1] - x2[0, 0, 0]
+        # dx0 = x0[1, 0, 0] - x0[0, 0, 0]
+        # dx1 = x1[0, 1, 0] - x1[0, 0, 0]
+        # dx2 = x2[0, 0, 1] - x2[0, 0, 0]
 
         scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
 
@@ -933,6 +935,7 @@ class PeakCentroid:
 
         w = y - B
         w[w < 0] = 0
+        w *= w
 
         wgt = np.nansum(w)
 
@@ -940,13 +943,13 @@ class PeakCentroid:
         c1 = np.nansum(x1 * w) / wgt
         c2 = np.nansum(x2 * w) / wgt
 
-        I = np.nansum(y - B) * dx0 * dx1 * dx2
-        sig = np.sqrt(np.nansum(e**2 + B)) * dx0 * dx1 * dx2
+        # I = np.nansum(y - B) * dx0 * dx1 * dx2
+        # sig = np.sqrt(np.nansum(e**2 + B)) * dx0 * dx1 * dx2
 
-        if I > 10 * sig:
-            return np.nan, np.nan, np.nan
-        else:
-            return c0, c1, c2
+        # if I > 10 * sig:
+        return c0, c1, c2
+        # else:
+        #     return np.nan, np.nan, np.nan
 
     def extract_info(self, peak_dict):
         ys, es = [], []
