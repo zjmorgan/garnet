@@ -625,11 +625,11 @@ class Integration(SubPlan):
         value = None
 
         if params is not None:
-            c, S, *best_fit = ellipsoid.best_fit
+            c, S, *best_fit, mask = ellipsoid.best_fit
 
             shape = self.revert_ellipsoid_parameters(params, projections)
 
-            norm_params = Q0, Q1, Q2, y, e, counts, c, S
+            norm_params = Q0, Q1, Q2, y, e, counts, mask, c, S
 
             I, sigma = ellipsoid.integrate(*norm_params)
 
@@ -902,36 +902,39 @@ class PeakCentroid:
         pass
 
     def sigma_clip(self, array, sigma=3, maxiters=5):
+        array = np.array(array, dtype=float)
         y = array[np.isfinite(array)]
         mask = np.ones_like(y, dtype=bool)
 
         for _ in range(maxiters):
             data = y[mask]
 
-            median = np.median(data)
+            med = np.median(data)
             mad = scipy.stats.median_abs_deviation(data, scale="normal")
 
             if mad <= 0:
                 break
 
-            deviation = np.abs(y - median)
-            new_mask = deviation < (sigma * mad)
+            dev = np.abs(y - med)
+            new_mask = dev < (sigma * mad)
 
             if np.all(new_mask == mask):
                 break
 
-            mask = new_mask
+            mask = new_mask.copy()
 
-        return median
+        data = y[mask]
+        med = np.median(data)
+        mad = scipy.stats.median_abs_deviation(data, scale="normal")
+
+        return med, mad
 
     def model(self, y, e, x0, x1, x2):
         # dx0 = x0[1, 0, 0] - x0[0, 0, 0]
         # dx1 = x1[0, 1, 0] - x1[0, 0, 0]
         # dx2 = x2[0, 0, 1] - x2[0, 0, 0]
 
-        scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=3))
-
-        B = self.sigma_clip(y, sigma=scale, maxiters=5)
+        B, B_err = self.sigma_clip(y, maxiters=5)
 
         w = y - B
         w[w < 0] = 0
@@ -2794,6 +2797,8 @@ class PeakEllipsoid:
     ):
         y, e, counts = self.interpolate(x0, x1, x2, y_val, e_val, c_val)
 
+        peak_mask = np.isfinite(y) & np.isfinite(e)
+
         if (np.array(counts.shape) < 3).any():
             return None
 
@@ -3110,7 +3115,7 @@ class PeakEllipsoid:
 
         # inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
-        return c, inv_S, y1, y2, y3
+        return c, inv_S, y1, y2, y3, peak_mask
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -3182,7 +3187,7 @@ class PeakEllipsoid:
             print("Invalid weight estimate")
             return None
 
-        c, inv_S, vals1d, vals2d, vals3d = weights
+        c, inv_S, vals1d, vals2d, vals3d, peaks_mask = weights
 
         if not np.linalg.det(inv_S) > 0:
             print("Improper optimal covariance")
@@ -3214,7 +3219,7 @@ class PeakEllipsoid:
 
         fitting = (x0 + xmod, x1, x2, *vals3d)
 
-        self.best_fit = c, S, *fitting
+        self.best_fit = c, S, *fitting, peaks_mask
 
         self.best_prof = (
             (x0[:, 0, 0] + xmod, *vals1d[0]),
@@ -3230,7 +3235,7 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def integrate(self, x0, x1, x2, y, e, counts, c, S):
+    def integrate(self, x0, x1, x2, y, e, counts, mask, c, S):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         d3x = dx0 * dx1 * dx2
@@ -3246,11 +3251,14 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        pk = (ellipsoid <= 1**2) & (e > 0)
+        pk = ellipsoid <= 1**2
         pk = scipy.ndimage.binary_dilation(pk)
 
-        bkg = (ellipsoid > 1**2) & (e > 0)
+        bkg = ellipsoid > 1**2
         bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
+
+        pk = pk & mask
+        bkg = bkg & mask
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
@@ -3261,9 +3269,11 @@ class PeakEllipsoid:
         # b = np.nansum(y_bkg/e_bkg**2)/np.nansum(1/e_bkg**2)
         # b_err = 1/np.sqrt(np.nansum(1/e_bkg**2))
 
-        N = np.nansum(e_bkg > 0)
+        N = np.sum(bkg)
         b = np.nansum(y_bkg) / N
         b_err = np.sqrt(np.nansum(e_bkg**2)) / N
+
+        # b, b_err = self.sigma_clip(y[bkg])
 
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
@@ -3293,23 +3303,23 @@ class PeakEllipsoid:
         freq = y.copy()
         freq[~(pk | bkg)] = np.nan
         freq -= b
-        freq[freq < 0] = np.nan
+        # freq[freq <= 0] = np.nan
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()
 
-        N = np.nansum(c_bkg > 0)
+        N = np.sum(bkg)
         b_raw = np.nansum(c_bkg) / N
         b_raw_err = np.sqrt(np.nansum(c_bkg)) / N
+
+        # b_raw, b_raw_err = self.sigma_clip(counts[bkg])
 
         intens_raw = np.nansum(c_pk - b_raw)
         sig_raw = np.sqrt(np.nansum(c_pk + b_raw_err**2))
 
         self.info += [intens_raw, sig_raw]
 
-        if not np.isfinite(
-            sig
-        ):  # or not np.all([sn > 3 for sn in sig_noise]):
+        if not np.isfinite(sig):
             sig = intens
 
         xye = (x0, x1, x2), (dx0, dx1, dx2), freq
@@ -3319,3 +3329,58 @@ class PeakEllipsoid:
         self.data_norm_fit = xye, params
 
         return intens, sig
+
+    def sigma_clip(self, array, sigma=3, maxiters=5):
+        array = np.array(array, dtype=float)
+        y = array[np.isfinite(array)]
+        mask = np.ones_like(y, dtype=bool)
+
+        for _ in range(maxiters):
+            data = y[mask]
+
+            med = np.median(data)
+            mad = scipy.stats.median_abs_deviation(data, scale="normal")
+
+            if mad <= 0:
+                break
+
+            dev = np.abs(y - med)
+            new_mask = dev < (sigma * mad)
+
+            if np.all(new_mask == mask):
+                break
+
+            mask = new_mask.copy()
+
+        data = y[mask]
+        med = np.median(data)
+        mad = scipy.stats.median_abs_deviation(data, scale="normal")
+
+        return med, mad
+
+    def background(self, y, e):
+        weights = np.abs(y) / e
+        mask = np.isfinite(weights)
+
+        values = y[mask]
+
+        if values.size <= 1:
+            return 0, 0
+
+        indices = np.argsort(values)
+        sorted_values = values[indices]
+        sorted_weights = weights[indices]
+
+        cumulative_weights = np.cumsum(sorted_weights)
+        half_weight = cumulative_weights[-1] / 2
+
+        median_index = np.searchsorted(cumulative_weights, half_weight)
+        b = sorted_values[median_index]
+
+        dev = np.abs(values - b)
+        mad_ind = np.searchsorted(np.cumsum(weights), half_weight)
+        mad = dev[indices][mad_ind]
+
+        b_err = 1.4826 * mad
+
+        return b, b_err

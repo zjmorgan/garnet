@@ -46,7 +46,7 @@ class PeakCentroidPlot(BasePlot):
         self.ax[1].set_xlabel("$\Delta Q_1$ [$\AA^{-1}$]")
         self.ax[2].set_xlabel("$\Delta Q_2$ [$\AA^{-1}$]")
 
-        self.ax[0].set_xlabel("$|Q|$ [$\AA^{-1}$]")
+        self.ax[0].set_ylabel("$|Q|$ [$\AA^{-1}$]")
 
         self.ax[0].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
         self.ax[1].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
