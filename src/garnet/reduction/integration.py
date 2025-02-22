@@ -610,7 +610,9 @@ class Integration(SubPlan):
 
         data_info, peak_info = value
 
-        Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections = data_info
+        Q0, Q1, Q2, *interp, dQ, Q, k, projections = data_info
+
+        y, e, counts, val_mask, det_mask = interp
 
         peak_file, hkl, d, wavelength, angles, goniometer = peak_info
 
@@ -618,18 +620,19 @@ class Integration(SubPlan):
 
         params = None
         try:
-            params = ellipsoid.fit(Q0, Q1, Q2, counts, y, e, dQ, Q)
+            args = (Q0, Q1, Q2, y, e, counts, val_mask, det_mask, dQ, Q)
+            params = ellipsoid.fit(*args)
         except Exception as e:
             print("Exception fitting data: {}".format(e))
 
         value = None
 
         if params is not None:
-            c, S, *best_fit, mask = ellipsoid.best_fit
+            c, S, *best_fit = ellipsoid.best_fit
 
             shape = self.revert_ellipsoid_parameters(params, projections)
 
-            norm_params = Q0, Q1, Q2, y, e, counts, mask, c, S
+            norm_params = Q0, Q1, Q2, y, e, counts, val_mask, det_mask, c, S
 
             I, sigma = ellipsoid.integrate(*norm_params)
 
@@ -662,6 +665,50 @@ class Integration(SubPlan):
             value = I, sigma, shape, [*ellipsoid.info, *shape[:3]]
 
         return key, value
+
+    def detection_mask(self, counts):
+        coords = np.argwhere(counts > 0)
+
+        if coords.size == 0:
+            return np.zeros_like(counts, dtype=bool)
+
+        min_coords = coords.min(axis=0)
+        max_coords = coords.max(axis=0) + 1
+
+        mask = np.zeros_like(counts, dtype=bool)
+        mask[
+            tuple(
+                slice(min_c, max_c)
+                for min_c, max_c in zip(min_coords, max_coords)
+            )
+        ] = True
+
+        return mask
+
+    def interpolate(self, x0, x1, x2, y, e, c):
+        data_mask = np.isfinite(y) & (y > 0)
+        detection_mask = self.detection_mask(c)
+        # vx0, vx1, vx2 = x0[data_mask], x1[data_mask], x2[data_mask]
+        # vy = y[data_mask].copy()
+        # vc = c[data_mask].copy()
+
+        # gx = np.vstack([x0.ravel(), x1.ravel(), x2.ravel()]).T
+
+        # gy = scipy.interpolate.griddata(
+        #     (vx0, vx1, vx2), vy, gx, method="linear"
+        # )
+        # gc = scipy.interpolate.griddata(
+        #     (vx0, vx1, vx2), vc, gx, method="linear"
+        # )
+        gy = y.copy()  # gy.reshape(*y.shape)
+        gc = c.copy()  # gc.reshape(*c.shape)
+        ge = e.copy()
+        ge[~data_mask] = np.abs(gy[~data_mask])
+
+        gy[~detection_mask] = np.nan
+        ge[~detection_mask] = np.nan
+
+        return gy, ge, gc, data_mask, detection_mask
 
     def extract_peak_info(self, peaks_ws, r_cut):
         """
@@ -721,7 +768,11 @@ class Integration(SubPlan):
 
             counts = data.extract_counts("md_bin")
 
-            data_info = (Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections)
+            interp = self.interpolate(Q0, Q1, Q2, y, e, counts)
+
+            y, e, counts, data_mask, detection_mask = interp
+
+            data_info = (Q0, Q1, Q2, *interp, dQ, Q, k, projections)
 
             peak_file = self.get_plot_file(peak_name)
 
@@ -828,7 +879,7 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        n_bins = 7
+        n_bins = 15
 
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
@@ -901,7 +952,7 @@ class PeakCentroid:
     def __init__(self):
         pass
 
-    def sigma_clip(self, array, sigma=3, maxiters=5):
+    def sigma_clip(self, array, sigma=3, maxiters=3):
         array = np.array(array, dtype=float)
         y = array[np.isfinite(array)]
         mask = np.ones_like(y, dtype=bool)
@@ -934,7 +985,7 @@ class PeakCentroid:
         # dx1 = x1[0, 1, 0] - x1[0, 0, 0]
         # dx2 = x2[0, 0, 1] - x2[0, 0, 0]
 
-        B, B_err = self.sigma_clip(y, maxiters=5)
+        B, B_err = self.sigma_clip(y, maxiters=3)
 
         w = y - B
         w[w < 0] = 0
@@ -946,13 +997,7 @@ class PeakCentroid:
         c1 = np.nansum(x1 * w) / wgt
         c2 = np.nansum(x2 * w) / wgt
 
-        # I = np.nansum(y - B) * dx0 * dx1 * dx2
-        # sig = np.sqrt(np.nansum(e**2 + B)) * dx0 * dx1 * dx2
-
-        # if I > 10 * sig:
         return c0, c1, c2
-        # else:
-        #     return np.nan, np.nan, np.nan
 
     def extract_info(self, peak_dict):
         ys, es = [], []
@@ -962,11 +1007,8 @@ class PeakCentroid:
 
         for key in peak_dict.keys():
             data_info = peak_dict[key][0]
-            Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections = data_info
-            mask = e > 0
-
-            y[~mask] = np.nan
-            y[~mask] = np.nan
+            Q0, Q1, Q2, *interp, dQ, Q, k, projections = data_info
+            y, e, counts, val_mask, det_mask = interp
 
             x0 = Q0 - Q
             x1 = Q1
@@ -1197,11 +1239,8 @@ class PeakProfile:
 
         for key in peak_dict.keys():
             data_info = peak_dict[key][0]
-            Q0, Q1, Q2, counts, y, e, dQ, Q, k, projections = data_info
-            mask = e > 0
-
-            y[~mask] = np.nan
-            y[~mask] = np.nan
+            Q0, Q1, Q2, *interp, dQ, Q, k, projections = data_info
+            y, e, counts, val_mask, det_mask = interp
 
             c0 = np.nanmean(counts > 0, axis=(1, 2))
             y0 = np.nansum(y, axis=(1, 2)) / c0
@@ -1438,50 +1477,35 @@ class PeakEllipsoid:
             y_int = y.copy() / c_int
             e_int = e.copy() / c_int
 
-        # w = 1/e**2
-        # w[~np.isfinite(w)] = np.nan
-
-        # if mode == "1d_0":
-        #     c_int = dx0
-        #     w_int = np.nansum(w, axis=(1, 2))
-        #     y_int = np.nansum(y*w, axis=(1, 2)) / w_int
-        # elif mode == "1d_1":
-        #     c_int = dx1
-        #     w_int = np.nansum(w, axis=(0, 2))
-        #     y_int = np.nansum(y*w, axis=(0, 2)) / w_int
-        # elif mode == "1d_2":
-        #     c_int = dx2
-        #     w_int = np.nansum(w, axis=(0, 1))
-        #     y_int = np.nansum(y*w, axis=(0, 1)) / w_int
-        # elif mode == "2d_0":
-        #     c_int = dx1*dx2
-        #     w_int = np.nansum(w, axis=0)
-        #     y_int = np.nansum(y*w, axis=0) / w_int
-        # elif mode == "2d_1":
-        #     c_int = dx0*dx2
-        #     w_int = np.nansum(w, axis=1)
-        #     y_int = np.nansum(y*w, axis=1) / w_int
-        # elif mode == "2d_2":
-        #     c_int = dx0*dx1
-        #     w_int = np.nansum(w, axis=2)
-        #     y_int = np.nansum(y*w, axis=2) / w_int
-        # elif mode == "3d":
-        #     c_int = dx0*dx1*dx2
-        #     w_int = w.copy()
-        #     y_int = y.copy()
-
-        # e_int = np.sqrt(1 / w_int)
-
         mask = (e_int > 0) & np.isfinite(e_int)
 
         y_int[~mask] = np.nan
         e_int[~mask] = np.nan
 
-        # mask = e_int < 0.1 * y_int
-
         e_int = np.sqrt(e_int**2 + np.nanstd(y_int) ** 2 / y_int.size)
 
+        y_int = self.uniform_filter(y_int)
+        e_int = self.uniform_filter(e_int)
+
         return y_int, e_int
+
+    def uniform_filter(self, data, size=3):
+        valid_mask = np.isfinite(data)
+
+        data_fill = np.where(valid_mask, data, 0)
+
+        data_filt = scipy.ndimage.uniform_filter(
+            data_fill, size=size, mode="constant", cval=0
+        )
+        mask_filt = scipy.ndimage.uniform_filter(
+            valid_mask.astype(float), size=size, mode="constant", cval=0
+        )
+
+        result = data_filt / mask_filt
+        result[mask_filt == 0] = np.nan
+        result[~valid_mask] = np.nan
+
+        return result
 
     def ellipsoid_covariance(self, inv_S, mode="3d", perc=99.7):
         if mode == "3d":
@@ -2765,42 +2789,43 @@ class PeakEllipsoid:
     def loss(self, r):
         return np.abs(r).sum()
 
-    def interpolate(self, x0, x1, x2, y, e, c):
-        mask = np.isfinite(y) & (y > 0)
-        vx0, vx1, vx2 = x0[mask], x1[mask], x2[mask]
-        vy = y[mask].copy()
-        vc = c[mask].copy()
+    # def interpolate(self, x0, x1, x2, y, e, c):
+    #     mask = np.isfinite(y) & (y > 0)
+    #     vx0, vx1, vx2 = x0[mask], x1[mask], x2[mask]
+    #     vy = y[mask].copy()
+    #     vc = c[mask].copy()
 
-        gx = np.vstack([x0.ravel(), x1.ravel(), x2.ravel()]).T
+    #     gx = np.vstack([x0.ravel(), x1.ravel(), x2.ravel()]).T
 
-        gy = scipy.interpolate.griddata(
-            (vx0, vx1, vx2), vy, gx, method="linear"
-        )
-        gc = scipy.interpolate.griddata(
-            (vx0, vx1, vx2), vc, gx, method="linear"
-        )
+    #     gy = scipy.interpolate.griddata(
+    #         (vx0, vx1, vx2), vy, gx, method="linear"
+    #     )
+    #     gc = scipy.interpolate.griddata(
+    #         (vx0, vx1, vx2), vc, gx, method="linear"
+    #     )
 
-        gy = gy.reshape(*y.shape)
-        gc = gc.reshape(*c.shape)
+    #     gy = gy.reshape(*y.shape)
+    #     gc = gc.reshape(*c.shape)
 
-        ge = e.copy()
-        ge[~mask] = np.abs(gy[~mask])
+    #     ge = e.copy()
+    #     ge[~mask] = np.abs(gy[~mask])
 
-        mask = np.isfinite(gy) & (gy > 0)
-        gy[~mask] = np.nan
-        ge[~mask] = np.nan
+    #     mask = np.isfinite(gy) & (gy > 0)
+    #     gy[~mask] = np.nan
+    #     ge[~mask] = np.nan
 
-        return gy, ge, gc
+    #     return gy, ge, gc
 
-    def estimate_envelope(
-        self, x0, x1, x2, c_val, y_val, e_val, report_fit=False
-    ):
-        y, e, counts = self.interpolate(x0, x1, x2, y_val, e_val, c_val)
-
-        peak_mask = np.isfinite(y) & np.isfinite(e)
-
-        if (np.array(counts.shape) < 3).any():
+    def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
+        if (np.array(counts.shape) < 9).any():
             return None
+
+        if np.sum(counts) < 3 * np.sqrt(np.sum(counts)):
+            return None
+
+        # y, e, counts = self.interpolate(x0, x1, x2, y_val, e_val, c_val)
+
+        # peak_mask = np.isfinite(y) & np.isfinite(e)
 
         y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
         y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
@@ -3115,7 +3140,7 @@ class PeakEllipsoid:
 
         # inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
 
-        return c, inv_S, y1, y2, y3, peak_mask
+        return c, inv_S, y1, y2, y3
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -3134,32 +3159,36 @@ class PeakEllipsoid:
     def voxel_volume(self, x0, x1, x2):
         return np.prod(self.voxels(x0, x1, x2))
 
-    def fit(self, x0_prof, x1_proj, x2_proj, c, y_norm, e_norm, dx, xmod):
-        counts = c.copy()
-        y = y_norm.copy()
-        e = e_norm.copy()
-
+    def fit(
+        self,
+        x0_prof,
+        x1_proj,
+        x2_proj,
+        y_val,
+        e_val,
+        c_val,
+        val_mask,
+        det_mask,
+        dx,
+        xmod,
+    ):
         x0 = x0_prof - xmod
         x1 = x1_proj.copy()
         x2 = x2_proj.copy()
+
+        y, e, counts = y_val.copy(), e_val.copy(), c_val.copy()
 
         if (np.array(counts.shape) <= 9).any():
             return None
 
         self.update_constraints(x0, x1, x2, dx)
 
-        mask = (counts >= 0) & (e >= 0) & np.isfinite(counts) & np.isfinite(e)
-
-        counts[~mask] = np.nan
-        y[~mask] = np.nan
-        e[~mask] = np.nan
-
         y_max = np.nanmax(y)
 
-        if mask.sum() < 20 or (np.array(mask.shape) <= 9).any() or y_max <= 0:
+        if y_max <= 0 or np.sum(val_mask) < 11:
             return None
 
-        coords = np.argwhere(mask)
+        coords = np.argwhere(det_mask)
 
         i0, i1, i2 = coords.min(axis=0)
         j0, j1, j2 = coords.max(axis=0) + 1
@@ -3187,7 +3216,7 @@ class PeakEllipsoid:
             print("Invalid weight estimate")
             return None
 
-        c, inv_S, vals1d, vals2d, vals3d, peaks_mask = weights
+        c, inv_S, vals1d, vals2d, vals3d = weights
 
         if not np.linalg.det(inv_S) > 0:
             print("Improper optimal covariance")
@@ -3219,7 +3248,7 @@ class PeakEllipsoid:
 
         fitting = (x0 + xmod, x1, x2, *vals3d)
 
-        self.best_fit = c, S, *fitting, peaks_mask
+        self.best_fit = c, S, *fitting
 
         self.best_prof = (
             (x0[:, 0, 0] + xmod, *vals1d[0]),
@@ -3235,7 +3264,7 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def integrate(self, x0, x1, x2, y, e, counts, mask, c, S):
+    def integrate(self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         d3x = dx0 * dx1 * dx2
@@ -3257,8 +3286,8 @@ class PeakEllipsoid:
         bkg = ellipsoid > 1**2
         bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
 
-        pk = pk & mask
-        bkg = bkg & mask
+        pk = pk & val_mask
+        bkg = bkg & det_mask
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
@@ -3266,35 +3295,12 @@ class PeakEllipsoid:
         y_bkg = y[bkg].copy()
         e_bkg = e[bkg].copy()
 
-        # b = np.nansum(y_bkg/e_bkg**2)/np.nansum(1/e_bkg**2)
-        # b_err = 1/np.sqrt(np.nansum(1/e_bkg**2))
-
         N = np.sum(bkg)
         b = np.nansum(y_bkg) / N
         b_err = np.sqrt(np.nansum(e_bkg**2)) / N
 
-        # b, b_err = self.sigma_clip(y[bkg])
-
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
-
-        # intens_est = []
-        # for item in self.intensity:
-        #     if type(item) is list:
-        #         intens_est += item
-        #     else:
-        #         intens_est.append(item)
-
-        # sig_est = []
-        # for item in self.sigma:
-        #     if type(item) is list:
-        #         sig_est += item
-        #     else:
-        #         sig_est.append(item)
-
-        # sig_noise = [I / sig for I, sig in zip(intens_est, sig_est)]
-
-        # sig = np.sqrt(sig**2+np.std(intens_est)**2/len(intens_est))
 
         self.weights = (x0[pk], x1[pk], x2[pk]), counts[pk].copy()
 
@@ -3303,7 +3309,6 @@ class PeakEllipsoid:
         freq = y.copy()
         freq[~(pk | bkg)] = np.nan
         freq -= b
-        # freq[freq <= 0] = np.nan
 
         c_pk = counts[pk].copy()
         c_bkg = counts[bkg].copy()
@@ -3311,8 +3316,6 @@ class PeakEllipsoid:
         N = np.sum(bkg)
         b_raw = np.nansum(c_bkg) / N
         b_raw_err = np.sqrt(np.nansum(c_bkg)) / N
-
-        # b_raw, b_raw_err = self.sigma_clip(counts[bkg])
 
         intens_raw = np.nansum(c_pk - b_raw)
         sig_raw = np.sqrt(np.nansum(c_pk + b_raw_err**2))

@@ -742,16 +742,16 @@ class PeaksModel:
             if forbidden:
                 peak.setRunNumber(-1)
 
+        CombinePeaksWorkspaces(
+            LHSWorkspace=peaks, RHSWorkspace=sat_peaks, OutputWorkspace=peaks
+        )
+
         FilterPeaks(
             InputWorkspace=peaks,
             OutputWorkspace=peaks,
             FilterVariable="RunNumber",
             FilterValue=-1,
             Operator="!=",
-        )
-
-        CombinePeaksWorkspaces(
-            LHSWorkspace=peaks, RHSWorkspace=sat_peaks, OutputWorkspace=peaks
         )
 
         ol = mtd[peaks].sample().getOrientedLattice()
