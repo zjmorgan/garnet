@@ -454,15 +454,7 @@ class PrunePeaks:
     def extinction_xs(self, g, F2, two_theta, lamda, Tbar, V):
         a = 1e-4  # Ang
 
-        xs = (
-            a**2
-            / V**2
-            * lamda**3
-            * g
-            / np.sin(two_theta)
-            * (Tbar * 1e8)
-            * F2
-        )
+        xs = a**2 / V**2 * lamda**3 * g / np.sin(two_theta) * Tbar * F2
 
         return xs
 
@@ -505,7 +497,7 @@ class PrunePeaks:
         return wr[np.isfinite(wr)]
 
     def residual(self, x, I, sig, two_theta, lamda, Tbar, k, model):
-        (p,) = x[0]
+        p = x[0]
 
         I0 = np.copy(k)
 
@@ -532,7 +524,7 @@ class PrunePeaks:
 
             I = peak.getIntensity()
             sig = peak.getSigmaIntensity()
-            Tbar = peak.getAbsorptionWeightedPathLength()
+            Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Angstrom
 
             items = peaks_dict.get(key)
 
@@ -555,6 +547,8 @@ class PrunePeaks:
         self.peaks_dict = peaks_dict
 
     def extiction_prune(self):
+        self.params_dict = {}
+
         for model in self.models:
             app = "_{}.pdf".format(model).replace(" ", "_")
 
@@ -579,8 +573,6 @@ class PrunePeaks:
                         loss="soft_l1",
                     )
 
-                    ext_dict = {}
-
                     scales, I0s = [], []
 
                     for key in self.peaks_dict.keys():
@@ -588,19 +580,17 @@ class PrunePeaks:
                             key
                         ]
 
-                        (p,) = sol.x[0]
+                        param = sol.x[0]
 
                         I0 = np.copy(k)
 
                         y = self.extinction_correction(
-                            p, I0, two_theta, lamda, Tbar, model
+                            param, I0, two_theta, lamda, Tbar, model
                         )
 
                         s = self.scale_factor(y, I, sig)
 
                         self.peaks_dict[key][-1] = s
-
-                        ext_dict[key] = s, F2, y
 
                         scales.append(s)
                         I0s.append(I0)
@@ -615,12 +605,87 @@ class PrunePeaks:
                     ax.minorticks_on()
                     ax.set_xlabel("scale $s$")
                     ax.set_ylabel("$I_0$")
-                    # ax.set_xscale('log')
-                    # ax.set_yscale('log')
                     pdf.savefig()
 
+            self.params_dict[model] = param
 
-class SaveLoadPeaks:
+    def generate_families(self):
+        lamda_max = np.max(mtd[self.peaks].column("Wavelength"))
+
+        self.lamda = np.linspace(0, lamda_max, 200)
+
+        self.model_dict = {}
+
+        for model in self.models:
+            familiy_dict = {}
+
+            for key in self.peaks_dict.keys():
+                I, sig, lamda, two_theta, Tbar, k = self.peaks_dict[key]
+
+                slope, intercept = scipy.stats.siegelslopes(Tbar, lamda)
+
+                tbar = slope * self.lamda + intercept
+
+                d = np.mean(lamda / (0.5 * np.sin(0.5 * two_theta)))
+
+                tt = 2 * np.abs(np.arcsin(self.lamda / (0.5 * d)))
+
+                param = self.params_dict[model]
+
+                y = self.extinction_correction(
+                    param, k, tt, self.lamda, tbar, model
+                )
+
+                familiy_dict[key] = k * y
+
+            self.model_dict[model] = familiy_dict
+
+    def create_figure(self, key):
+        I, sig, lamda, two_theta, Tbar, c = self.peaks_dict[key]
+
+        sort = np.argsort(lamda)
+        I, sig, lamda = I[sort].copy(), sig[sort].copy(), lamda[sort].copy()
+
+        fig, ax = plt.subplots()
+        ax.errorbar(lamda, I, sig, fmt="o", color="C0", zorder=2)
+
+        for i, model in enumerate(self.models):
+            I_fit = self.model_dict[model][key]
+            ax.plot(
+                self.lamda,
+                I_fit,
+                color="C{}".format(i + 1),
+                lw=1,
+                zorder=0,
+                label="{}".format(model),
+            )
+
+        ax.legend(shadow=True)
+        ax.minorticks_on()
+        ax.set_title(str(key))
+        ax.set_xlim(0, self.lamda[-1])
+        ax.set_ylim(0, None)
+        ax.set_xlabel("$\lambda$ [$\AA$]")
+        ax.set_ylabel("$I$ [arb. unit]")
+
+        return key, fig
+
+    def save_extinction(self):
+        filename = os.path.splitext(self.filename) + "_ext.pdf"
+
+        with PdfPages(filename) as pdf:
+            with ProcessPoolExecutor() as executor:
+                futures = {
+                    executor.submit(self.create_figure, key): key
+                    for key in self.peaks_dict.keys()
+                }
+                for future in futures:
+                    key, fig = future.result()
+                    pdf.savefig(fig, dpi=100, bbox_inches=None)
+                    plt.close(fig)
+
+
+class Peaks:
     def __init__(self, peaks, filename, scale=None):
         self.peaks = peaks
 
@@ -650,6 +715,10 @@ class SaveLoadPeaks:
             peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
             peak.setRunNumber(1)
 
+        filename = os.path.splitext(self.filename)[0] + "_scale.txt"
+        with open(filename, "w") as f:
+            f.write("{:.4e}".format(scale))
+
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
@@ -661,7 +730,7 @@ class SaveLoadPeaks:
         else:
             app = ""
 
-        filename = os.path.splitext(self.filename) + app
+        filename = os.path.splitext(self.filename)[0] + app
 
         FilterPeaks(
             InputWorkspace=self.peaks,
@@ -683,7 +752,7 @@ class SaveLoadPeaks:
         hkls = np.round(np.column_stack([*hkl, s]) * 1000, 1).astype(int)
         sort = np.lexsort(hkls.T).tolist()
         for no, i in enumerate(sort):
-            peak = mtd["prune"].getPeak(i)
+            peak = mtd[self.peaks].getPeak(i)
             peak.setPeakNumber(no)
             peak.setRunNumber(1)
 
@@ -707,7 +776,9 @@ def main():
     parser = argparse.ArgumentParser(description="Corrections for integration")
 
     parser.add_argument(
-        "filename", type=str, help="Peaks Workspace", required=True
+        "filename",
+        type=str,
+        help="Peaks Workspace",
     )
 
     parser.add_argument(
@@ -756,11 +827,15 @@ def main():
         help="Sample shape sphere, cylinder, plate",
     )
 
+    parser.add_argument(
+        "-c", "--scale", type=float, default=None, help="Scale factor"
+    )
+
     args = parser.parse_args()
 
-    # if args.verbose:
-    #     print("Verbose mode enabled.")
-    # print(f"Hello, {args.name}!")
+    peaks = Peaks("peaks", args.filename, args.scale)
+    peaks.load_peaks()
+    peaks.save_peaks()
 
 
 if __name__ == "__main__":
