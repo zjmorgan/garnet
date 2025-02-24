@@ -3280,14 +3280,14 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        pk = ellipsoid <= 1**2
-        pk = scipy.ndimage.binary_dilation(pk)
+        pk = (ellipsoid <= 1**2) & val_mask
+        # pk = scipy.ndimage.binary_dilation(pk)
 
-        bkg = ellipsoid > 1**2
-        bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
+        bkg = (ellipsoid > 1**2) & (ellipsoid < np.cbrt(2) ** 2) & det_mask
+        # bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
 
-        pk = pk & val_mask
-        bkg = bkg & det_mask
+        # pk = pk & val_mask
+        # bkg = bkg & det_mask
 
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
