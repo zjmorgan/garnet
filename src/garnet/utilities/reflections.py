@@ -1,5 +1,6 @@
 import os
-import sys
+
+# import sys
 
 from mantid.simpleapi import (
     LoadNexus,
@@ -23,14 +24,15 @@ import numpy as np
 import scipy.optimize
 import scipy.interpolate
 
-from mantid.geometry import PointGroupFactory
+# from mantid.geometry import PointGroupFactory
 from mantid import config
 
 config["Q.convention"] = "Crystallography"
 
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import Pool
+from PyPDF2 import PdfMerger
 
 import argparse
 
@@ -47,7 +49,7 @@ class AbsorptionCorrection:
         shape="plate",
         filename=None,
     ):
-        assert "PeaksWorkspace" in str(type(peaks))
+        assert "PeaksWorkspace" in str(type(mtd[peaks]))
 
         self.peaks = peaks
 
@@ -67,13 +69,13 @@ class AbsorptionCorrection:
         assert len(u_vector) == 3
         assert len(v_vector) == 3
 
-        assert not np.isclose(np.dot(u_vector, v_vector), 0)
+        assert not np.isclose(np.linalg.norm(np.cross(u_vector, v_vector)), 0)
 
         self.u_vector = u_vector
         self.v_vector = v_vector
 
         if shape == "sphere":
-            assert type(params) is float
+            assert len(params) == 1
         elif shape == "cylinder":
             assert len(params) == 2
         else:
@@ -89,7 +91,11 @@ class AbsorptionCorrection:
         self.filename = filename
 
         self.set_shape()
-        self.create_sample_orientations()
+        self.set_material()
+        self.set_orientation()
+        self.calculate_correction()
+        self.write_absortion_parameters()
+        self.apply_correction()
 
     def verify_chemical_formula(self, formula):
         pattern = (
@@ -128,7 +134,7 @@ class AbsorptionCorrection:
             <rotate x="{}" y="{}" z="{}" /> \
             </sphere> \
             '.format(
-                self.params / 200, alpha, beta, gamma
+                self.params[0] / 2000, alpha, beta, gamma
             )
         elif self.shape == "cylinder":
             shape = ' \
@@ -140,7 +146,11 @@ class AbsorptionCorrection:
             <rotate x="{}" y="{}" z="{}" /> \
             </cylinder> \
           '.format(
-                self.params[0] / 200, self.params[1] / 100, alpha, beta, gamma
+                self.params[0] / 2000,
+                self.params[1] / 1000,
+                alpha,
+                beta,
+                gamma,
             )
         else:
             shape = ' \
@@ -153,9 +163,9 @@ class AbsorptionCorrection:
             </cuboid> \
             <algebra val="cuboid" /> \
           '.format(
-                self.params[0] / 100,
-                self.params[1] / 100,
-                self.params[2] / 100,
+                self.params[0] / 1000,
+                self.params[1] / 1000,
+                self.params[2] / 1000,
                 alpha,
                 beta,
                 gamma,
@@ -197,47 +207,114 @@ class AbsorptionCorrection:
     def calculate_correction(self):
         peaks = self.peaks + "_corr"
 
-        for i, run in enumerate(self.runs):
-            FilterPeaks(
-                InputWorkspace=self.peaks,
-                FilterVariable="RunNumber",
-                FilterValue=run,
-                Operator="=",
-                OutputWorkspace="_tmp",
-            )
+        filename = os.path.splitext(self.filename)[0] + "_abs.pdf"
 
-            R = mtd["_tmp"].getPeak(0).getGoniometerMatrix()
-
-            mtd["_tmp"].run().getGoniometer().setR(R)
-            omega, chi, phi = (
-                mtd["_tmp"].run().getGoniometer().getEulerAngles("YZY")
-            )
-
-            SetGoniometer(
-                Workspace="_tmp",
-                Axis0="{},0,1,0,1".format(omega),
-                Axis1="{},0,0,1,1".format(chi),
-                Axis2="{},0,1,0,1".format(phi),
-            )
-
-            SetSample(
-                InputWorkspace="_tmp",
-                Geometry=self.shape_dict,
-                Material=self.mat_dict,
-            )
-
-            AddAbsorptionWeightedPathLengths(
-                InputWorkspace="_tmp", ApplyCorrection=False
-            )
-
-            if i == 0:
-                CloneWorkspace(InputWorkspace="_tmp", OutputWorkspace=peaks)
-            else:
-                CombinePeaksWorkspaces(
-                    LHSWorkspace=peaks,
-                    RHSWorkspace="_tmp",
-                    OutputWorkspace=peaks,
+        with PdfPages(filename) as pdf:
+            for i, (R, run) in enumerate(zip(self.Rs, self.runs)):
+                FilterPeaks(
+                    InputWorkspace=self.peaks,
+                    FilterVariable="RunNumber",
+                    FilterValue=run,
+                    Operator="=",
+                    OutputWorkspace="_tmp",
                 )
+
+                R = mtd["_tmp"].getPeak(0).getGoniometerMatrix()
+
+                mtd["_tmp"].run().getGoniometer().setR(R)
+                omega, chi, phi = (
+                    mtd["_tmp"].run().getGoniometer().getEulerAngles("YZY")
+                )
+
+                SetGoniometer(
+                    Workspace="_tmp",
+                    Axis0="{},0,1,0,1".format(omega),
+                    Axis1="{},0,0,1,1".format(chi),
+                    Axis2="{},0,1,0,1".format(phi),
+                )
+
+                SetSample(
+                    InputWorkspace="_tmp",
+                    Geometry=self.shape_dict,
+                    Material=self.mat_dict,
+                )
+
+                AddAbsorptionWeightedPathLengths(
+                    InputWorkspace="_tmp", ApplyCorrection=False
+                )
+
+                if i == 0:
+                    CloneWorkspace(
+                        InputWorkspace="_tmp", OutputWorkspace=peaks
+                    )
+                else:
+                    CombinePeaksWorkspaces(
+                        LHSWorkspace=peaks,
+                        RHSWorkspace="_tmp",
+                        OutputWorkspace=peaks,
+                    )
+
+                hkl = np.eye(3)
+                s = np.matmul(self.UB, hkl)
+
+                reciprocal_lattice = np.matmul(R, s)
+
+                shape = mtd["_tmp"].sample().getShape()
+                mesh = shape.getMesh() * 100
+
+                mesh_polygon = Poly3DCollection(
+                    mesh,
+                    edgecolors="k",
+                    facecolors="w",
+                    alpha=0.5,
+                    linewidths=1,
+                )
+
+                fig, ax = plt.subplots(
+                    subplot_kw={"projection": "mantid3d", "proj_type": "persp"}
+                )
+                ax.add_collection3d(mesh_polygon)
+
+                ax.set_title("run #{}".format(1 + i))
+                ax.set_xlabel("x [cm]")
+                ax.set_ylabel("y [cm]")
+                ax.set_zlabel("z [cm]")
+
+                ax.set_mesh_axes_equal(mesh)
+                ax.set_box_aspect((1, 1, 1))
+
+                colors = ["r", "g", "b"]
+                origin = (
+                    ax.get_xlim3d()[1],
+                    ax.get_ylim3d()[1],
+                    ax.get_zlim3d()[1],
+                )
+                origin = (0, 0, 0)
+                lims = ax.get_xlim3d()
+                factor = (lims[1] - lims[0]) / 3
+
+                for j in range(3):
+                    vector = reciprocal_lattice[:, j]
+                    vector_norm = vector / np.linalg.norm(vector)
+                    ax.quiver(
+                        origin[0],
+                        origin[1],
+                        origin[2],
+                        vector_norm[0],
+                        vector_norm[1],
+                        vector_norm[2],
+                        length=factor,
+                        color=colors[j],
+                        linestyle="-",
+                    )
+
+                    ax.view_init(vertical_axis="y", elev=27, azim=50)
+
+                pdf.savefig(fig, dpi=100, bbox_inches=None)
+                plt.close(fig)
+                plt.close("all")
+
+        CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=self.peaks)
 
     def write_absortion_parameters(self):
         mat = mtd["_tmp"].sample().getMaterial()
@@ -283,7 +360,7 @@ class AbsorptionCorrection:
             print(line)
 
         if self.filename is not None:
-            filename = os.path.splitext(self.filename) + "_abs.txt"
+            filename = os.path.splitext(self.filename)[0] + "_abs.txt"
 
             with open(filename, "w") as f:
                 for line in lines:
@@ -307,77 +384,18 @@ class AbsorptionCorrection:
             peak.setIntensity(peak.getIntensity() * corr)
             peak.setSigmaIntensity(peak.getSigmaIntensity() * corr)
 
-    def create_sample_orientations(self):
-        filename = os.path.splitext(self.filename) + "_abs.pdf"
-
-        with PdfPages(filename) as pdf:
-            for R, run in zip(self.Rs, self.runs):
-                hkl = np.eye(3)
-                q = np.matmul(self.UB, hkl)
-
-                reciprocal_lattice = np.matmul(R, q)
-
-                shape = mtd["_tmp"].sample().getShape()
-                mesh = shape.getMesh() * 100
-
-                mesh_polygon = Poly3DCollection(
-                    mesh,
-                    edgecolors="k",
-                    facecolors="w",
-                    alpha=0.5,
-                    linewidths=1,
-                )
-
-                fig, ax = plt.subplots(
-                    subplot_kw={"projection": "mantid3d", "proj_type": "persp"}
-                )
-                ax.add_collection3d(mesh_polygon)
-
-                ax.set_title("run #{}".format(run))
-                ax.set_xlabel("x [cm]")
-                ax.set_ylabel("y [cm]")
-                ax.set_zlabel("z [cm]")
-
-                ax.set_mesh_axes_equal(mesh)
-                ax.set_box_aspect((1, 1, 1))
-
-                colors = ["r", "g", "b"]
-                origin = (
-                    ax.get_xlim3d()[1],
-                    ax.get_ylim3d()[1],
-                    ax.get_zlim3d()[1],
-                )
-                origin = (0, 0, 0)
-                lims = ax.get_xlim3d()
-                factor = (lims[1] - lims[0]) / 3
-
-                for j in range(3):
-                    vector = reciprocal_lattice[:, j]
-                    vector_norm = vector / np.linalg.norm(vector)
-                    ax.quiver(
-                        origin[0],
-                        origin[1],
-                        origin[2],
-                        vector_norm[0],
-                        vector_norm[1],
-                        vector_norm[2],
-                        length=factor,
-                        color=colors[j],
-                        linestyle="-",
-                    )
-
-                    ax.view_init(vertical_axis="y", elev=27, azim=50)
-
-                pdf.savefig(fig, dpi=100, bbox_inches=None)
-                plt.close(fig)
-                plt.close("all")
-
 
 class PrunePeaks:
-    def __init__(self, peaks):
-        assert "PeaksWorkspace" in str(type(peaks))
+    def __init__(self, peaks, filename=None):
+        assert "PeaksWorkspace" in str(type(mtd[peaks]))
 
         self.peaks = peaks
+
+        if filename is not None:
+            assert type(filename) is str
+            assert os.path.exists(os.path.dirname(filename))
+
+        self.filename = filename
 
         self.remove_non_integrated()
         self.remove_off_centered()
@@ -394,6 +412,9 @@ class PrunePeaks:
         assert V > 0
 
         self.V = V
+
+        self.extinction_prune()
+        self.workspaces = self.save_extinction()
 
     def remove_non_integrated(self):
         for peak in mtd[self.peaks]:
@@ -422,18 +443,22 @@ class PrunePeaks:
         f1 = {}
         f2 = {}
 
+        directory = os.path.dirname(os.path.abspath(__file__))
+
         for model in self.models:
             if "gaussian" in model:
-                file_ext = "secondary_extinction_gaussian_sphere.csv"
+                filename = "secondary_extinction_gaussian_sphere.csv"
             elif "lorentzian" in model:
-                file_ext = "secondary_extinction_lorentzian_sphere.csv"
+                filename = "secondary_extinction_lorentzian_sphere.csv"
             else:
-                file_ext = "primary_extinction_sphere.csv"
+                filename = "primary_extinction_sphere.csv"
+
+            fname = os.path.join(directory, filename)
 
             data = np.loadtxt(
-                file_ext, skiprows=1, delimiter=",", usecols=np.arange(91)
+                fname, skiprows=1, delimiter=",", usecols=np.arange(91)
             )
-            theta = np.loadtxt(file_ext, delimiter=",", max_rows=1)
+            theta = np.loadtxt(fname, delimiter=",", max_rows=1)
 
             f1[model] = scipy.interpolate.interp1d(
                 2 * np.deg2rad(theta),
@@ -465,6 +490,14 @@ class PrunePeaks:
 
         return xp
 
+    def extinction_xi(self, two_theta, lamda, Tbar, model):
+        V = self.V
+        if model == "type II":
+            xi = self.extinction_xp(1, 1, lamda, V)
+        else:
+            xi = self.extinction_xs(1, 1, two_theta, lamda, Tbar, V)
+        return xi
+
     def extinction_correction(self, param, F2, two_theta, lamda, Tbar, model):
         c1, c2 = self.f1[model](two_theta), self.f2[model](two_theta)
 
@@ -472,17 +505,41 @@ class PrunePeaks:
 
         if model == "type II":
             xp = self.extinction_xp(param, F2, lamda, V)
-            yp = 1 / (1 + c1 * xp) ** c2
+            yp = 1 / (1 + c1 * xp**c2)
             return yp
         else:
             xs = self.extinction_xs(param, F2, two_theta, lamda, Tbar, V)
-            ys = 1 / (1 + c1 * xs) * c2
+            ys = 1 / (1 + c1 * xs**c2)
             return ys
 
-    def scale_factor(self, y_hat, y, e):
-        s = np.nanmedian(y / y_hat)
+    def weighted_median(self, values, weights):
+        sorted_indices = np.argsort(values)
+        values_sorted = values[sorted_indices]
+        weights_sorted = weights[sorted_indices]
+        cumulative_weights = np.cumsum(weights_sorted)
+        midpoint = cumulative_weights[-1] / 2
+        return values_sorted[np.searchsorted(cumulative_weights, midpoint)]
 
-        return s
+    def scale_factor(self, y_hat, y, e, iterations=3, threshold=1.486):
+        mask = y_hat != 0  # Avoid division by zero
+        y_hat, y, e = y_hat[mask], y[mask], e[mask]
+
+        for iteration in range(iterations):
+            z = y / y_hat
+            w = np.abs(y_hat) / e
+            c = self.weighted_median(z, w)
+
+            residuals = (c * y_hat - y) / e
+
+            mad = np.median(np.abs(residuals - np.median(residuals)))
+            mask = residuals <= threshold * mad
+
+            y_hat, y, e = y_hat[mask], y[mask], e[mask]
+
+            if len(y) == 0:
+                break
+
+        return c
 
     def cost(self, x, model):
         wr = []
@@ -490,7 +547,7 @@ class PrunePeaks:
         for key in self.peaks_dict.keys():
             I, sig, lamda, two_theta, Tbar, k = self.peaks_dict[key]
             diff = self.residual(x, I, sig, two_theta, lamda, Tbar, k, model)
-            wr += diff.tolist()
+            wr += diff
 
         wr = np.array(wr)
 
@@ -505,7 +562,7 @@ class PrunePeaks:
 
         s = self.scale_factor(y, I, sig)
 
-        return (s * y - I) / sig
+        return ((s * y - I) / sig).tolist()
 
     def extract_info(self):
         peaks_dict = {}
@@ -542,147 +599,234 @@ class PrunePeaks:
         for key in peaks_dict.keys():
             items = peaks_dict.get(key)
             items = [np.array(item) for item in items]
-            peaks_dict[key] = *items, np.nanmedian(items[0])
+            peaks_dict[key] = [*items, np.nanmedian(items[0])]
 
         self.peaks_dict = peaks_dict
 
-    def extiction_prune(self):
-        self.params_dict = {}
+    def process_model(self, model):
+        app = "_{}.pdf".format(model).replace(" ", "_")
 
-        for model in self.models:
-            app = "_{}.pdf".format(model).replace(" ", "_")
+        filename = os.path.splitext(self.filename)[0] + app
 
-            filename = os.path.splitext(self.filename) + app
+        with PdfPages(filename) as pdf:
+            I_max, xi = 0, []
+            for key, value in self.peaks_dict.items():
+                I = np.nanmedian(value[0])
+                if I > I_max:
+                    I_max = I
+                self.peaks_dict[key][-1] = I
+                I, sig, lamda, two_theta, Tbar, k = value
+                xi += self.extinction_xi(
+                    two_theta, lamda, Tbar, model
+                ).tolist()
 
-            with PdfPages(filename) as pdf:
-                I_max = 0
-                for key in self.peaks_dict.keys():
-                    items = list(self.peaks_dict.get(key))
-                    I = np.nanmedian(items[0])
-                    if I > I_max:
-                        I_max = I
-                    items[-1] = I
-                    self.peaks_dict[key] = items
+            fit_dict = {}
 
-                for i_iter in range(self.n_iter):
-                    sol = scipy.optimize.least_squares(
-                        self.cost,
-                        x0=(1 / I_max),
-                        bounds=([0], [np.inf]),
-                        args=(model),
-                        loss="soft_l1",
-                    )
+            fig, ax = plt.subplots(1, 1, layout="constrained")
 
-                    scales, I0s = [], []
+            chi2dof = []
 
-                    for key in self.peaks_dict.keys():
-                        I, sig, lamda, two_theta, Tbar, k = self.peaks_dict[
-                            key
-                        ]
-
-                        param = sol.x[0]
-
-                        I0 = np.copy(k)
-
-                        y = self.extinction_correction(
-                            param, I0, two_theta, lamda, Tbar, model
-                        )
-
-                        s = self.scale_factor(y, I, sig)
-
-                        self.peaks_dict[key][-1] = s
-
-                        scales.append(s)
-                        I0s.append(I0)
-
-                    scales = np.array(scales)
-                    I0s = np.array(I0s)
-
-                    mask = (I0s > 0) & (scales > 0)
-
-                    fig, ax = plt.subplots(1, 1, layout="constrained")
-                    ax.plot(scales[mask], I0s[mask], ".")
-                    ax.minorticks_on()
-                    ax.set_xlabel("scale $s$")
-                    ax.set_ylabel("$I_0$")
-                    pdf.savefig()
-
-            self.params_dict[model] = param
-
-    def generate_families(self):
-        lamda_max = np.max(mtd[self.peaks].column("Wavelength"))
-
-        self.lamda = np.linspace(0, lamda_max, 200)
-
-        self.model_dict = {}
-
-        for model in self.models:
-            familiy_dict = {}
-
-            for key in self.peaks_dict.keys():
-                I, sig, lamda, two_theta, Tbar, k = self.peaks_dict[key]
-
-                slope, intercept = scipy.stats.siegelslopes(Tbar, lamda)
-
-                tbar = slope * self.lamda + intercept
-
-                d = np.mean(lamda / (0.5 * np.sin(0.5 * two_theta)))
-
-                tt = 2 * np.abs(np.arcsin(self.lamda / (0.5 * d)))
-
-                param = self.params_dict[model]
-
-                y = self.extinction_correction(
-                    param, k, tt, self.lamda, tbar, model
+            for i_iter in range(self.n_iter):
+                sol = scipy.optimize.least_squares(
+                    self.cost,
+                    x0=(10 / I_max / np.median(xi)),
+                    bounds=([0], [np.inf]),
+                    args=(model,),
+                    loss="soft_l1",
                 )
 
-                familiy_dict[key] = k * y
+                scales, I0s = [], []
 
+                chi2dof.append(
+                    np.sum(sol.fun**2) / (sol.fun.size - sol.x.size)
+                )
+
+                for key, value in self.peaks_dict.items():
+                    I, sig, lamda, two_theta, Tbar, k = value
+
+                    param = sol.x[0]
+
+                    I0 = np.copy(k)
+
+                    y = self.extinction_correction(
+                        param, I0, two_theta, lamda, Tbar, model
+                    )
+
+                    s = self.scale_factor(y, I, sig)
+
+                    self.peaks_dict[key][-1] = s
+
+                    scales.append(s)
+                    I0s.append(I0)
+
+                    fit_dict[key] = s * y, s
+
+                scales = np.array(scales)
+                I0s = np.array(I0s)
+
+                mask = (I0s > 0) & (scales > 0)
+
+                ax.plot(scales[mask], I0s[mask], ".")
+            ax.minorticks_on()
+            ax.set_xlabel("scale $s$")
+            ax.set_ylabel("$I_0$")
+            pdf.savefig()
+
+            fig, ax = plt.subplots(1, 1, layout="constrained")
+            ax.errorbar(np.arange(len(chi2dof)) + 1, chi2dof, fmt="-o")
+            ax.minorticks_on()
+            ax.set_xlabel("Interation #")
+            ax.set_ylabel("$\chi^2$")
+            # ax.set_yscale('log')
+            pdf.savefig()
+
+        familiy_dict = {}
+
+        for key in self.peaks_dict.keys():
+            I, sig, lamda, two_theta, Tbar, k = self.peaks_dict[key]
+
+            wl = np.linspace(0, np.max(lamda), 200)
+
+            slope, intercept = scipy.stats.siegelslopes(Tbar, lamda)
+
+            tbar = slope * wl + intercept
+
+            d = np.mean(lamda / (2 * np.sin(0.5 * two_theta)))
+
+            tt = 2 * np.abs(np.arcsin(wl / (2 * d)))
+
+            param = sol.x[0]
+
+            y = self.extinction_correction(param, k, tt, wl, tbar, model)
+
+            familiy_dict[key] = wl, k * y
+
+        return model, fit_dict, sol.x[0], familiy_dict
+
+    def extinction_prune(self):
+        self.filter_dict = {}
+        self.parameter_dict = {}
+        self.model_dict = {}
+        self.lamda_max = np.max(mtd[self.peaks].column("Wavelength"))
+
+        with Pool(processes=3) as pool:
+            results = pool.map(self.process_model, self.models)
+
+        for model, fit_dict, param, familiy_dict in results:
+            self.filter_dict[model] = fit_dict
+            self.parameter_dict[model] = param
             self.model_dict[model] = familiy_dict
 
-    def create_figure(self, key):
+    def create_figure(self, key, relerr=0.1):
+        label = "_({},{},{},{},{},{}).pdf".format(*key)
+        filename = os.path.splitext(self.filename)[0] + label
+
         I, sig, lamda, two_theta, Tbar, c = self.peaks_dict[key]
 
         sort = np.argsort(lamda)
         I, sig, lamda = I[sort].copy(), sig[sort].copy(), lamda[sort].copy()
 
-        fig, ax = plt.subplots()
-        ax.errorbar(lamda, I, sig, fmt="o", color="C0", zorder=2)
+        fig, ax = plt.subplots(
+            3, 1, sharex=True, sharey=True, layout="constrained"
+        )
 
         for i, model in enumerate(self.models):
-            I_fit = self.model_dict[model][key]
-            ax.plot(
-                self.lamda,
+            I_fit = self.filter_dict[model][key][0][sort]
+
+            mask = np.abs(I - I_fit) / I_fit < relerr
+
+            ax[i].errorbar(
+                lamda[mask], I[mask], sig[mask], fmt="o", color="C0", zorder=2
+            )
+            ax[i].errorbar(
+                lamda[~mask],
+                I[~mask],
+                sig[~mask],
+                fmt="s",
+                color="C2",
+                zorder=2,
+            )
+
+            lamda_fit, I_fit = self.model_dict[model][key]
+
+            ax[i].plot(
+                lamda_fit,
                 I_fit,
-                color="C{}".format(i + 1),
+                color="C1",
                 lw=1,
                 zorder=0,
                 label="{}".format(model),
             )
 
-        ax.legend(shadow=True)
-        ax.minorticks_on()
-        ax.set_title(str(key))
-        ax.set_xlim(0, self.lamda[-1])
-        ax.set_ylim(0, None)
-        ax.set_xlabel("$\lambda$ [$\AA$]")
-        ax.set_ylabel("$I$ [arb. unit]")
+            ax[i].legend(shadow=True)
+            ax[i].minorticks_on()
+            ax[i].set_xlim(0, self.lamda_max)
+            ax[i].set_ylabel("$I$ [arb. unit]")
 
-        return key, fig
+        ax[0].set_title(str(key))
+        ax[2].set_xlabel("$\lambda$ [$\AA$]")
 
-    def save_extinction(self):
-        filename = os.path.splitext(self.filename) + "_ext.pdf"
+        fig.savefig(filename)
+        plt.close(fig)
 
-        with PdfPages(filename) as pdf:
-            with ProcessPoolExecutor() as executor:
-                futures = {
-                    executor.submit(self.create_figure, key): key
-                    for key in self.peaks_dict.keys()
-                }
-                for future in futures:
-                    key, fig = future.result()
-                    pdf.savefig(fig, dpi=100, bbox_inches=None)
-                    plt.close(fig)
+        return filename
+
+    def save_extinction(self, relerr=0.1):
+        filename = os.path.splitext(self.filename)[0] + "_ext.pdf"
+
+        with Pool() as pool:
+            pdf_files = pool.map(self.create_figure, self.peaks_dict.keys())
+
+        merger = PdfMerger()
+        for pdf_file in pdf_files:
+            with open(pdf_file, "rb") as f:
+                merger.append(f)
+        with open(filename, "wb") as f:
+            merger.write(f)
+        merger.close()
+
+        for pdf_file in pdf_files:
+            if os.path.exists(pdf_file):
+                os.remove(pdf_file)
+
+        workspaces = []
+
+        for model in self.models:
+            peaks = model.replace(" ", "_")
+            workspaces.append(peaks)
+
+            CloneWorkspace(InputWorkspace=self.peaks, OutputWorkspace=peaks)
+
+            for peak in mtd[peaks]:
+                h, k, l = [int(val) for val in peak.getIntHKL()]
+                m, n, p = [int(val) for val in peak.getIntMNP()]
+
+                key = (h, k, l, m, n, p)
+                key_neg = tuple(-val for val in key)
+
+                key = max(key, key_neg)
+
+                I, sig, lamda, two_theta, A, Tbar = self.peaks_dict[key]
+
+                param = self.parameter_dict[model]
+                s = self.filter_dict[model][key][1]
+
+                I = peak.getIntensity()
+                # sig = peak.getSigmaIntensity()
+                two_theta = peak.getScattering()
+                lamda = peak.getWavelength()
+                Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
+
+                y = self.extinction_correction(
+                    param, s, two_theta, lamda, Tbar, model
+                )
+
+                I_fit = s * y
+
+                if np.abs(I - I_fit) / I_fit > relerr:
+                    peak.setSigmaIntensity(I)
+
+        return workspaces
 
 
 class Peaks:
@@ -722,54 +866,70 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
-    def save_peaks(self, name=None):
+        SortPeaksWorkspace(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=self.peaks,
+            ColumnNameToSortBy="DSpacing",
+            SortAscending=False,
+        )
+
+        SortPeaksWorkspace(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=self.peaks,
+            ColumnNameToSortBy="Intens",
+            SortAscending=False,
+        )
+
         self.rescale_intensities()
 
+    def save_peaks(self, name=None):
         if name is not None:
+            peaks = name
             app = "_{}".format(name).replace(" ", "_")
         else:
+            peaks = self.peaks
             app = ""
 
         filename = os.path.splitext(self.filename)[0] + app
 
         FilterPeaks(
-            InputWorkspace=self.peaks,
-            OutputWorkspace=self.peaks,
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
             FilterVariable="Signal/Noise",
             FilterValue=3,
             Operator=">",
         )
 
         hkl = [
-            mtd[self.peaks].column(mtd[self.peaks].getColumnNames().index(col))
+            mtd[peaks].column(mtd[peaks].getColumnNames().index(col))
             for col in ["h", "k", "l"]
         ]
         s = [
-            1 / mtd[self.peaks].sample().getOrientedLattice().d(h, k, l)
+            1 / mtd[peaks].sample().getOrientedLattice().d(h, k, l)
             for h, k, l in zip(*hkl)
         ]
 
         hkls = np.round(np.column_stack([*hkl, s]) * 1000, 1).astype(int)
         sort = np.lexsort(hkls.T).tolist()
         for no, i in enumerate(sort):
-            peak = mtd[self.peaks].getPeak(i)
+            peak = mtd[peaks].getPeak(i)
             peak.setPeakNumber(no)
             peak.setRunNumber(1)
 
         SortPeaksWorkspace(
-            InputWorkspace=self.peaks,
+            InputWorkspace=peaks,
             ColumnNameToSortBy="PeakNumber",
             SortAscending=True,
-            OutputWorkspace=self.peaks,
+            OutputWorkspace=peaks,
         )
 
         SaveHKL(
-            InputWorkspace=self.peaks,
+            InputWorkspace=peaks,
             Filename=filename + ".hkl",
             DirectionCosines=True,
         )
 
-        SaveIsawUB(InputWorkspace=self.peaks, Filename=filename + ".mat")
+        SaveIsawUB(InputWorkspace=peaks, Filename=filename + ".mat")
 
 
 def main():
@@ -788,8 +948,8 @@ def main():
     parser.add_argument(
         "-f",
         "--formula",
-        type=bool,
-        default="Yb3 Al5 O12",
+        type=str,
+        default="Yb3-Al5-O12",
         help="Chemical formula",
     )
 
@@ -828,6 +988,15 @@ def main():
     )
 
     parser.add_argument(
+        "-p",
+        "--parameters",
+        nargs="+",
+        type=float,
+        default=0,
+        help="Length (diameter), height, width in millimeters",
+    )
+
+    parser.add_argument(
         "-c", "--scale", type=float, default=None, help="Scale factor"
     )
 
@@ -835,7 +1004,22 @@ def main():
 
     peaks = Peaks("peaks", args.filename, args.scale)
     peaks.load_peaks()
-    peaks.save_peaks()
+
+    AbsorptionCorrection(
+        "peaks",
+        args.formula,
+        args.zparameter,
+        u_vector=args.uvector,
+        v_vector=args.vvector,
+        params=args.parameters,
+        shape=args.shape,
+        filename=args.filename,
+    )
+
+    prune = PrunePeaks("peaks", filename=args.filename)
+
+    for workspace in prune.workspaces:
+        peaks.save_peaks(workspace)
 
 
 if __name__ == "__main__":
@@ -847,25 +1031,6 @@ if __name__ == "__main__":
 #     FilterVariable="h^2+k^2+l^2",
 #     FilterValue=0,
 #     Operator=">",
-# )
-
-# SortPeaksWorkspace(
-#     InputWorkspace="peaks",
-#     OutputWorkspace="peaks",
-#     ColumnNameToSortBy="RunNumber",
-#     SortAscending=False,
-# )
-
-# SortPeaksWorkspace(
-#     InputWorkspace="peaks",
-#     OutputWorkspace="peaks",
-#     ColumnNameToSortBy="Intens",
-#     SortAscending=False,
-# )
-
-
-# AbsorptionCorrection(
-#     "peaks", "Yb3 Al5 O12", 8, [1, 0, 0], [0, 1, 0], 0.3, "sphere"
 # )
 
 # CloneWorkspace(InputWorkspace='peaks',
