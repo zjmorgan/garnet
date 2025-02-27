@@ -992,7 +992,7 @@ def main():
         "--parameters",
         nargs="+",
         type=float,
-        default=0,
+        default=[0],
         help="Length (diameter), height, width in millimeters",
     )
 
@@ -1005,16 +1005,17 @@ def main():
     peaks = Peaks("peaks", args.filename, args.scale)
     peaks.load_peaks()
 
-    AbsorptionCorrection(
-        "peaks",
-        args.formula,
-        args.zparameter,
-        u_vector=args.uvector,
-        v_vector=args.vvector,
-        params=args.parameters,
-        shape=args.shape,
-        filename=args.filename,
-    )
+    if (np.array(args.parameters) > 0).all():
+        AbsorptionCorrection(
+            "peaks",
+            args.formula,
+            args.zparameter,
+            u_vector=args.uvector,
+            v_vector=args.vvector,
+            params=args.parameters,
+            shape=args.shape,
+            filename=args.filename,
+        )
 
     prune = PrunePeaks("peaks", filename=args.filename)
 

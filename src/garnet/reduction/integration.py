@@ -3280,10 +3280,10 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        pk = (ellipsoid <= 1**2) & val_mask
+        pk = (ellipsoid <= 1) & val_mask
         # pk = scipy.ndimage.binary_dilation(pk)
 
-        bkg = (ellipsoid > 1**2) & (ellipsoid < np.cbrt(2) ** 2) & det_mask
+        bkg = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2) & val_mask
         # bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
 
         # pk = pk & val_mask
@@ -3297,7 +3297,7 @@ class PeakEllipsoid:
 
         N = np.sum(bkg)
         b = np.nansum(y_bkg) / N
-        b_err = np.sqrt(np.nansum(e_bkg**2)) / N
+        b_err = np.sqrt(np.nansum(e_bkg**2) + np.nanvar(y_bkg)) / N
 
         intens = np.nansum(y_pk - b) * d3x
         sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
