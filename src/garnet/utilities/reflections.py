@@ -7,6 +7,7 @@ from mantid.simpleapi import (
     FilterPeaks,
     SortPeaksWorkspace,
     CombinePeaksWorkspaces,
+    StatisticsOfPeaksWorkspace,
     SaveHKL,
     SaveIsawUB,
     CloneWorkspace,
@@ -35,6 +36,59 @@ from multiprocessing import Pool
 from PyPDF2 import PdfMerger
 
 import argparse
+
+point_group_dict = {
+    "-1": "-1 (Triclinic)",
+    "1": "1 (Triclinic)",
+    "2": "2 (Monoclinic, unique axis b)",
+    "m": "m (Monoclinic, unique axis b)",
+    "2/m": "2/m (Monoclinic, unique axis b)",
+    "112": "112 (Monoclinic, unique axis c)",
+    "11m": "11m (Monoclinic, unique axis c)",
+    "112/m": "112/m (Monoclinic, unique axis c)",
+    "222": "222 (Orthorhombic)",
+    "2mm": "2mm (Orthorhombic)",
+    "m2m": "m2m (Orthorhombic)",
+    "mm2": "mm2 (Orthorhombic)",
+    "mmm": "mmm (Orthorhombic)",
+    "3": "3 (Trigonal - Hexagonal)",
+    "32": "32 (Trigonal - Hexagonal)",
+    "312": "312 (Trigonal - Hexagonal)",
+    "321": "321 (Trigonal - Hexagonal)",
+    "31m": "31m (Trigonal - Hexagonal)",
+    "3m": "3m (Trigonal - Hexagonal)",
+    "3m1": "3m1 (Trigonal - Hexagonal)",
+    "-3": "-3 (Trigonal - Hexagonal)",
+    "-31m": "-31m (Trigonal - Hexagonal)",
+    "-3m": "-3m (Trigonal - Hexagonal)",
+    "-3m1": "-3m1 (Trigonal - Hexagonal)",
+    "3 r": "3 r (Trigonal - Rhombohedral)",
+    "32 r": "32 r (Trigonal - Rhombohedral)",
+    "3m r": "3m r (Trigonal - Rhombohedral)",
+    "-3 r": "-3 r (Trigonal - Rhombohedral)",
+    "-3m r": "-3m r (Trigonal - Rhombohedral)",
+    "4": "4 (Tetragonal)",
+    "4/m": "4/m (Tetragonal)",
+    "4mm": "4mm (Tetragonal)",
+    "422": "422 (Tetragonal)",
+    "-4": "-4 (Tetragonal)",
+    "-42m": "-42m (Tetragonal)",
+    "-4m2": "-4m2 (Tetragonal)",
+    "4/mmm": "4/mmm (Tetragonal)",
+    "6": "6 (Hexagonal)",
+    "6/m": "6/m (Hexagonal)",
+    "6mm": "6mm (Hexagonal)",
+    "622": "622 (Hexagonal)",
+    "-6": "-6 (Hexagonal)",
+    "-62m": "-62m (Hexagonal)",
+    "-6m2": "-6m2 (Hexagonal)",
+    "6/mmm": "6/mmm (Hexagonal)",
+    "23": "23 (Cubic)",
+    "m-3": "m-3 (Cubic)",
+    "432": "432 (Cubic)",
+    "-43m": "-43m (Cubic)",
+    "m-3m": "m-3m (Cubic)",
+}
 
 
 class AbsorptionCorrection:
@@ -86,6 +140,7 @@ class AbsorptionCorrection:
 
         if filename is not None:
             assert type(filename) is str
+            filename = os.path.abspath(filename)
             assert os.path.exists(os.path.dirname(filename))
 
         self.filename = filename
@@ -393,6 +448,7 @@ class PrunePeaks:
 
         if filename is not None:
             assert type(filename) is str
+            filename = os.path.abspath(filename)
             assert os.path.exists(os.path.dirname(filename))
 
         self.filename = filename
@@ -520,9 +576,15 @@ class PrunePeaks:
         midpoint = cumulative_weights[-1] / 2
         return values_sorted[np.searchsorted(cumulative_weights, midpoint)]
 
-    def scale_factor(self, y_hat, y, e, iterations=3, threshold=1.486):
-        mask = y_hat != 0  # Avoid division by zero
-        y_hat, y, e = y_hat[mask], y[mask], e[mask]
+    def scale_factor(
+        self, y_hat_val, y_val, e_val, iterations=3, threshold=1.486
+    ):
+        mask = y_hat_val != 0
+        y_hat, y, e = (
+            y_hat_val[mask].copy(),
+            y_val[mask].copy(),
+            e_val[mask].copy(),
+        )
 
         for iteration in range(iterations):
             z = y / y_hat
@@ -733,7 +795,7 @@ class PrunePeaks:
         for i, model in enumerate(self.models):
             I_fit = self.filter_dict[model][key][0][sort]
 
-            mask = np.abs(I - I_fit) / I_fit < relerr
+            mask = (I_fit - I) / I_fit < relerr
 
             ax[i].errorbar(
                 lamda[mask], I[mask], sig[mask], fmt="o", color="C0", zorder=2
@@ -823,18 +885,19 @@ class PrunePeaks:
 
                 I_fit = s * y
 
-                if np.abs(I - I_fit) / I_fit > relerr:
+                if (I_fit - I) / I_fit > relerr:
                     peak.setSigmaIntensity(I)
 
         return workspaces
 
 
 class Peaks:
-    def __init__(self, peaks, filename, scale=None):
+    def __init__(self, peaks, filename, scale=None, point_group=None):
         self.peaks = peaks
 
         if filename is not None:
             assert type(filename) is str
+            filename = os.path.abspath(filename)
             assert os.path.exists(os.path.dirname(filename))
 
         self.filename = filename
@@ -843,6 +906,14 @@ class Peaks:
             assert scale > 0
 
         self.scale = scale
+
+        if point_group is not None:
+            assert point_group in point_group_dict.keys()
+            point_groups = [point_group]
+        else:
+            point_groups = list(point_group_dict.keys())
+
+        self.point_groups = point_groups
 
     def rescale_intensities(self):
         scale = 1 if self.scale is None else self.scale
@@ -900,22 +971,6 @@ class Peaks:
             Operator=">",
         )
 
-        hkl = [
-            mtd[peaks].column(mtd[peaks].getColumnNames().index(col))
-            for col in ["h", "k", "l"]
-        ]
-        s = [
-            1 / mtd[peaks].sample().getOrientedLattice().d(h, k, l)
-            for h, k, l in zip(*hkl)
-        ]
-
-        hkls = np.round(np.column_stack([*hkl, s]) * 1000, 1).astype(int)
-        sort = np.lexsort(hkls.T).tolist()
-        for no, i in enumerate(sort):
-            peak = mtd[peaks].getPeak(i)
-            peak.setPeakNumber(no)
-            peak.setRunNumber(1)
-
         SortPeaksWorkspace(
             InputWorkspace=peaks,
             ColumnNameToSortBy="PeakNumber",
@@ -930,6 +985,122 @@ class Peaks:
         )
 
         SaveIsawUB(InputWorkspace=peaks, Filename=filename + ".mat")
+
+        self.resort_hkl(filename + ".hkl")
+
+        self.calculate_statistics(peaks, filename + "_symm.txt")
+
+    def calculate_statistics(self, name, filename):
+        point_groups, R_merge = [], []
+        for point_group in self.point_groups:
+            StatisticsOfPeaksWorkspace(
+                InputWorkspace=name,
+                PointGroup=point_group_dict[point_group],
+                OutputWorkspace="stats",
+                EquivalentIntensities="Median",
+                SigmaCritical=3,
+                WeightedZScore=True,
+            )
+
+            R_merge.append(mtd["StatisticsTable"].toDict()["Rmerge"][0])
+            point_groups.append(point_group)
+
+        i = np.argmin(R_merge)
+        point_group = point_groups[i]
+
+        StatisticsOfPeaksWorkspace(
+            InputWorkspace=name,
+            PointGroup=point_group_dict[point_group],
+            OutputWorkspace="stats",
+            EquivalentIntensities="Median",
+            SigmaCritical=3,
+            WeightedZScore=True,
+        )
+        self.point_group = [point_groups]
+
+        ws = mtd["StatisticsTable"]
+
+        column_names = ws.getColumnNames()
+        col_widths = [max(len(str(name)), 8) for name in column_names]
+
+        cols = [
+            " ".join(
+                name.ljust(col_widths[i])
+                for i, name in enumerate(column_names)
+            )
+        ]
+
+        for i in range(ws.rowCount()):
+            row_values = []
+            for j, val in enumerate(ws.row(i).values()):
+                if isinstance(val, float):
+                    val = "{:.2f}".format(val)
+                row_values.append(str(val).ljust(col_widths[j]))
+
+            cols.append(" ".join(row_values))
+
+        table = "\n".join(cols)
+
+        with open(filename, "w") as f:
+            f.write("{}\n".format(point_group))
+            f.write(table)
+
+    def resort_hkl(self, filename):
+        ol = mtd[self.peaks].sample().getOrientedLattice()
+
+        UB = ol.getUB()
+
+        mod_vec_1 = ol.getModVec(0)
+        mod_vec_2 = ol.getModVec(1)
+        mod_vec_3 = ol.getModVec(2)
+
+        max_order = ol.getMaxOrder()
+
+        hkl_widths = [4, 4, 4]
+        info_widths = [8, 8, 4, 8, 8, 9, 9, 9, 9, 9, 9, 6, 7, 7, 4, 9, 8, 7, 7]
+
+        if max_order > 0:
+            hkl_widths += hkl_widths
+
+        col_widths = hkl_widths + info_widths
+
+        h, k, l, m, n, p = [], [], [], [], [], []
+
+        with open(filename, "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                start = 0
+                columns = []
+                for width in col_widths:
+                    columns.append(line[start : start + width].strip())
+                    start += width
+                h.append(columns[0])
+                k.append(columns[1])
+                l.append(columns[2])
+                m.append(columns[4] if max_order > 0 else 0)
+                n.append(columns[5] if max_order > 0 else 0)
+                p.append(columns[6] if max_order > 0 else 0)
+
+        h = np.array(h).astype(int)
+        k = np.array(k).astype(int)
+        l = np.array(l).astype(int)
+
+        m = np.array(m).astype(int)
+        n = np.array(n).astype(int)
+        p = np.array(p).astype(int)
+
+        mod_HKL = np.column_stack([mod_vec_1, mod_vec_2, mod_vec_3])
+
+        hkl = np.stack([h, k, l]) + np.einsum("ij,jm->im", mod_HKL, [m, n, p])
+
+        s = np.linalg.norm(np.einsum("ij,jm->im", UB, hkl), axis=0)
+
+        hkls = np.round(np.column_stack([*hkl, s]) * 1000, 1).astype(int)
+        sort = np.lexsort(hkls.T).tolist()
+        with open(filename, "w") as f:
+            for i in sort[1:]:
+                f.write(lines[i])
+            f.write(lines[sort[0]])
 
 
 def main():
@@ -959,6 +1130,14 @@ def main():
         type=float,
         default="8",
         help="Number of formula units",
+    )
+
+    parser.add_argument(
+        "-g",
+        "--pointgroup",
+        type=str,
+        default=None,
+        help="Point group symmetry",
     )
 
     parser.add_argument(
@@ -1002,7 +1181,7 @@ def main():
 
     args = parser.parse_args()
 
-    peaks = Peaks("peaks", args.filename, args.scale)
+    peaks = Peaks("peaks", args.filename, args.scale, args.pointgroup)
     peaks.load_peaks()
 
     if (np.array(args.parameters) > 0).all():
@@ -1017,6 +1196,8 @@ def main():
             filename=args.filename,
         )
 
+    peaks.save_peaks()
+
     prune = PrunePeaks("peaks", filename=args.filename)
 
     for workspace in prune.workspaces:
@@ -1025,23 +1206,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# FilterPeaks(
-#     InputWorkspace="peaks",
-#     OutputWorkspace="peaks",
-#     FilterVariable="h^2+k^2+l^2",
-#     FilterValue=0,
-#     Operator=">",
-# )
-
-# CloneWorkspace(InputWorkspace='peaks',
-#                OutputWorkspace='peaks_corr')
-
-# StatisticsOfPeaksWorkspace(
-#     InputWorkspace="peaks_corr",
-#     PointGroup=point_group,
-#     OutputWorkspace="stats",
-#     EquivalentIntensities="Median",
-#     SigmaCritical=3,
-#     WeightedZScore=False,
-# )
