@@ -1016,7 +1016,7 @@ class Peaks:
             SigmaCritical=3,
             WeightedZScore=True,
         )
-        self.point_group = [point_groups]
+        self.point_group = [point_group]
 
         ws = mtd["StatisticsTable"]
 
