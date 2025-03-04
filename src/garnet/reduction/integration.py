@@ -686,22 +686,11 @@ class Integration(SubPlan):
         return mask
 
     def interpolate(self, x0, x1, x2, y, e, c):
-        data_mask = np.isfinite(y) & (y > 0)
-        detection_mask = self.detection_mask(c)
-        # vx0, vx1, vx2 = x0[data_mask], x1[data_mask], x2[data_mask]
-        # vy = y[data_mask].copy()
-        # vc = c[data_mask].copy()
+        data_mask = np.isfinite(e) & (e > 0)
+        detection_mask = self.detection_mask(e)
 
-        # gx = np.vstack([x0.ravel(), x1.ravel(), x2.ravel()]).T
-
-        # gy = scipy.interpolate.griddata(
-        #     (vx0, vx1, vx2), vy, gx, method="linear"
-        # )
-        # gc = scipy.interpolate.griddata(
-        #     (vx0, vx1, vx2), vc, gx, method="linear"
-        # )
-        gy = y.copy()  # gy.reshape(*y.shape)
-        gc = c.copy()  # gc.reshape(*c.shape)
+        gy = y.copy()
+        gc = c.copy()
         ge = e.copy()
         ge[~data_mask] = np.abs(gy[~data_mask])
 
@@ -2788,33 +2777,6 @@ class PeakEllipsoid:
 
     def loss(self, r):
         return np.abs(r).sum()
-
-    # def interpolate(self, x0, x1, x2, y, e, c):
-    #     mask = np.isfinite(y) & (y > 0)
-    #     vx0, vx1, vx2 = x0[mask], x1[mask], x2[mask]
-    #     vy = y[mask].copy()
-    #     vc = c[mask].copy()
-
-    #     gx = np.vstack([x0.ravel(), x1.ravel(), x2.ravel()]).T
-
-    #     gy = scipy.interpolate.griddata(
-    #         (vx0, vx1, vx2), vy, gx, method="linear"
-    #     )
-    #     gc = scipy.interpolate.griddata(
-    #         (vx0, vx1, vx2), vc, gx, method="linear"
-    #     )
-
-    #     gy = gy.reshape(*y.shape)
-    #     gc = gc.reshape(*c.shape)
-
-    #     ge = e.copy()
-    #     ge[~mask] = np.abs(gy[~mask])
-
-    #     mask = np.isfinite(gy) & (gy > 0)
-    #     gy[~mask] = np.nan
-    #     ge[~mask] = np.nan
-
-    #     return gy, ge, gc
 
     def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
         if (np.array(counts.shape) < 9).any():

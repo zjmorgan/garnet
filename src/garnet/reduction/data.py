@@ -12,6 +12,7 @@ from mantid.simpleapi import (
     ApplyCalibration,
     Multiply,
     Divide,
+    Plus,
     Minus,
     PreprocessDetectorsToMD,
     CreateDetectorTable,
@@ -117,10 +118,9 @@ class BaseDataModel:
 
         self.dt = np.deg2rad(instrument_config["DeltaTheta"])
 
-        # if not mtd.doesExist(self.instrument):
-
-        #     LoadEmptyInstrument(InstrumentName=self.ref_inst,
-        #                         OutputWorkspace=self.instrument)
+        CreateSingleValuedWorkspace(
+            OutputWorkspace="unity", DataValue=1, ErrorValue=1
+        )
 
     def update_raw_path(self, plan):
         """
@@ -1551,14 +1551,30 @@ class LaueData(BaseDataModel):
 
         """
 
-        NormaliseByCurrent(
-            InputWorkspace=event_name, OutputWorkspace=event_name
-        )
-
         ConvertUnits(
             InputWorkspace=event_name,
             OutputWorkspace=event_name,
             Target="Wavelength",
+        )
+
+        # lamda_min = mtd["factor"].getXDimension().getMinimum()
+        # lamda_max = mtd["factor"].getXDimension().getMaximum()
+        # lamda_bin = mtd["factor"].getXDimension().getBinWidth()
+
+        # Rebin(
+        #     InputWorkspace=event_name,
+        #     Params=[lamda_min, lamda_bin, lamda_max],
+        #     OutputWorkspace=event_name,
+        #     PreserveEvents=False,
+        # )
+
+        # Plus(LHSWorkspace=event_name,
+        #      RHSWorkspace='unity',
+        #      OutputWorkspace=event_name,
+        #      AllowDifferentNumberSpectra=True)
+
+        NormaliseByCurrent(
+            InputWorkspace=event_name, OutputWorkspace=event_name
         )
 
         if mtd.doesExist("bkg"):
@@ -1644,21 +1660,6 @@ class LaueData(BaseDataModel):
                         OutputWorkspace="bkg",
                         Target="Wavelength",
                     )
-
-                #     Divide(LHSWorkspace='bkg',
-                #            RHSWorkspace='sa',
-                #            OutputWorkspace='bkg',
-                #            WarnOnZeroDivide=False,
-                #            AllowDifferentNumberSpectra=True)
-
-                #     ConvertUnits(InputWorkspace='bkg',
-                #                  OutputWorkspace='bkg',
-                #                  Target='Wavelength')
-
-                #     Divide(LHSWorkspace='bkg',
-                #             RHSWorkspace='spectra',
-                #             OutputWorkspace='bkg',
-                #             AllowDifferentNumberSpectra=True)
 
             if not mtd.doesExist("spectra"):
                 pc = mtd["bkg"].run().getProperty("gd_prtn_chrg").value

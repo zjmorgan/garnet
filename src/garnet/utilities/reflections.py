@@ -25,11 +25,19 @@ import numpy as np
 import scipy.optimize
 import scipy.interpolate
 
+from scipy.spatial.transform import Rotation
+
+from mantid.kernel import V3D
+
 # from mantid.geometry import PointGroupFactory
 from mantid import config
 
 config["Q.convention"] = "Crystallography"
 
+from matplotlib import colormaps
+
+from matplotlib.colors import Normalize
+from matplotlib.ticker import FormatStrFormatter
 from matplotlib.backends.backend_pdf import PdfPages
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from multiprocessing import Pool
@@ -89,6 +97,162 @@ point_group_dict = {
     "-43m": "-43m (Cubic)",
     "m-3m": "m-3m (Cubic)",
 }
+
+
+class WobbleCorrection:
+    def __init__(
+        self,
+        peaks,
+        filename=None,
+    ):
+        assert "PeaksWorkspace" in str(type(mtd[peaks]))
+
+        self.peaks = peaks
+
+        if filename is not None:
+            assert type(filename) is str
+            filename = os.path.abspath(filename)
+            assert os.path.exists(os.path.dirname(filename))
+
+        self.filename = filename
+
+        self.extract_info()
+        self.refine_centering()
+
+    def extract_info(self):
+        peak_dict = {}
+
+        for peak in mtd[self.peaks]:
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
+
+            key = (h, k, l, m, n, p)
+            key_neg = tuple(-val for val in key)
+
+            key = max(key, key_neg)
+
+            R = peak.getGoniometerMatrix()
+            I = peak.getIntensity()
+            sigma = peak.getSigmaIntensity()
+            lamda = peak.getWavelength()
+
+            items = peak_dict.get(key)
+
+            if items is None:
+                items = [], [], [], []
+            items[0].append(I)
+            items[1].append(sigma)
+            items[2].append(lamda)
+            items[3].append(R)
+            peak_dict[key] = items
+
+        for key in peak_dict.keys():
+            items = peak_dict[key]
+            peak_dict[key] = [np.array(item) for item in items]
+
+        self.peak_dict = peak_dict
+
+    def scale_model(self, coeffs, lamda, R):
+        b, c, rx, rz = coeffs
+
+        x, y, z = (
+            np.einsum("kij,j->ik", R, [rx, 0, rz])
+            + np.array([c, 0, 0])[:, np.newaxis]
+        )
+
+        return np.exp(-0.5 * x**2 / (1 + b * lamda) ** 2)
+
+    def cost(self, coeffs, sigma=0.2):
+        diff = []
+
+        for key in self.peak_dict.keys():
+            I, sig, lamda, R = self.peak_dict[key]
+
+            s = self.scale_model(coeffs, lamda, R)
+
+            y = np.divide(I, s)
+
+            i, j = np.triu_indices(len(lamda), 1)
+
+            d = np.abs(lamda[i] - lamda[j])
+
+            w = np.exp(-((d / sigma) ** 2))
+
+            y_bar = 0.5 * (y[i] + y[j])
+
+            diff += (w * (y[i] / y_bar - 1)).flatten().tolist()
+            diff += (w * (y[j] / y_bar - 1)).flatten().tolist()
+
+        diff += list(coeffs)
+        return np.nansum(diff)
+
+    def refine_centering(self):
+        sol = scipy.optimize.least_squares(
+            self.cost,
+            x0=[0.5, 0.5, 0.5, 0.5],
+            bounds=[(-1, -1, -1, 0), (1, 1, 1, 1)],
+            verbose=2,
+        )
+
+        coeffs = sol.x
+
+        b, c, rx, rz = coeffs
+
+        lines = [
+            "spread: {:.4f} 1/A^3\n".format(b),
+            "center: {:.4f} \n".format(c),
+            "in-plane displacement: {:.4f} \n".format(rx),
+            "beam displacement: {:.4f} \n".format(rz),
+        ]
+
+        for line in lines:
+            print(line)
+
+        if self.filename is not None:
+            filename = os.path.splitext(self.filename)[0] + "_off.txt"
+
+            with open(filename, "w") as f:
+                for line in lines:
+                    f.write(line)
+
+        omega = np.linspace(0, 360, 361)
+
+        R = [
+            Rotation.from_euler("y", val, degrees=True).as_matrix()
+            for val in omega
+        ]
+
+        lamda = mtd[self.peaks].column("Wavelength")
+
+        fmt_str_form = FormatStrFormatter(r"$%d^\circ$")
+
+        lamda_min, lamda_max = np.min(lamda), np.max(lamda)
+
+        norm = Normalize(vmin=lamda_min, vmax=lamda_max)
+        cmap = colormaps["turbo"]
+
+        fig, ax = plt.subplots(1, 1)
+        for lamda in np.linspace(lamda_min, lamda_max, 5):
+            s = self.scale_model(coeffs, lamda, R)
+            ax.plot(omega, s, color=cmap(norm(lamda)))
+        ax.set_xlabel("Rotation angle")
+        ax.set_ylabel("Scale factor")
+        ax.minorticks_on()
+        ax.xaxis.set_major_formatter(fmt_str_form)
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        cb = fig.colorbar(sm, ax=ax, label="$\lambda$ [$\AA$]")
+        cb.minorticks_on()
+
+        if self.filename is not None:
+            filename = os.path.splitext(self.filename)[0] + "_off.pdf"
+            fig.savefig(filename)
+
+        for peak in mtd[self.peaks]:
+            R = peak.getGoniometerMatrix()
+            lamda = peak.getWavelength()
+            s = self.scale_model(coeffs, lamda, [R])[0]
+            peak.setIntensity(1 / s * peak.getIntensity())
+            peak.setSigmaIntensity(1 / s * peak.getSigmaIntensity())
 
 
 class AbsorptionCorrection:
@@ -937,6 +1101,16 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
+        self.reset_satellite()
+
+        FilterPeaks(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=self.peaks,
+            FilterVariable="Signal/Noise",
+            FilterValue=3,
+            Operator=">",
+        )
+
         SortPeaksWorkspace(
             InputWorkspace=self.peaks,
             OutputWorkspace=self.peaks,
@@ -952,6 +1126,32 @@ class Peaks:
         )
 
         self.rescale_intensities()
+
+    def reset_satellite(self):
+        mod_mnp = []
+        mod_hkl = []
+        for peak in mtd[self.peaks]:
+            hkl = peak.getHKL()
+            int_hkl = peak.getIntHKL()
+            int_mnp = peak.getIntMNP()
+            if int_mnp.norm2() > 0:
+                mod_mnp.append(np.array(int_mnp))
+                mod_hkl.append(np.array(hkl - int_hkl))
+
+        if len(mod_mnp) > 0:
+            mod_vec = np.linalg.pinv(mod_mnp) @ np.array(mod_hkl)
+
+            ol = mtd[self.peaks].sample().getOrientedLattice()
+
+            ol.setModVec1(V3D(*mod_vec[0]))
+            ol.setModVec2(V3D(*mod_vec[1]))
+            ol.setModVec3(V3D(*mod_vec[2]))
+
+            ol.setModUB(ol.getUB() @ ol.getModHKL())
+
+            self.max_order = ol.getMaxOrder()
+            self.modUB = ol.getModUB().copy()
+            self.modHKL = ol.getModHKL().copy()
 
     def save_peaks(self, name=None):
         if name is not None:
@@ -986,9 +1186,65 @@ class Peaks:
 
         SaveIsawUB(InputWorkspace=peaks, Filename=filename + ".mat")
 
-        self.resort_hkl(filename + ".hkl")
+        self.resort_hkl(peaks, filename + ".hkl")
 
         self.calculate_statistics(peaks, filename + "_symm.txt")
+
+        if self.max_order > 0:
+            nuclear = peaks + "_nuc"
+            satellite = peaks + "_sat"
+
+            FilterPeaks(
+                InputWorkspace=peaks,
+                OutputWorkspace=nuclear,
+                FilterVariable="m^2+n^2+p^2",
+                FilterValue=0,
+                Operator="=",
+            )
+
+            nuc_ol = mtd[nuclear].sample().getOrientedLattice()
+            nuc_ol.setMaxOrder(0)
+            nuc_ol.setModVec1(V3D(0, 0, 0))
+            nuc_ol.setModVec2(V3D(0, 0, 0))
+            nuc_ol.setModVec3(V3D(0, 0, 0))
+            nuc_ol.setModUB(np.zeros((3, 3)))
+
+            SaveHKL(
+                InputWorkspace=nuclear,
+                Filename=filename + "_nuc.hkl",
+                DirectionCosines=True,
+            )
+
+            SaveIsawUB(InputWorkspace=nuclear, Filename=filename + "_nuc.mat")
+
+            self.resort_hkl(nuclear, filename + "_nuc.hkl")
+
+            FilterPeaks(
+                InputWorkspace=peaks,
+                OutputWorkspace=satellite,
+                FilterVariable="m^2+n^2+p^2",
+                FilterValue=0,
+                Operator=">",
+            )
+
+            sat_ol = mtd[satellite].sample().getOrientedLattice()
+            sat_ol.setMaxOrder(self.max_order)
+            sat_ol.setModVec1(V3D(*self.modHKL[:, 0]))
+            sat_ol.setModVec2(V3D(*self.modHKL[:, 1]))
+            sat_ol.setModVec3(V3D(*self.modHKL[:, 2]))
+            sat_ol.setModUB(self.modUB)
+
+            SaveHKL(
+                InputWorkspace=satellite,
+                Filename=filename + "_sat.hkl",
+                DirectionCosines=True,
+            )
+
+            SaveIsawUB(
+                InputWorkspace=satellite, Filename=filename + "_sat.mat"
+            )
+
+            self.resort_hkl(satellite, filename + "_sat.hkl")
 
     def calculate_statistics(self, name, filename):
         point_groups, R_merge = [], []
@@ -1016,7 +1272,7 @@ class Peaks:
             SigmaCritical=3,
             WeightedZScore=True,
         )
-        self.point_group = [point_group]
+        self.point_groups = [point_group]
 
         ws = mtd["StatisticsTable"]
 
@@ -1045,8 +1301,8 @@ class Peaks:
             f.write("{}\n".format(point_group))
             f.write(table)
 
-    def resort_hkl(self, filename):
-        ol = mtd[self.peaks].sample().getOrientedLattice()
+    def resort_hkl(self, peaks, filename):
+        ol = mtd[peaks].sample().getOrientedLattice()
 
         UB = ol.getUB()
 
@@ -1077,9 +1333,9 @@ class Peaks:
                 h.append(columns[0])
                 k.append(columns[1])
                 l.append(columns[2])
-                m.append(columns[4] if max_order > 0 else 0)
-                n.append(columns[5] if max_order > 0 else 0)
-                p.append(columns[6] if max_order > 0 else 0)
+                m.append(columns[3] if max_order > 0 else 0)
+                n.append(columns[4] if max_order > 0 else 0)
+                p.append(columns[5] if max_order > 0 else 0)
 
         h = np.array(h).astype(int)
         k = np.array(k).astype(int)
@@ -1113,7 +1369,7 @@ def main():
     )
 
     parser.add_argument(
-        "-w", "--wobble", action="store_false", help="Off-centering correction"
+        "-w", "--wobble", action="store_true", help="Off-centering correction"
     )
 
     parser.add_argument(
@@ -1183,6 +1439,9 @@ def main():
 
     peaks = Peaks("peaks", args.filename, args.scale, args.pointgroup)
     peaks.load_peaks()
+
+    if args.wobble:
+        WobbleCorrection("peaks", filename=args.filename)
 
     if (np.array(args.parameters) > 0).all():
         AbsorptionCorrection(
