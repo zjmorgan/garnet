@@ -26,7 +26,6 @@ from mantid.simpleapi import (
     HB3AAdjustSampleNorm,
     CorelliCrossCorrelate,
     NormaliseByCurrent,
-    CompressEvents,
     GroupDetectors,
     LoadEmptyInstrument,
     CopyInstrumentParameters,
@@ -49,9 +48,12 @@ from mantid.simpleapi import (
     MinusMD,
     SaveMD,
     LoadMD,
+    CreateMDHistoWorkspace,
     CreateSingleValuedWorkspace,
     AddSampleLog,
     RemoveLogs,
+    GenerateEventsFilter,
+    FilterEvents,
     CopySample,
     DeleteWorkspace,
     DeleteWorkspaces,
@@ -180,10 +182,6 @@ class BaseDataModel:
             LoadEmptyInstrument(
                 InstrumentName=self.ref_inst, OutputWorkspace=self.instrument
             )
-
-        # files = self.get_file_name_list(plan['IPTS'], plan['Runs'])
-        # for file in files:
-        #     assert os.path.exists(file)
 
     def load_clear_UB(self, filename, ws, run_number=None):
         """
@@ -524,14 +522,6 @@ class BaseDataModel:
 
         """
 
-        # signal = mtd[num].getSignalArray().copy()
-        # error_sq = mtd[num].getErrorSquaredArray().copy()
-        # mask = signal <= 0
-        # signal[mask] = np.nan
-        # error_sq[mask] = np.nan
-        # mtd[num].setSignalArray(signal)
-        # mtd[num].setErrorSquaredArray(error_sq)
-
         DivideMD(LHSWorkspace=num, RHSWorkspace=den, OutputWorkspace=ws)
 
     def subtract_histograms(self, ws, ws1, ws2):
@@ -783,6 +773,137 @@ class BaseDataModel:
             y, e, x0, x1, x2 = self.extract_bin_info(md + "_bin")
 
             return y, e, x0, x1, x2
+
+    def log_split_info(self, ws, log_name, log_limits, log_bins):
+        """
+        Generate split information for filtering events by log values.
+
+        Parameters
+        ----------
+        ws : str
+            Workspace with log time and values.
+        log_name : str
+            Name of the log.
+        log_limits : list, float
+            Min/max values of log (bin center).
+        log_bins : int
+            Number of equally space bins.
+
+        """
+
+        log = mtd[ws].run().getProperty(log_name)
+
+        if log_bins > 0:
+            log_min, log_max = log_limits
+            log_interval = (log_max - log_min) / (log_bins - 1)
+
+            GenerateEventsFilter(
+                InputWorkspace=ws,
+                OutputWorkspace="split",
+                InformationWorkspace="info",
+                LogName=log_name,
+                MinimumLogValue=log_min,
+                MaximumLogValue=log_max,
+                LogValueInterval=log_interval,
+            )
+
+            print(mtd["split"].rowCount())
+
+            log_vals = np.linspace(
+                log_min - 0.5 * log_interval,
+                log_max + 0.5 * log_interval,
+                log_bins + 1,
+            )
+
+        else:
+            log_vals = log.timeAverageValue()
+
+        return log_vals, log.units
+
+    def combine_splits(self, md, log_name, log_vals, log_units, index, runs):
+        """
+        Remove all accumulation workspaces.
+
+        Parameters
+        ----------
+        md : str
+            Base name of histogram.
+
+        """
+
+        workspaces = ["_data", "_norm", "_bkg_data", "_bkg_norm"]
+
+        ws = md + "_result"
+
+        dims = [mtd[ws].getDimension(i) for i in range(mtd[ws].getNumDims())]
+
+        extents, bins, names, units = [], [], [], []
+
+        if type(log_vals) is float:
+            extents.append(0.5)
+            extents.append(0.5 + len(runs))
+            bins.append(len(runs))
+            names.append("bin")
+            units.append("index")
+        else:
+            extents.append(log_vals[0])
+            extents.append(log_vals[-1])
+            bins.append(len(log_vals))
+            names.append(log_name)
+            units.append(log_units)
+
+        for dim in dims:
+            extents.append(dim.getMinimum())
+            extents.append(dim.getMaximum())
+            bins.append(dim.getNBins())
+            names.append(dim.name)
+            units.append(dim.getUnits())
+
+        for ws in workspaces:
+            if mtd.doesExist(md + ws):
+                if not mtd.doesExist(md + ws + "_split"):
+                    CreateMDHistoWorkspace(
+                        SignalInput=np.zeros(np.prod(bins)),
+                        ErrorInput=np.zeros(np.prod(bins)),
+                        Dimensionality=len(dims) + 1,
+                        Extents=extents,
+                        NumberOfBins=bins,
+                        Names=names,
+                        Units=units,
+                        OutputWorkspace=md + ws + "_split",
+                    )
+                    AddSampleLog(
+                        Workspace=md + ws + "_split",
+                        LogName=log_name,
+                        LogText="0",
+                        LogType="String",
+                    )
+
+                    run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
+                    if type(log_vals) is float:
+                        run.addProperty(log_name, runs, True)
+                    else:
+                        run.addProperty(log_name, log_vals.tolist(), True)
+                    run.getProperty(log_name).units = log_units
+
+                if type(log_vals) is float:
+                    run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
+                    values = run.getProperty(log_name).value
+                    values[index] = log_vals
+                    run.addProperty(log_name, values, True)
+                    run.getProperty(log_name).units = log_units
+
+                signal = mtd[md + ws + "_split"].getSignalArray().copy()
+                signal[index] += mtd[md + ws].getSignalArray()
+                mtd[md + ws + "_split"].setSignalArray(signal)
+
+                error_sq = (
+                    mtd[md + ws + "_split"].getErrorSquaredArray().copy()
+                )
+                error_sq[index] += mtd[md + ws].getErrorSquaredArray()
+                mtd[md + ws + "_split"].setErrorSquaredArray(error_sq)
+
+                DeleteWorkspace(Workspace=md + ws)
 
 
 class MonochromaticData(BaseDataModel):
@@ -1527,11 +1648,11 @@ class LaueData(BaseDataModel):
                 Target="Momentum",
             )
 
-            CompressEvents(
-                InputWorkspace=event_name,
-                OutputWorkspace=event_name,
-                Tolerance=0.0001,
-            )
+            # CompressEvents(
+            #     InputWorkspace=event_name,
+            #     OutputWorkspace=event_name,
+            #     Tolerance=0.0001,
+            # )
 
             CropWorkspaceForMDNorm(
                 InputWorkspace=event_name,
@@ -1556,22 +1677,6 @@ class LaueData(BaseDataModel):
             OutputWorkspace=event_name,
             Target="Wavelength",
         )
-
-        # lamda_min = mtd["factor"].getXDimension().getMinimum()
-        # lamda_max = mtd["factor"].getXDimension().getMaximum()
-        # lamda_bin = mtd["factor"].getXDimension().getBinWidth()
-
-        # Rebin(
-        #     InputWorkspace=event_name,
-        #     Params=[lamda_min, lamda_bin, lamda_max],
-        #     OutputWorkspace=event_name,
-        #     PreserveEvents=False,
-        # )
-
-        # Plus(LHSWorkspace=event_name,
-        #      RHSWorkspace='unity',
-        #      OutputWorkspace=event_name,
-        #      AllowDifferentNumberSpectra=True)
 
         NormaliseByCurrent(
             InputWorkspace=event_name, OutputWorkspace=event_name
@@ -1615,11 +1720,11 @@ class LaueData(BaseDataModel):
                     Target="Momentum",
                 )
 
-                CompressEvents(
-                    InputWorkspace="bkg",
-                    OutputWorkspace="bkg",
-                    Tolerance=0.0001,
-                )
+                # CompressEvents(
+                #     InputWorkspace="bkg",
+                #     OutputWorkspace="bkg",
+                #     Tolerance=0.0001,
+                # )
 
                 CropWorkspaceForMDNorm(
                     InputWorkspace="bkg",
@@ -1767,3 +1872,49 @@ class LaueData(BaseDataModel):
                 OutputBackgroundDataWorkspace=bkg_data,
                 OutputBackgroundNormalizationWorkspace=bkg_norm,
             )
+
+    def filter_events(self, ws, run, runs):
+        """
+        Split workspaces according to log.
+        If no splitting, index according to run number.
+
+        Parameters
+        ----------
+        ws : str
+            Workspace to split.
+        run : int
+            Run number.
+        runs : list
+            All run numbers
+
+        Returns
+        -------
+        indices : list, str
+            Split index.
+        workspaces : list, float
+            Split workspace.
+
+        """
+
+        if mtd.doesExist("split"):
+            if mtd["split"].rowCount() > 0:
+                FilterEvents(
+                    InputWorkspace=ws,
+                    SplitterWorkspace="split",
+                    InformationWorkspace="info",
+                    OutputWorkspaceBaseName=ws + "_split",
+                    GroupWorkspaces=True,
+                    CorrectionToSample="Elastic",
+                )
+
+                workspaces = list(mtd[ws + "_split"].getNames())
+                indices = [int(ws.split("_")[-1]) for ws in workspaces]
+
+            else:
+                return [], []
+
+        else:
+            workspaces = [ws]
+            indices = [runs.index(run)]
+
+        return indices, workspaces

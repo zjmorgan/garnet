@@ -77,6 +77,7 @@ class SubPlan:
         self.output = "test"
         self.proc = 0
         self.n_proc = 1
+        self.total = 0
 
     def create_directories(self):
         output = self.get_output_path()
@@ -431,6 +432,7 @@ class ReductionPlan:
 
         self.plan["Integration"] = self.template_integration(instrument)
         self.plan["Normalization"] = self.template_normalization()
+        self.plan["Parametrization"] = self.template_parametrization()
 
         self.plan.pop("OutputPath")
         self.plan.pop("OutputName")
@@ -465,13 +467,14 @@ class ReductionPlan:
         params["MaxOrder"] = 0
         params["CrossTerms"] = False
         params["MinD"] = min_d
+        params["SatMinD"] = min_d
         params["Radius"] = 0.2
 
         return params
 
     def template_normalization(self):
         """
-        Generate template integration plan.
+        Generate template normalization plan.
 
         Parameters
         ----------
@@ -487,6 +490,30 @@ class ReductionPlan:
 
         params = {}
         params["Symmetry"] = None
+        params["Projections"] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+        params["Extents"] = [[-10, 10], [-10, 10], [-10, 10]]
+        params["Bins"] = [201, 201, 201]
+
+        return params
+
+    def template_parametrization(self):
+        """
+        Generate template parametrization plan.
+
+        Parameters
+        ----------
+        instrument : str
+            Beamline name.
+
+        Returns
+        -------
+        params : dict
+            Integration plan.
+
+        """
+
+        params = {}
+        params["LogName"] = "temperature"
         params["Projections"] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
         params["Extents"] = [[-10, 10], [-10, 10], [-10, 10]]
         params["Bins"] = [201, 201, 201]

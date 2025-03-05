@@ -17,6 +17,7 @@ from garnet.reduction.plan import ReductionPlan
 from garnet.reduction.parallel import ParallelTasks
 from garnet.reduction.integration import Integration
 from garnet.reduction.normalization import Normalization
+from garnet.reduction.parametrization import Parametrization
 from garnet.reduction.data import DataModel
 from garnet.config.instruments import beamlines
 
@@ -35,7 +36,12 @@ inst_dict = {
     "hb2c": "WAND²",
 }
 
-reduction_types = {"temp": None, "int": "Integration", "norm": "Normalization"}
+reduction_types = {
+    "temp": None,
+    "int": "Integration",
+    "norm": "Normalization",
+    "param": "Parameterization",
+}
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
@@ -71,6 +77,10 @@ if __name__ == "__main__":
             func = Normalization.normalize_parallel
             comb = Normalization.combine_parallel
             inst = Normalization(rp.plan)
+        elif reduction == "param":
+            func = Parametrization.parametrize_parallel
+            comb = Parametrization.combine_parallel
+            inst = Parametrization(rp.plan)
 
         for key in reduction_types.keys():
             if key != reduction and key != "temp":
@@ -82,17 +92,7 @@ if __name__ == "__main__":
         data = DataModel(beamlines[rp.plan["Instrument"]])
         data.update_raw_path(rp.plan)
 
-        # pt = ParallelTasks(func, comb)
-
-        # n_runs = len(rp.plan['Runs'])
-
-        # max_proc = min(os.cpu_count(), n_runs)
-
-        # if n_proc > max_proc:
-        #     n_proc = max_proc
-        # pt.run_tasks(rp.plan, n_proc)
-
-        if reduction == "norm":
+        if reduction != "int":
             pt = ParallelTasks(func, comb)
 
             n_runs = len(rp.plan["Runs"])

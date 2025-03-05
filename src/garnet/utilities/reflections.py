@@ -314,7 +314,6 @@ class AbsorptionCorrection:
         self.set_orientation()
         self.calculate_correction()
         self.write_absortion_parameters()
-        self.apply_correction()
 
     def verify_chemical_formula(self, formula):
         pattern = (
@@ -428,10 +427,12 @@ class AbsorptionCorrection:
 
         filename = os.path.splitext(self.filename)[0] + "_abs.pdf"
 
+        self.apply_correction()
+
         with PdfPages(filename) as pdf:
             for i, (R, run) in enumerate(zip(self.Rs, self.runs)):
                 FilterPeaks(
-                    InputWorkspace=self.peaks,
+                    InputWorkspace=peaks,
                     FilterVariable="RunNumber",
                     FilterValue=run,
                     Operator="=",
@@ -457,21 +458,6 @@ class AbsorptionCorrection:
                     Geometry=self.shape_dict,
                     Material=self.mat_dict,
                 )
-
-                AddAbsorptionWeightedPathLengths(
-                    InputWorkspace="_tmp", ApplyCorrection=False
-                )
-
-                if i == 0:
-                    CloneWorkspace(
-                        InputWorkspace="_tmp", OutputWorkspace=peaks
-                    )
-                else:
-                    CombinePeaksWorkspaces(
-                        LHSWorkspace=peaks,
-                        RHSWorkspace="_tmp",
-                        OutputWorkspace=peaks,
-                    )
 
                 hkl = np.eye(3)
                 s = np.matmul(self.UB, hkl)
@@ -533,8 +519,6 @@ class AbsorptionCorrection:
                 plt.close(fig)
                 plt.close("all")
 
-        CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=self.peaks)
-
     def write_absortion_parameters(self):
         mat = mtd["_tmp"].sample().getMaterial()
 
@@ -587,6 +571,50 @@ class AbsorptionCorrection:
 
     def apply_correction(self):
         peaks = self.peaks + "_corr"
+
+        for i, (R, run) in enumerate(zip(self.Rs, self.runs)):
+            FilterPeaks(
+                InputWorkspace=self.peaks,
+                FilterVariable="RunNumber",
+                FilterValue=run,
+                Operator="=",
+                OutputWorkspace="_tmp",
+            )
+
+            R = mtd["_tmp"].getPeak(0).getGoniometerMatrix()
+
+            mtd["_tmp"].run().getGoniometer().setR(R)
+            omega, chi, phi = (
+                mtd["_tmp"].run().getGoniometer().getEulerAngles("YZY")
+            )
+
+            SetGoniometer(
+                Workspace="_tmp",
+                Axis0="{},0,1,0,1".format(omega),
+                Axis1="{},0,0,1,1".format(chi),
+                Axis2="{},0,1,0,1".format(phi),
+            )
+
+            SetSample(
+                InputWorkspace="_tmp",
+                Geometry=self.shape_dict,
+                Material=self.mat_dict,
+            )
+
+            AddAbsorptionWeightedPathLengths(
+                InputWorkspace="_tmp", ApplyCorrection=False
+            )
+
+            if i == 0:
+                CloneWorkspace(InputWorkspace="_tmp", OutputWorkspace=peaks)
+            else:
+                CombinePeaksWorkspaces(
+                    LHSWorkspace=peaks,
+                    RHSWorkspace="_tmp",
+                    OutputWorkspace=peaks,
+                )
+
+        CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=self.peaks)
 
         mat = mtd["_tmp"].sample().getMaterial()
 
