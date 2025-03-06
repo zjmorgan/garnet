@@ -563,15 +563,20 @@ class Integration(SubPlan):
 
             norm_params = Q0, Q1, Q2, y, e, counts, val_mask, det_mask, c, S
 
-            Sp, sig_noise = ellipsoid.optimize_signal_to_noise(*norm_params)
+            Sp = ellipsoid.optimize_signal_to_noise(*norm_params)
 
             norm_params = Q0, Q1, Q2, y, e, counts, val_mask, det_mask, c, Sp
 
             I, sigma = ellipsoid.integrate(*norm_params)
 
-            sigma = np.sqrt(sigma**2 + (I / sig_noise) ** 2)
+            err = ellipsoid.estimate_uncertainty(*norm_params)
+
+            sigma = np.sqrt(sigma**2 + err**2)
 
             if self.make_plot:
+                ellipsoid.intensity[2] = I
+                ellipsoid.sigma[2] = sigma
+
                 self.peak_plot.add_ellipsoid_fit(best_fit)
 
                 self.peak_plot.add_profile_fit(ellipsoid.best_prof)
@@ -3173,10 +3178,10 @@ class PeakEllipsoid:
 
             x = res.x
 
-            return S @ np.diag(x), signal_to_noise
+            return S @ np.diag(x)
 
         else:
-            return S, signal_to_noise
+            return S
 
     def negative_signal_to_noise(self, x, x0, x1, x2, y, e, val_mask, c, S):
         pk, bkg = self.peak_roi(x0, x1, x2, c, S @ np.diag(x) ** 2, val_mask)
@@ -3253,6 +3258,20 @@ class PeakEllipsoid:
         self.data_norm_fit = xye, params
 
         return intens, sig
+
+    def estimate_uncertainty(
+        self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S
+    ):
+        intens, N = [], 31
+
+        for scale in np.linspace(0.5, 2, N):
+            pk, bkg = self.peak_roi(x0, x1, x2, c, S * scale**2, val_mask)
+
+            intens.append(self.extract_intensity(y, e, pk, bkg)[0])
+
+        err = np.nanstd(intens) / N
+
+        return err
 
     def sigma_clip(self, array, sigma=3, maxiters=5):
         array = np.array(array, dtype=float)
