@@ -98,8 +98,9 @@ if __name__ == "__main__":
             profile_fit = rp.plan["Integration"].get("ProfileFit")
             if profile_fit is None:
                 profile_fit = True
-            if not data.laue:
-                by_run = False
+            by_run = False
+            if data.laue and not profile_fit:
+                by_run = True
 
         if by_run:
             pt = ParallelTasks(func, comb)
