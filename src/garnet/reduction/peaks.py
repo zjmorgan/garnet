@@ -106,8 +106,8 @@ class PeaksModel:
         peaks,
         peak_radius,
         radius_scale=0,
-        background_inner_fact=1,
-        background_outer_fact=1.5,
+        background_inner_fact=np.cbrt(2),
+        background_outer_fact=np.cbrt(3),
         method="sphere",
         centroid=True,
     ):
@@ -136,16 +136,10 @@ class PeaksModel:
 
         """
 
-        # d = np.array(mtd[peaks].column(8))
-        # r = peak_radius+radius_scale*2*np.pi/d
-
         background_inner_radius = peak_radius * background_inner_fact
         background_outer_radius = peak_radius * background_outer_fact
 
         adaptive = True if radius_scale else False
-
-        if method == "sphere" and centroid:
-            self.centroid_peaks(md, peaks, peak_radius)
 
         IntegratePeaksMD(
             InputWorkspace=md,
@@ -156,9 +150,9 @@ class PeaksModel:
             UseOnePercentBackgroundCorrection=True,
             Ellipsoid=True if method == "ellipsoid" else False,
             FixQAxis=True,
-            FixMajorAxisLength=True,
-            UseCentroid=centroid,
-            MaxIterations=15,
+            FixMajorAxisLength=False,
+            UseCentroid=False,
+            MaxIterations=5,
             ReplaceIntensity=True,
             IntegrateIfOnEdge=True,
             AdaptiveQBackground=adaptive,
@@ -166,6 +160,51 @@ class PeaksModel:
             MaskEdgeTubes=True,
             OutputWorkspace=peaks,
         )
+
+        radius = []
+
+        for peak in mtd[peaks]:
+            shape = peak.getPeakShape()
+
+            shape_dict = eval(shape.toJSON())
+
+            if "radius0" in shape_dict.keys():
+                r0 = shape_dict["radius0"]
+                r1 = shape_dict["radius1"]
+                r2 = shape_dict["radius2"]
+
+                radius.append(np.cbrt(r0 * r1 * r2))
+            else:
+                r = shape_dict["radius"]
+                radius.append(r)
+
+        peak_radius = np.nanmedian(radius)
+        background_inner_radius = peak_radius * background_inner_fact
+        background_outer_radius = peak_radius * background_outer_fact
+
+        if method == "sphere" and centroid:
+            self.centroid_peaks(md, peaks, peak_radius)
+
+        if method == "ellipsoid":
+            IntegratePeaksMD(
+                InputWorkspace=md,
+                PeaksWorkspace=peaks,
+                PeakRadius=peak_radius,
+                BackgroundInnerRadius=background_inner_radius,
+                BackgroundOuterRadius=background_outer_radius,
+                UseOnePercentBackgroundCorrection=True,
+                Ellipsoid=True,
+                FixQAxis=True,
+                FixMajorAxisLength=False,
+                UseCentroid=centroid,
+                MaxIterations=5,
+                ReplaceIntensity=True,
+                IntegrateIfOnEdge=True,
+                AdaptiveQBackground=adaptive,
+                AdaptiveQMultiplier=radius_scale,
+                MaskEdgeTubes=False,
+                OutputWorkspace=peaks,
+            )
 
         for peak in mtd[peaks]:
             Q0, Q1, Q2 = peak.getQSampleFrame()
@@ -186,27 +225,6 @@ class PeaksModel:
 
                 if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
                     peak.setQSampleFrame(V3D(Q0, Q1, Q2))
-
-        if method == "ellipsoid":
-            IntegratePeaksMD(
-                InputWorkspace=md,
-                PeaksWorkspace=peaks,
-                PeakRadius=peak_radius,
-                BackgroundInnerRadius=background_inner_radius,
-                BackgroundOuterRadius=background_outer_radius,
-                UseOnePercentBackgroundCorrection=True,
-                Ellipsoid=True,
-                FixQAxis=True,
-                FixMajorAxisLength=True,
-                UseCentroid=False,
-                MaxIterations=15,
-                ReplaceIntensity=True,
-                IntegrateIfOnEdge=True,
-                AdaptiveQBackground=adaptive,
-                AdaptiveQMultiplier=radius_scale,
-                MaskEdgeTubes=True,
-                OutputWorkspace=peaks,
-            )
 
     def intensity_vs_radius(
         self,
@@ -1033,9 +1051,12 @@ class PeaksModel:
 
             for key in keys:
                 log = "peaks_{}".format(key)
-                peaks_list = np.array(peaks_run.getLogData(log).value).tolist()
-                merge_list = np.array(merge_run.getLogData(log).value).tolist()
-                merge_run[log] = merge_list + peaks_list
+                if peaks_run.hasProperty(log) and merge_run.hasProperty(log):
+                    peaks_log = peaks_run.getLogData(log).value
+                    peaks_list = np.array(peaks_log).tolist()
+                    merge_log = merge_run.getLogData(log).value
+                    merge_list = np.array(merge_log).tolist()
+                    merge_run[log] = merge_list + peaks_list
 
     def delete_peaks(self, peaks):
         """

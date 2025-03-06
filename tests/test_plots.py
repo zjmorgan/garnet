@@ -5,7 +5,7 @@ import scipy.linalg
 import scipy.spatial
 
 from garnet.reduction.integration import PeakSphere, PeakEllipsoid
-from garnet.plots.peaks import RadiusPlot, PeakPlot
+from garnet.plots.peaks import PeakPlot
 from garnet.plots.volume import SlicePlot
 
 filepath = os.path.dirname(os.path.abspath(__file__))
@@ -61,27 +61,27 @@ def test_slice_plot():
     plot.save_plot(os.path.join(filepath, "slice0.png"))
 
 
-def test_radius_plot():
-    r_cut = 0.25
+# def test_radius_plot():
+#     r_cut = 0.25
 
-    A = 1.2
-    s = 0.1
+#     A = 1.2
+#     s = 0.1
 
-    r = np.linspace(0, r_cut, 51)
+#     r = np.linspace(0, r_cut, 51)
 
-    I = A * np.tanh((r / s) ** 3)
+#     I = A * np.tanh((r / s) ** 3)
 
-    sphere = PeakSphere(r_cut)
+#     sphere = PeakSphere(r_cut)
 
-    radius = sphere.fit(r, I)
+#     radius = sphere.fit(r, I)
 
-    I_fit, *vals = sphere.best_fit(r)
+#     I_fit, *vals = sphere.best_fit(r)
 
-    plot = RadiusPlot(r, I, I_fit)
+#     plot = RadiusPlot(r, I, I_fit)
 
-    plot.add_sphere(radius, *vals)
+#     plot.add_sphere(radius, *vals)
 
-    plot.save_plot(os.path.join(filepath, "sphere.png"))
+#     plot.save_plot(os.path.join(filepath, "sphere.png"))
 
 
 def test_init_peak_plot():
@@ -179,7 +179,9 @@ def test_peak_plot():
 
     ellipsoid = PeakEllipsoid()
 
-    ellipsoid.fit(Qx, Qy, Qz, counts, data_norm, sig_data, 0.1, 2)
+    mask = counts > 0
+
+    ellipsoid.fit(Qx, Qy, Qz, data_norm, sig_data, counts, mask, mask, 0.1, 2)
 
     c, S, *best_fit = ellipsoid.best_fit
 
@@ -193,7 +195,11 @@ def test_peak_plot():
 
     plot = PeakPlot()
 
-    norm_params = Qx, Qy, Qz, data_norm, sig_data, counts, c, S
+    norm_params = Qx, Qy, Qz, data_norm, sig_data, counts, mask, mask, c, S
+
+    Sp = ellipsoid.optimize_signal_to_noise(*norm_params)
+
+    norm_params = Qx, Qy, Qz, data_norm, sig_data, counts, mask, mask, c, Sp
 
     I, sigma = ellipsoid.integrate(*norm_params)
 
@@ -204,6 +210,8 @@ def test_peak_plot():
     plot.add_projection_fit(ellipsoid.best_proj)
 
     plot.add_ellipsoid(c, S)
+
+    plot.update_envelope(c, Sp)
 
     plot.add_peak_info(hkl, d, wavelength, angles, goniometer)
 

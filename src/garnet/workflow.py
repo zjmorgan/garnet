@@ -69,11 +69,9 @@ if __name__ == "__main__":
     else:
         rp.load_plan(filename)
 
-        if reduction == "int":
-            # func = Integration.integrate_parallel
-            # comb = Integration.combine_parallel
-            inst = Integration(rp.plan)
-        elif reduction == "norm":
+        by_run = True
+
+        if reduction == "norm":
             func = Normalization.normalize_parallel
             comb = Normalization.combine_parallel
             inst = Normalization(rp.plan)
@@ -81,6 +79,10 @@ if __name__ == "__main__":
             func = Parametrization.parametrize_parallel
             comb = Parametrization.combine_parallel
             inst = Parametrization(rp.plan)
+        else:
+            func = Integration.integrate_parallel
+            comb = Integration.combine_parallel
+            inst = Integration(rp.plan)
 
         for key in reduction_types.keys():
             if key != reduction and key != "temp":
@@ -92,7 +94,15 @@ if __name__ == "__main__":
         data = DataModel(beamlines[rp.plan["Instrument"]])
         data.update_raw_path(rp.plan)
 
-        if reduction != "int":
+        if reduction == "int":
+            profile_fit = rp.plan["Integration"].get("ProfileFit")
+            if profile_fit is None:
+                profile_fit = True
+            by_run = False
+            if data.laue and not profile_fit:
+                by_run = True
+
+        if by_run:
             pt = ParallelTasks(func, comb)
 
             n_runs = len(rp.plan["Runs"])

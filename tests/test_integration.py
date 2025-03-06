@@ -150,80 +150,107 @@ config_file = "/SNS/CORELLI/shared/benchmark/test/CORELLI_plan.yaml"
 #     assert np.tanh((radius/s)**3) > 0.95
 #     assert radius < r_cut
 
-# def test_ellipsoid():
 
-#     np.random.seed(13)
+def test_ellipsoid():
+    np.random.seed(13)
 
-#     nx, ny, nz = 41, 41, 41
+    nx, ny, nz = 21, 31, 41
 
-#     Qx_min, Qx_max = 0, 2
-#     Qy_min, Qy_max = -1.9, 2.1
-#     Qz_min, Qz_max = -3.2, 0.8
+    Qx_min, Qx_max = 0, 2
+    Qy_min, Qy_max = -1.9, 2.1
+    Qz_min, Qz_max = -3.2, 0.8
 
-#     Q0_x, Q0_y, Q0_z = 1.1, 0.1, -1.2
+    Q0_x, Q0_y, Q0_z = 1, 0.1, -1.2
 
-#     sigma_x, sigma_y, sigma_z = 0.1, 0.15, 0.12
-#     rho_yz, rho_xz, rho_xy = 0.1, -0.1, -0.15
+    sigma_x, sigma_y, sigma_z = 0.1, 0.15, 0.12
+    rho_yz, rho_xz, rho_xy = 0.1, -0.1, -0.15
 
-#     a = 0.2
-#     b = 0.5
-#     c = 1.3
+    a = 0.1
+    b = 0.1
+    c = 1.0
 
-#     sigma_yz = sigma_y*sigma_z
-#     sigma_xz = sigma_x*sigma_z
-#     sigma_xy = sigma_x*sigma_y
+    sigma_yz = sigma_y * sigma_z
+    sigma_xz = sigma_x * sigma_z
+    sigma_xy = sigma_x * sigma_y
 
-#     cov = np.array([[sigma_x**2, rho_xy*sigma_xy, rho_xz*sigma_xz],
-#                     [rho_xy*sigma_xy, sigma_y**2, rho_yz*sigma_yz],
-#                     [rho_xz*sigma_xz, rho_yz*sigma_yz, sigma_z**2]])
+    cov = np.array(
+        [
+            [sigma_x**2, rho_xy * sigma_xy, rho_xz * sigma_xz],
+            [rho_xy * sigma_xy, sigma_y**2, rho_yz * sigma_yz],
+            [rho_xz * sigma_xz, rho_yz * sigma_yz, sigma_z**2],
+        ]
+    )
 
-#     Q0 = np.array([Q0_x, Q0_y, Q0_z])
+    Q0 = np.array([Q0_x, Q0_y, Q0_z])
 
-#     signal = np.random.multivariate_normal(Q0, cov, size=1000000)
+    signal = np.random.multivariate_normal(Q0, cov, size=100000)
 
-#     data_norm, bins = np.histogramdd(signal,
-#                                      density=False,
-#                                      bins=[nx,ny,nz],
-#                                      range=[(Qx_min, Qx_max),
-#                                             (Qy_min, Qy_max),
-#                                             (Qz_min, Qz_max)])
+    data_norm, bins = np.histogramdd(
+        signal,
+        density=False,
+        bins=[nx, ny, nz],
+        range=[(Qx_min, Qx_max), (Qy_min, Qy_max), (Qz_min, Qz_max)],
+    )
 
-#     data_norm /= np.max(data_norm)
-#     data_norm /= np.sqrt(np.linalg.det(2*np.pi*cov))
+    counts = data_norm.copy()
 
-#     x_bin_edges, y_bin_edges, z_bin_edges = bins
+    data_norm /= np.max(data_norm)
+    data_norm /= np.sqrt(np.linalg.det(2 * np.pi * cov))
 
-#     Qx = 0.5*(x_bin_edges[1:]+x_bin_edges[:-1])
-#     Qy = 0.5*(y_bin_edges[1:]+y_bin_edges[:-1])
-#     Qz = 0.5*(z_bin_edges[1:]+z_bin_edges[:-1])
+    x_bin_edges, y_bin_edges, z_bin_edges = bins
 
-#     data = data_norm*c+b+a*(2*np.random.random(data_norm.shape)-1)
-#     norm = np.full_like(data, c)
+    Qx = 0.5 * (x_bin_edges[1:] + x_bin_edges[:-1])
+    Qy = 0.5 * (y_bin_edges[1:] + y_bin_edges[:-1])
+    Qz = 0.5 * (z_bin_edges[1:] + z_bin_edges[:-1])
 
-#     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing='ij')
+    data = data_norm * c + b + a * (2 * np.random.random(data_norm.shape) - 1)
+    norm = np.full_like(data, c)
 
-#     params = 1.05, 0.05, -1.15, 0.5, 0.5, 0.5, [1,0,0], [0,1,0], [0,0,1]
+    Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing="ij")
 
-#     ellipsoid = PeakEllipsoid(*params, 1, 1)
+    val_mask = counts > 0
+    det_mask = counts > 0
 
-#     params = ellipsoid.fit(Qx, Qy, Qz, data, norm)
+    y = data / norm
+    e = data / norm * 0.1
 
-#     mu = params[0:3]
-#     radii = params[3:6]
-#     vectors = params[6:9]
+    Q = np.linalg.norm(Q0)
 
-#     S = ellipsoid.S_matrix(*ellipsoid.scale(*radii, s=0.25),
-#                            *ellipsoid.angles(*vectors))
+    args = (Qx, Qy, Qz, y, e, counts, val_mask, det_mask, 0.1, Q)
 
-#     s = np.sqrt(np.linalg.det(S))
-#     sigma = np.sqrt(np.linalg.det(cov))
+    ellipsoid = PeakEllipsoid()
 
-#     assert np.isclose(mu, Q0, atol=0.01).all()
-#     assert np.isclose(s, sigma, atol=0.001).all() assert np.allclose
+    params = ellipsoid.fit(*args)
+
+    assert params is not None
+
+    # mu = params[0:3]
+    # radii = params[3:6]
+    # vectors = params[6:9]
+
+    # S = ellipsoid.S_matrix(*ellipsoid.scale(*radii, s=0.25),
+    #                         *ellipsoid.angles(*vectors))
+
+    # s = np.sqrt(np.linalg.det(S))
+    # sigma = np.sqrt(np.linalg.det(cov))
+
+    # assert np.isclose(mu, Q0, atol=0.01).all()
+    # assert np.isclose(s, sigma, atol=0.001).all()
+
+    c, S, *best_fit = ellipsoid.best_fit
+
+    norm_params = Qx, Qy, Qz, y, e, counts, val_mask, det_mask, c, S
+
+    Sp = ellipsoid.optimize_signal_to_noise(*norm_params)
+
+    norm_params = Qx, Qy, Qz, y, e, counts, val_mask, det_mask, c, Sp
+
+    I, sigma = ellipsoid.integrate(*norm_params)
+
+    print(S, Sp)
 
 
 def test_ellipsoid_methods():
-
     ellipsoid = PeakEllipsoid()
 
     r0, r1, r2, u0, u1, u2 = 0.2, 0.3, 0.4, 0.2, 0.1, 0.4
@@ -256,3 +283,4 @@ def test_ellipsoid_methods():
 
 
 test_ellipsoid_methods()
+# test_ellipsoid()

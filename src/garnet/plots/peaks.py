@@ -1120,15 +1120,6 @@ class PeakPlot(BasePlot):
         for el, ax in zip(self.proj_el[4:6], self.proj[4:6]):
             self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
 
-        for el, ax in zip(self.norm_el[0:1], self.norm[0:1]):
-            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
-
-        for el, ax in zip(self.norm_el[1:2], self.norm[1:2]):
-            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
-
-        for el, ax in zip(self.norm_el[2:3], self.norm[2:3]):
-            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
-
         s = np.cbrt(2)
 
         for el, ax in zip(self.ellip_sp[0:2], self.ellip[0:2]):
@@ -1163,23 +1154,6 @@ class PeakPlot(BasePlot):
                 el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
             )
 
-        s = np.cbrt(2)
-
-        for el, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
-            self._update_ellipse(
-                el, ax, c[0], c[1], r[0] * s, r[1] * s, rho[2]
-            )
-
-        for el, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
-            self._update_ellipse(
-                el, ax, c[0], c[2], r[0] * s, r[2] * s, rho[1]
-            )
-
-        for el, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
-            self._update_ellipse(
-                el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
-            )
-
         self.prof_lp[0].set_xdata([c[0] - r[0]])
         self.prof_rp[0].set_xdata([c[0] + r[0]])
 
@@ -1206,6 +1180,53 @@ class PeakPlot(BasePlot):
 
         self.prof[2].relim()
         self.prof[2].autoscale_view()
+
+    def update_envelope(self, c, S):
+        """
+        Draw ellipsoid envelopes.
+
+        Parameters
+        ----------
+        c : 1d-array
+            3 component center.
+        S : 2d-array
+            3x3 covariance matrix.
+
+        """
+
+        r = np.sqrt(np.diag(S))
+
+        rho = [
+            S[1, 2] / r[1] / r[2],
+            S[0, 2] / r[0] / r[2],
+            S[0, 1] / r[0] / r[1],
+        ]
+
+        for el, ax in zip(self.norm_el[0:1], self.norm[0:1]):
+            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
+
+        for el, ax in zip(self.norm_el[1:2], self.norm[1:2]):
+            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
+
+        for el, ax in zip(self.norm_el[2:3], self.norm[2:3]):
+            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
+
+        s = np.cbrt(2)
+
+        for el, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
+            self._update_ellipse(
+                el, ax, c[0], c[1], r[0] * s, r[1] * s, rho[2]
+            )
+
+        for el, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
+            self._update_ellipse(
+                el, ax, c[0], c[2], r[0] * s, r[2] * s, rho[1]
+            )
+
+        for el, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
+            self._update_ellipse(
+                el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
+            )
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
         ellipse.set_center((0, 0))

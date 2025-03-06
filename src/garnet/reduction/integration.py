@@ -67,21 +67,19 @@ class Integration(SubPlan):
         assert self.params["MaxOrder"] >= 0
         assert type(self.params["CrossTerms"]) is bool
 
+        if self.params.get("ProfileFit") is None:
+            self.params["ProfileFit"] = True
+
     @staticmethod
     def integrate_parallel(plan, runs, proc):
         plan["Runs"] = runs
         plan["ProcName"] = "_p{}".format(proc)
 
-        data = DataModel(beamlines[plan["Instrument"]])
-
         instance = Integration(plan)
         instance.proc = proc
         instance.n_proc = 1
 
-        if data.laue:
-            return instance.laue_integrate()
-        else:
-            return instance.monochromatic_integrate()
+        return instance.laue_integrate()
 
     def integrate(self, n_proc=1):
         data = DataModel(beamlines[self.plan["Instrument"]])
@@ -97,6 +95,37 @@ class Integration(SubPlan):
     def integrate_peaks(self, data):
         pp = ParallelProcessor(n_proc=self.n_proc)
         return pp.process_dict(data, self.fit_peaks)
+
+    @staticmethod
+    def combine_parallel(plan, files):
+        instance = Integration(plan)
+
+        return instance.combine(files)
+
+    def combine(self, files):
+        output_file = self.get_output_file()
+        result_file = self.get_file(output_file, "")
+
+        peaks = PeaksModel()
+
+        for file in files:
+            peaks.load_peaks(file, "tmp")
+            peaks.combine_peaks("tmp", "combine")
+
+        for file in files:
+            os.remove(file)
+            os.remove(os.path.splitext(file)[0] + ".mat")
+
+        if mtd.doesExist("combine"):
+            peaks.save_peaks(result_file, "combine")
+
+            opt = Optimization("combine")
+            opt.optimize_lattice(self.params["Cell"])
+
+            ub_file = os.path.splitext(result_file)[0] + ".mat"
+
+            ub = UBModel("combine")
+            ub.save_UB(ub_file)
 
     def laue_integrate(self):
         output_file = self.get_output_file()
@@ -159,74 +188,69 @@ class Integration(SubPlan):
                 "data",
                 "peaks",
                 self.params["Centering"],
-                d_min,
+                self.params["MinD"],
                 lamda_min,
                 lamda_max,
             )
 
             self.peaks, self.data = peaks, data
 
-            r_cut = self.params["Radius"]
+            # md_file = self.get_diagnostic_file("run#{}_data".format(run))
 
-            est_file = self.get_plot_file("centroid#{}".format(run))
+            # data.save_histograms(md_file, "md", sample_logs=True)
 
-            self.estimate_peak_centroid("peaks", r_cut, d_min, est_file)
+            if self.params["ProfileFit"]:
+                r_cut = self.params["Radius"]
 
-            ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
+                est_file = self.get_plot_file("centroid#{}".format(run))
 
-            opt = Optimization("peaks")
-            opt.optimize_lattice("Fixed")
+                self.estimate_peak_centroid("peaks", r_cut, d_min, est_file)
 
-            ub_file = os.path.splitext(ub_file)[0] + ".mat"
+                ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
 
-            ub = UBModel("peaks")
-            ub.save_UB(ub_file)
+                opt = Optimization("peaks")
+                opt.optimize_lattice("Fixed")
 
-            data.load_clear_UB(ub_file, "data", run)
+                ub_file = os.path.splitext(ub_file)[0] + ".mat"
 
-            peaks.predict_peaks(
-                "data",
-                "peaks",
-                self.params["Centering"],
-                d_min,
-                lamda_min,
-                lamda_max,
-            )
+                ub = UBModel("peaks")
+                ub.save_UB(ub_file)
 
-            if self.params["MaxOrder"] > 0:
-                sat_min_d = d_min
-                if self.params.get("SatMinD") is not None:
-                    sat_min_d = self.params["SatMinD"]
+                data.load_clear_UB(ub_file, "data", run)
 
-                peaks.predict_satellite_peaks(
+                peaks.predict_peaks(
+                    "data",
                     "peaks",
-                    "md",
                     self.params["Centering"],
+                    d_min,
                     lamda_min,
                     lamda_max,
-                    sat_min_d,
-                    self.params["ModVec1"],
-                    self.params["ModVec2"],
-                    self.params["ModVec3"],
-                    self.params["MaxOrder"],
-                    self.params["CrossTerms"],
+                )
+
+                self.predict_add_satellite_peaks(lamda_min, lamda_max)
+
+                est_file = self.get_plot_file("profile#{}".format(run))
+
+                params = self.estimate_peak_size("peaks", r_cut, est_file)
+
+                peak_dict = self.extract_peak_info("peaks", params)
+
+                results = self.integrate_peaks(peak_dict)
+
+                self.update_peak_info("peaks", results)
+
+            else:
+                self.predict_add_satellite_peaks(lamda_min, lamda_max)
+
+                peaks.integrate_peaks(
+                    "md",
+                    "peaks",
+                    self.params["Radius"],
+                    method="ellipsoid",
+                    centroid=True,
                 )
 
             data.delete_workspace("data")
-
-            md_file = self.get_diagnostic_file("run#{}_data".format(run))
-
-            data.save_histograms(md_file, "md", sample_logs=True)
-
-            est_file = self.get_plot_file("profile#{}".format(run))
-
-            params = self.estimate_peak_size("peaks", r_cut, est_file)
-
-            peak_dict = self.extract_peak_info("peaks", params)
-
-            results = self.integrate_peaks(peak_dict)
-
-            self.update_peak_info("peaks", results)
 
             peaks.combine_peaks("peaks", "combine")
 
@@ -255,34 +279,27 @@ class Integration(SubPlan):
 
         mtd.clear()
 
-        return output_file
+        return result_file
 
-    # def laue_combine(self, files):
+    def predict_add_satellite_peaks(self, lamda_min, lamda_max):
+        if self.params["MaxOrder"] > 0:
+            sat_min_d = self.params["MinD"]
+            if self.params.get("SatMinD") is not None:
+                sat_min_d = self.params["SatMinD"]
 
-    #     output_file = self.get_output_file()
-    #     result_file = self.get_file(output_file, '')
-
-    #     peaks = PeaksModel()
-
-    #     for file in files:
-
-    #         peaks.load_peaks(file, 'tmp')
-    #         peaks.combine_peaks('tmp', 'combine')
-
-    #     for file in files:
-    #         os.remove(file)
-
-    #     if mtd.doesExist('combine'):
-
-    #         peaks.save_peaks(result_file, 'combine')
-
-    #         opt = Optimization('combine')
-    #         opt.optimize_lattice(self.params['Cell'])
-
-    #         ub_file = os.path.splitext(result_file)[0]+'.mat'
-
-    #         ub = UBModel('combine')
-    #         ub.save_UB(ub_file)
+            self.peaks.predict_satellite_peaks(
+                "peaks",
+                "md",
+                self.params["Centering"],
+                lamda_min,
+                lamda_max,
+                sat_min_d,
+                self.params["ModVec1"],
+                self.params["ModVec2"],
+                self.params["ModVec3"],
+                self.params["MaxOrder"],
+                self.params["CrossTerms"],
+            )
 
     def monochromatic_integrate(self):
         output_file = self.get_output_file()
@@ -380,94 +397,6 @@ class Integration(SubPlan):
         mtd.clear()
 
         return output_file
-
-    def monochromatic_combine(self, files):
-        output_file = self.get_output_file()
-        result_file = self.get_file(output_file, "")
-
-        data = DataModel(beamlines[self.plan["Instrument"]])
-        data.update_raw_path(self.plan)
-
-        peaks = PeaksModel()
-
-        lamda_min, lamda_max = data.wavelength_band
-
-        if self.plan["Instrument"] == "WAND²":
-            merge = []
-            for file in files:
-                peaks.load_peaks(file, "peaks")
-                peaks.combine_peaks("peaks", "combine")
-
-                md_file = file.replace("_peaks", "_data")
-                data.load_histograms(md_file, md_file)
-
-                merge.append(md_file)
-                os.remove(md_file)
-
-            data.combine_Q_sample(merge, "md")
-
-            if self.plan.get("UBFile") is None:
-                UB_file = output_file.replace(".nxs", ".mat")
-                data.save_UB(UB_file, "md")
-                self.plan["UBFile"] = UB_file
-
-            data.load_clear_UB(self.plan["UBFile"], "md")
-
-            peaks.predict_peaks(
-                "md",
-                "peaks",
-                self.params["Centering"],
-                self.params["MinD"],
-                lamda_min,
-                lamda_max,
-            )
-
-            if self.params["MaxOrder"] > 0:
-                peaks.predict_satellite_peaks(
-                    "peaks",
-                    "md",
-                    self.params["MinD"],
-                    lamda_min,
-                    lamda_max,
-                    self.params["ModVec1"],
-                    self.params["ModVec2"],
-                    self.params["ModVec3"],
-                    self.params["MaxOrder"],
-                    self.params["CrossTerms"],
-                )
-
-            self.peaks, self.data = peaks, data
-
-            params = self.estimate_peak_size("peaks", "md")
-
-            self.fit_peaks("peaks", params)
-
-            md_file = self.get_diagnostic_file("data")
-            data.save_histograms(md_file, "md", sample_logs=True)
-
-            pk_file = self.get_diagnostic_file("peaks")
-            peaks.save_peaks(pk_file, "peaks")
-
-        else:
-            for file in files:
-                peaks.load_peaks(file, "tmp")
-                peaks.combine_peaks("tmp", "combine")
-
-            for file in files:
-                os.remove(file)
-
-        if mtd.doesExist("combine"):
-            peaks.save_peaks(result_file, "combine")
-
-            opt = Optimization("combine")
-            opt.optimize_lattice(self.params["Cell"])
-
-            ub_file = os.path.splitext(result_file)[0] + ".mat"
-
-            ub = UBModel("combine")
-            ub.save_UB(ub_file)
-
-        mtd.clear()
 
     def get_file(self, file, ws=""):
         """
@@ -634,7 +563,13 @@ class Integration(SubPlan):
 
             norm_params = Q0, Q1, Q2, y, e, counts, val_mask, det_mask, c, S
 
+            Sp, sig_noise = ellipsoid.optimize_signal_to_noise(*norm_params)
+
+            norm_params = Q0, Q1, Q2, y, e, counts, val_mask, det_mask, c, Sp
+
             I, sigma = ellipsoid.integrate(*norm_params)
+
+            sigma = np.sqrt(sigma**2 + (I / sig_noise) ** 2)
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
@@ -644,6 +579,8 @@ class Integration(SubPlan):
                 self.peak_plot.add_projection_fit(ellipsoid.best_proj)
 
                 self.peak_plot.add_ellipsoid(c, S)
+
+                self.peak_plot.update_envelope(c, Sp)
 
                 self.peak_plot.add_peak_info(
                     hkl, d, wavelength, angles, goniometer
@@ -922,19 +859,6 @@ class Integration(SubPlan):
         extents = np.vstack((min_adjusted, max_adjusted)).T
 
         return bins, extents, projections
-
-    @staticmethod
-    def combine_parallel(plan, files):
-        instance = Integration(plan)
-
-        data = DataModel(beamlines[plan["Instrument"]])
-
-        instance = Integration(plan)
-
-        if data.laue:
-            return instance.laue_combine(files)
-        else:
-            return instance.monochromatic_combine(files)
 
 
 class PeakCentroid:
@@ -3226,14 +3150,42 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def integrate(self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S):
-        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+    def optimize_signal_to_noise(
+        self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S
+    ):
+        pk, bkg = self.peak_roi(x0, x1, x2, c, S, val_mask)
 
-        d3x = dx0 * dx1 * dx2
+        intens, sig, b, b_err = self.extract_intensity(y, e, pk, bkg)
 
-        y /= d3x
-        e /= d3x
+        if not sig > 0:
+            sig = intens
 
+        signal_to_noise = intens / sig
+
+        if signal_to_noise > 3:
+            bounds = [(0.5, 2), (0.5, 2), (0.5, 2)]
+
+            args = (x0, x1, x2, y, e, val_mask, c, S)
+
+            res = scipy.optimize.differential_evolution(
+                self.negative_signal_to_noise, bounds, args=args, polish=False
+            )
+
+            x = res.x
+
+            return S @ np.diag(x), signal_to_noise
+
+        else:
+            return S, signal_to_noise
+
+    def negative_signal_to_noise(self, x, x0, x1, x2, y, e, val_mask, c, S):
+        pk, bkg = self.peak_roi(x0, x1, x2, c, S @ np.diag(x) ** 2, val_mask)
+
+        intens, sig, b, b_err = self.extract_intensity(y, e, pk, bkg)
+
+        return -intens / sig
+
+    def peak_roi(self, x0, x1, x2, c, S, val_mask):
         c0, c1, c2 = c
 
         x = np.array([x0 - c0, x1 - c1, x2 - c2])
@@ -3243,14 +3195,12 @@ class PeakEllipsoid:
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
         pk = (ellipsoid <= 1) & val_mask
-        # pk = scipy.ndimage.binary_dilation(pk)
 
         bkg = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2) & val_mask
-        # bkg = scipy.ndimage.binary_dilation(pk) & ~pk & bkg
 
-        # pk = pk & val_mask
-        # bkg = bkg & det_mask
+        return pk, bkg
 
+    def extract_intensity(self, y, e, pk, bkg):
         y_pk = y[pk].copy()
         e_pk = e[pk].copy()
 
@@ -3258,11 +3208,26 @@ class PeakEllipsoid:
         e_bkg = e[bkg].copy()
 
         N = np.sum(bkg)
+
         b = np.nansum(y_bkg) / N
         b_err = np.sqrt(np.nansum(e_bkg**2) + np.nanvar(y_bkg)) / N
 
-        intens = np.nansum(y_pk - b) * d3x
-        sig = np.sqrt(np.nansum(e_pk**2 + b_err**2)) * d3x
+        intens = np.nansum(y_pk - b)
+        sig = np.sqrt(np.nansum(e_pk**2 + b_err**2))
+
+        if not sig > 0:
+            sig = np.inf
+
+        return intens, sig, b, b_err
+
+    def integrate(self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S):
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
+        d3x = dx0 * dx1 * dx2
+
+        pk, bkg = self.peak_roi(x0, x1, x2, c, S, val_mask)
+
+        intens, sig, b, b_err = self.extract_intensity(y, e, pk, bkg)
 
         self.weights = (x0[pk], x1[pk], x2[pk]), counts[pk].copy()
 
@@ -3272,15 +3237,9 @@ class PeakEllipsoid:
         freq[~(pk | bkg)] = np.nan
         freq -= b
 
-        c_pk = counts[pk].copy()
-        c_bkg = counts[bkg].copy()
-
-        N = np.sum(bkg)
-        b_raw = np.nansum(c_bkg) / N
-        b_raw_err = np.sqrt(np.nansum(c_bkg)) / N
-
-        intens_raw = np.nansum(c_pk - b_raw)
-        sig_raw = np.sqrt(np.nansum(c_pk + b_raw_err**2))
+        intens_raw, sig_raw, b_raw, b_raw_err = self.extract_intensity(
+            counts, np.sqrt(counts), pk, bkg
+        )
 
         self.info += [intens_raw, sig_raw]
 

@@ -102,11 +102,11 @@ class Parametrization(SubPlan):
                         workspace, "md", lorentz_corr=False
                     )
 
-                    md_file = self.get_diagnostic_file(
-                        "run#{}_{}_data".format(run, index)
-                    )
+                    # md_file = self.get_diagnostic_file(
+                    #     "run#{}_{}_data".format(run, index)
+                    # )
 
-                    data.save_histograms(md_file, "md", sample_logs=True)
+                    # data.save_histograms(md_file, "md", sample_logs=True)
 
                     data.normalize_to_hkl(
                         "md",

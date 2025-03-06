@@ -52,6 +52,7 @@ from mantid.simpleapi import (
     CreateSingleValuedWorkspace,
     AddSampleLog,
     RemoveLogs,
+    CompressEvents,
     GenerateEventsFilter,
     FilterEvents,
     CopySample,
@@ -1648,12 +1649,6 @@ class LaueData(BaseDataModel):
                 Target="Momentum",
             )
 
-            # CompressEvents(
-            #     InputWorkspace=event_name,
-            #     OutputWorkspace=event_name,
-            #     Tolerance=0.0001,
-            # )
-
             CropWorkspaceForMDNorm(
                 InputWorkspace=event_name,
                 XMin=self.k_min,
@@ -1676,6 +1671,12 @@ class LaueData(BaseDataModel):
             InputWorkspace=event_name,
             OutputWorkspace=event_name,
             Target="Wavelength",
+        )
+
+        CompressEvents(
+            InputWorkspace=event_name,
+            OutputWorkspace=event_name,
+            Tolerance=0.0001,
         )
 
         NormaliseByCurrent(
@@ -1719,12 +1720,6 @@ class LaueData(BaseDataModel):
                     OutputWorkspace="bkg",
                     Target="Momentum",
                 )
-
-                # CompressEvents(
-                #     InputWorkspace="bkg",
-                #     OutputWorkspace="bkg",
-                #     Tolerance=0.0001,
-                # )
 
                 CropWorkspaceForMDNorm(
                     InputWorkspace="bkg",
