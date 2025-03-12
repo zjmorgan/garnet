@@ -334,19 +334,30 @@ class ReductionPlan:
 
         """
 
-        ranges = runs_str.split(",")
+        if type(runs_str) is not str:
+            runs_str = str(runs_str)
+
         runs = []
+        ranges = runs_str.split(",")
+
         for part in ranges:
             if ":" in part:
-                start, end = map(int, part.split(":"))
-                runs.extend(range(start, end + 1))
+                range_part, *skip_part = part.split(";")
+                start, end = map(int, range_part.split(":"))
+                skip = int(skip_part[0]) if skip_part else 1
+
+                if start > end or skip <= 0:
+                    return None
+
+                runs.extend(range(start, end + 1, skip))
             else:
                 runs.append(int(part))
+
         return runs
 
     def runs_list_to_string(self, runs):
         """
-        Convert runs list to string.
+        Convert runs list to string with step notation.
 
         Parameters
         ----------
@@ -356,8 +367,7 @@ class ReductionPlan:
         Returns
         -------
         runs_str : str
-            Condensed notation for run numbers.
-
+            Condensed notation for run numbers, including step notation.
         """
 
         if not runs:
@@ -365,24 +375,37 @@ class ReductionPlan:
 
         runs.sort()
         result = []
+
         range_start = runs[0]
+        step = None
 
         for i in range(1, len(runs)):
-            if runs[i] != runs[i - 1] + 1:
-                if range_start == runs[i - 1]:
-                    result.append(str(range_start))
+            current_step = runs[i] - runs[i - 1]
+            if step is None:
+                step = current_step
+            elif current_step != step:
+                if step == 1:
+                    result.append(
+                        "{}:{}".format(range_start, runs[i - 1])
+                    ) if range_start != runs[i - 1] else result.append(
+                        str(range_start)
+                    )
                 else:
-                    result.append("{}:{}".format(range_start, runs[i - 1]))
+                    result.append(
+                        "{}:{};{}".format(range_start, runs[i - 1], step)
+                    )
+
                 range_start = runs[i]
+                step = None
 
-        if range_start == runs[-1]:
-            result.append(str(range_start))
+        if step == 1 or step is None:
+            result.append(
+                "{}:{}".format(range_start, runs[i - 1])
+            ) if range_start != runs[-1] else result.append(str(range_start))
         else:
-            result.append("{}:{}".format(range_start, runs[-1]))
+            result.append("{}:{};{}".format(range_start, runs[-1], step))
 
-        run_str = ",".join(result)
-
-        return run_str
+        return ",".join(result)
 
     def generate_plan(self, instrument):
         """

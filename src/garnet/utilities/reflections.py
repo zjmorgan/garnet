@@ -8,9 +8,12 @@ from mantid.simpleapi import (
     SortPeaksWorkspace,
     CombinePeaksWorkspaces,
     StatisticsOfPeaksWorkspace,
+    CreatePeaksWorkspace,
     SaveHKL,
+    SaveReflections,
     SaveIsawUB,
     CloneWorkspace,
+    CopySample,
     SetGoniometer,
     SetSample,
     AddAbsorptionWeightedPathLengths,
@@ -122,11 +125,16 @@ class WobbleCorrection:
     def extract_info(self):
         peak_dict = {}
 
-        for peak in mtd[self.peaks]:
-            h, k, l = [int(val) for val in peak.getIntHKL()]
-            m, n, p = [int(val) for val in peak.getIntMNP()]
+        ol = mtd[self.peaks].sample().getOrientedLattice()
+        mod_HKL = ol.getModHKL().copy()
 
-            key = (h, k, l, m, n, p)
+        for peak in mtd[self.peaks]:
+            h, k, l = peak.getIntHKL()
+            m, n, p = peak.getIntMNP()
+
+            hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
+
+            key = tuple(np.round(hkl, 3).tolist())
             key_neg = tuple(-val for val in key)
 
             key = max(key, key_neg)
@@ -821,11 +829,16 @@ class PrunePeaks:
     def extract_info(self):
         peaks_dict = {}
 
-        for peak in mtd[self.peaks]:
-            h, k, l = [int(val) for val in peak.getIntHKL()]
-            m, n, p = [int(val) for val in peak.getIntMNP()]
+        ol = mtd[self.peaks].sample().getOrientedLattice()
+        mod_HKL = ol.getModHKL().copy()
 
-            key = (h, k, l, m, n, p)
+        for peak in mtd[self.peaks]:
+            h, k, l = peak.getIntHKL()
+            m, n, p = peak.getIntMNP()
+
+            hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
+
+            key = tuple(np.round(hkl, 3).tolist())
             key_neg = tuple(-val for val in key)
 
             key = max(key, key_neg)
@@ -972,7 +985,7 @@ class PrunePeaks:
             self.model_dict[model] = familiy_dict
 
     def create_figure(self, key, relerr=0.1):
-        label = "_({},{},{},{},{},{}).pdf".format(*key)
+        label = "_({} {} {}).pdf".format(*key)
         filename = os.path.splitext(self.filename)[0] + label
 
         I, sig, lamda, two_theta, Tbar, c = self.peaks_dict[key]
@@ -1051,11 +1064,16 @@ class PrunePeaks:
 
             CloneWorkspace(InputWorkspace=self.peaks, OutputWorkspace=peaks)
 
-            for peak in mtd[peaks]:
-                h, k, l = [int(val) for val in peak.getIntHKL()]
-                m, n, p = [int(val) for val in peak.getIntMNP()]
+            ol = mtd[peaks].sample().getOrientedLattice()
+            mod_HKL = ol.getModHKL().copy()
 
-                key = (h, k, l, m, n, p)
+            for peak in mtd[peaks]:
+                h, k, l = peak.getIntHKL()
+                m, n, p = peak.getIntMNP()
+
+                hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
+
+                key = tuple(np.round(hkl, 3).tolist())
                 key_neg = tuple(-val for val in key)
 
                 key = max(key, key_neg)
@@ -1129,6 +1147,42 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
+        run_info = mtd[self.peaks].run()
+        run_keys = run_info.keys()
+
+        keys = ["h", "k", "l", "m", "n", "p", "run"]
+        vals = ["intens", "sig"]
+
+        info_dict = {}
+
+        items = keys + vals
+
+        log_info = np.all(
+            ["peaks_{}".format(item) in run_keys for item in items]
+        )
+
+        if log_info:
+            h = run_info.getLogData("peaks_h").value
+            k = run_info.getLogData("peaks_k").value
+            l = run_info.getLogData("peaks_l").value
+            m = run_info.getLogData("peaks_m").value
+            n = run_info.getLogData("peaks_n").value
+            p = run_info.getLogData("peaks_p").value
+            run = run_info.getLogData("peaks_run").value
+
+            intens = run_info.getLogData("peaks_intens").value
+            sig = run_info.getLogData("peaks_sig").value
+
+            for i in range(len(run)):
+                key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
+                info_dict[key] = intens[i], sig[i]
+
+        self.info_dict = info_dict
+
+        for peak in mtd[self.peaks]:
+            run = int(peak.getRunNumber())
+            peak.setBinCount(run)
+
         self.reset_satellite()
 
         FilterPeaks(
@@ -1154,6 +1208,105 @@ class Peaks:
         )
 
         self.rescale_intensities()
+
+    def merge_intensities(self, name=None):
+        if name is not None:
+            peaks = name
+            app = "_{}".format(name).replace(" ", "_")
+        else:
+            peaks = self.peaks
+            app = ""
+
+        weights = {}
+
+        for peak in mtd[peaks]:
+            run = int(peak.getBinCount())
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
+            intens = peak.getIntensity()
+            sig = peak.getSigmaIntensity()
+            lamda = peak.getWavelength()
+            tbar = peak.getAbsorptionWeightedPathLength()
+
+            key = (run, h, k, l, m, n, p)
+            if self.info_dict.get(key) is not None:
+                intens_raw, sig_raw = self.info_dict[key]
+                norm = intens_raw / intens
+            else:
+                norm = 1
+
+            key = (h, k, l, m, n, p)
+            items = weights.get(key)
+            if items is None:
+                items = [0, 0, 0, 0, 0]
+            items[0] += intens * norm
+            items[1] += (sig * norm) ** 2
+            items[2] += lamda * norm
+            items[3] += tbar * norm
+            items[4] += norm
+
+            weights[key] = items
+
+        CreatePeaksWorkspace(
+            NumberOfPeaks=0,
+            OutputWorkspace=peaks + "_lean",
+            OutputType="LeanElasticPeak",
+        )
+
+        CopySample(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks + "_lean",
+            CopyName=False,
+            CopyEnvironment=False,
+        )
+
+        peaks_lean = mtd[peaks + "_lean"]
+
+        ol = mtd[peaks].sample().getOrientedLattice()
+        mod_HKL = ol.getModHKL().copy()
+
+        for key in weights.keys():
+            h, k, l, m, n, p = key
+            hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
+            peak = peaks_lean.createPeakHKL(hkl.tolist())
+            peak.setIntHKL(V3D(h, k, l))
+            peak.setIntMNP(V3D(m, n, p))
+            intens, var, lamda, tbar, norm = weights[key]
+            peak.setIntensity(intens / norm)
+            peak.setSigmaIntensity(np.sqrt(var) / norm)
+            peak.setWavelength(lamda / norm)
+            peak.setAbsorptionWeightedPathLength(tbar / norm)
+            peaks_lean.addPeak(peak)
+
+        filename = os.path.splitext(self.filename)[0] + app + "_merge"
+
+        FilterPeaks(
+            InputWorkspace=peaks + "_lean",
+            OutputWorkspace=peaks + "_lean",
+            FilterVariable="Signal/Noise",
+            FilterValue=3,
+            Operator=">",
+        )
+
+        for col in ["h", "k", "l", "DSpacing"]:
+            SortPeaksWorkspace(
+                InputWorkspace=peaks + "_lean",
+                OutputWorkspace=peaks + "_lean",
+                ColumnNameToSortBy=col,
+                SortAscending=False,
+            )
+
+        SaveReflections(
+            InputWorkspace=peaks + "_lean",
+            Filename=filename + ".int",
+            Format="Jana",
+        )
+
+        # SaveHKLCW(
+        #     Workspace=peaks+'_lean',
+        #     OutputFile=filename + ".hkl",
+        #     Header=False,
+        # )
 
     def reset_satellite(self):
         mod_mnp = []
@@ -1217,6 +1370,8 @@ class Peaks:
         self.resort_hkl(peaks, filename + ".hkl")
 
         self.calculate_statistics(peaks, filename + "_symm.txt")
+
+        self.merge_intensities(name)
 
         if self.max_order > 0:
             nuclear = peaks + "_nuc"
