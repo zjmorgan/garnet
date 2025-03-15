@@ -55,6 +55,7 @@ from mantid.simpleapi import (
     CompressEvents,
     GenerateEventsFilter,
     FilterEvents,
+    FilterBadPulses,
     CopySample,
     DeleteWorkspace,
     DeleteWorkspaces,
@@ -889,10 +890,11 @@ class BaseDataModel:
 
                 if type(log_vals) is float:
                     run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
-                    values = run.getProperty(log_name).value
-                    values[index] = log_vals
-                    run.addProperty(log_name, values, True)
-                    run.getProperty(log_name).units = log_units
+                    # values = run.getProperty(log_name).value
+                    # print('index',index)
+                    # values[index] = log_vals
+                    # run.addProperty(log_name, values, True)
+                    # run.getProperty(log_name).units = log_units
 
                 signal = mtd[md + ws + "_split"].getSignalArray().copy()
                 signal[index] += mtd[md + ws].getSignalArray()

@@ -28,7 +28,7 @@ class Parametrization(SubPlan):
         assert len(self.params["Bins"]) == 3
         assert all([type(val) is int for val in self.params["Bins"]])
         assert (np.array(self.params["Bins"]) > 0).all()
-        assert np.prod(self.params["Bins"]) < 1001**3  # memory usage limit
+        assert np.prod(self.params["Bins"]) < 101**3  # memory usage limit
 
         assert len(self.params["Extents"]) == 3
         assert (np.diff(self.params["Extents"], axis=1) >= 0).all()
@@ -101,12 +101,6 @@ class Parametrization(SubPlan):
                     data.convert_to_Q_sample(
                         workspace, "md", lorentz_corr=False
                     )
-
-                    # md_file = self.get_diagnostic_file(
-                    #     "run#{}_{}_data".format(run, index)
-                    # )
-
-                    # data.save_histograms(md_file, "md", sample_logs=True)
 
                     data.normalize_to_hkl(
                         "md",
@@ -265,7 +259,9 @@ class Parametrization(SubPlan):
         log_bins = self.params.get("LogBins")
         log_extents = self.params.get("LogExtents")
 
-        name = log_name.replace(" ", "").replace("/", "")
+        name = (
+            "" if log_bins == 0 else log_name.replace(" ", "").replace("/", "")
+        )
 
         log_vals = [*log_extents, log_bins]
 

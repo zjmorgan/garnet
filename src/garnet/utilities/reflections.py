@@ -670,7 +670,7 @@ class PrunePeaks:
         self.V = V
 
         self.extinction_prune()
-        self.workspaces = self.save_extinction()
+        self.workspaces, self.parameters = self.save_extinction()
 
     def remove_non_integrated(self):
         for peak in mtd[self.peaks]:
@@ -822,9 +822,9 @@ class PrunePeaks:
 
         y = self.extinction_correction(p, I0, two_theta, lamda, Tbar, model)
 
-        s = self.scale_factor(y, I, sig)
+        s = self.scale_factor(y, I, sig * 0 + 1)
 
-        return ((s * y - I) / sig).tolist()
+        return ((s * y - I)).tolist()
 
     def extract_info(self):
         peaks_dict = {}
@@ -919,7 +919,7 @@ class PrunePeaks:
                         param, I0, two_theta, lamda, Tbar, model
                     )
 
-                    s = self.scale_factor(y, I, sig)
+                    s = self.scale_factor(y, I, sig * 0 + 1)
 
                     self.peaks_dict[key][-1] = s
 
@@ -984,7 +984,30 @@ class PrunePeaks:
             self.parameter_dict[model] = param
             self.model_dict[model] = familiy_dict
 
-    def create_figure(self, key, relerr=0.1):
+    def outlier_detection(self, key, model, c1=0.05, c4=1):
+        I, sig, lamda, two_theta, A, Tbar = self.peaks_dict[key]
+        I_fit = self.filter_dict[model][key][0]
+
+        n = I_fit.size
+
+        sig_ext = np.median(sig)
+        sig_int = (
+            np.median(np.abs(I - I_fit) * np.sqrt(n / (n - 1)))
+            if n > 1
+            else np.inf
+        )
+
+        zcrit = np.sqrt(scipy.stats.chi2.ppf(1 - 1 / (2 * n), df=1))
+
+        t = np.max(
+            [c1 * np.median(I), c4 * zcrit * np.max([sig_ext, sig_int])]
+        )
+
+        mask = np.abs(I_fit - I) < t
+
+        return I_fit, I, sig, lamda, Tbar, t, mask
+
+    def create_figure(self, key):
         label = "_({} {} {}).pdf".format(*key)
         filename = os.path.splitext(self.filename)[0] + label
 
@@ -998,9 +1021,7 @@ class PrunePeaks:
         )
 
         for i, model in enumerate(self.models):
-            I_fit = self.filter_dict[model][key][0][sort]
-
-            mask = (I_fit - I) / I_fit < relerr
+            I_fit, I, sig, *_, mask = self.outlier_detection(key, model)
 
             ax[i].errorbar(
                 lamda[mask], I[mask], sig[mask], fmt="o", color="C0", zorder=2
@@ -1038,7 +1059,7 @@ class PrunePeaks:
 
         return filename
 
-    def save_extinction(self, relerr=0.1):
+    def save_extinction(self, zmax=6):
         filename = os.path.splitext(self.filename)[0] + "_ext.pdf"
 
         with Pool() as pool:
@@ -1057,6 +1078,7 @@ class PrunePeaks:
                 os.remove(pdf_file)
 
         workspaces = []
+        parameters = []
 
         for model in self.models:
             peaks = model.replace(" ", "_")
@@ -1067,9 +1089,20 @@ class PrunePeaks:
             ol = mtd[peaks].sample().getOrientedLattice()
             mod_HKL = ol.getModHKL().copy()
 
+            outliers = {}
+            for key in self.peaks_dict.keys():
+                outliers[key] = self.outlier_detection(key, model)
+
+            for key in outliers.keys():
+                items = outliers[key]
+                items = [np.array(item) for item in items]
+                outliers[key] = items
+
+            weights = {}
+
             for peak in mtd[peaks]:
-                h, k, l = peak.getIntHKL()
-                m, n, p = peak.getIntMNP()
+                h, k, l = [int(val) for val in peak.getIntHKL()]
+                m, n, p = [int(val) for val in peak.getIntMNP()]
 
                 hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
 
@@ -1078,13 +1111,11 @@ class PrunePeaks:
 
                 key = max(key, key_neg)
 
-                I, sig, lamda, two_theta, A, Tbar = self.peaks_dict[key]
-
                 param = self.parameter_dict[model]
                 s = self.filter_dict[model][key][1]
 
                 I = peak.getIntensity()
-                # sig = peak.getSigmaIntensity()
+                sig = peak.getSigmaIntensity()
                 two_theta = peak.getScattering()
                 lamda = peak.getWavelength()
                 Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
@@ -1095,10 +1126,58 @@ class PrunePeaks:
 
                 I_fit = s * y
 
-                if (I_fit - I) / I_fit > relerr:
-                    peak.setSigmaIntensity(I)
+                *_, t, mask = outliers[key]
 
-        return workspaces
+                if np.abs(I - I_fit) > t:
+                    peak.setSigmaIntensity(I)
+                else:
+                    key = (h, k, l, m, n, p)
+                    items = weights.get(key)
+                    if items is None:
+                        items = [], [], [], [], []
+                    items[0].append(I_fit)
+                    items[1].append(I)
+                    items[2].append(sig)
+                    items[3].append(lamda)
+                    items[4].append(Tbar)
+                    weights[key] = items
+
+            for key in weights.keys():
+                items = weights[key]
+                items = [np.array(item) for item in items]
+                weights[key] = items
+
+            outlier = {}
+
+            for key in weights.keys():
+                I_fit, I, sig, lamda, Tbar = weights[key]
+
+                N = I_fit.size
+
+                sig_ext = np.median(sig)
+                sig_int = (
+                    np.median(np.abs(I - I_fit) * np.sqrt(N / (N - 1)))
+                    if N > 1
+                    else np.inf
+                )
+
+                sigma = np.max([sig_ext, sig_int])
+
+                z = (I - I_fit) / sigma
+
+                weight = (1 - (z / zmax) ** 2) ** 2
+                weight[np.abs(z) > zmax] = 0.01
+
+                outlier[key] = I_fit, I, sig, lamda, Tbar, weight
+
+            for key in outlier.keys():
+                items = outlier.get(key)
+                items = [np.array(item) for item in items]
+                outlier[key] = items
+
+            parameters.append(outlier)
+
+        return workspaces, parameters
 
 
 class Peaks:
@@ -1144,8 +1223,19 @@ class Peaks:
         with open(filename, "w") as f:
             f.write("{:.4e}".format(scale))
 
+    def remove_off_centered(self, relerr=0.05):
+        ol = mtd[self.peaks].sample().getOrientedLattice()
+
+        for peak in mtd[self.peaks]:
+            h, k, l = peak.getHKL()
+            d0 = ol.d(h, k, l)
+            if np.abs(peak.getDSpacing() / d0 - 1) > relerr:
+                peak.setSigmaIntensity(peak.getIntensity())
+
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
+
+        self.remove_off_centered()
 
         run_info = mtd[self.peaks].run()
         run_keys = run_info.keys()
@@ -1209,43 +1299,13 @@ class Peaks:
 
         self.rescale_intensities()
 
-    def merge_intensities(self, name=None):
+    def merge_intensities(self, name=None, fit_dict=None):
         if name is not None:
             peaks = name
             app = "_{}".format(name).replace(" ", "_")
         else:
             peaks = self.peaks
             app = ""
-
-        weights = {}
-
-        for peak in mtd[peaks]:
-            run = int(peak.getBinCount())
-            h, k, l = [int(val) for val in peak.getIntHKL()]
-            m, n, p = [int(val) for val in peak.getIntMNP()]
-            intens = peak.getIntensity()
-            sig = peak.getSigmaIntensity()
-            lamda = peak.getWavelength()
-            tbar = peak.getAbsorptionWeightedPathLength()
-
-            key = (run, h, k, l, m, n, p)
-            if self.info_dict.get(key) is not None:
-                intens_raw, sig_raw = self.info_dict[key]
-                norm = intens_raw / intens
-            else:
-                norm = 1
-
-            key = (h, k, l, m, n, p)
-            items = weights.get(key)
-            if items is None:
-                items = [0, 0, 0, 0, 0]
-            items[0] += intens * norm
-            items[1] += (sig * norm) ** 2
-            items[2] += lamda * norm
-            items[3] += tbar * norm
-            items[4] += norm
-
-            weights[key] = items
 
         CreatePeaksWorkspace(
             NumberOfPeaks=0,
@@ -1265,20 +1325,80 @@ class Peaks:
         ol = mtd[peaks].sample().getOrientedLattice()
         mod_HKL = ol.getModHKL().copy()
 
-        for key in weights.keys():
+        if fit_dict is None:
+            fit_dict = {}
+            for peak in mtd[peaks]:
+                h, k, l = [int(val) for val in peak.getIntHKL()]
+                m, n, p = [int(val) for val in peak.getIntMNP()]
+
+                key = (h, k, l, m, n, p)
+
+                I = peak.getIntensity()
+                sig = peak.getSigmaIntensity()
+                lamda = peak.getWavelength()
+                Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
+
+                items = fit_dict.get(key)
+                if items is None:
+                    items = [], [], [], [], [], []
+                items[0].append(0)
+                items[1].append(I)
+                items[2].append(sig)
+                items[3].append(lamda)
+                items[4].append(Tbar)
+                items[5].append(1)
+                fit_dict[key] = items
+
+            for key in fit_dict.keys():
+                items = fit_dict.get(key)
+                items = [np.array(item) for item in items]
+                fit_dict[key] = items
+
+        F2, Q, ratios = [], [], []
+
+        for key in fit_dict.keys():
             h, k, l, m, n, p = key
             hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
             peak = peaks_lean.createPeakHKL(hkl.tolist())
             peak.setIntHKL(V3D(h, k, l))
             peak.setIntMNP(V3D(m, n, p))
-            intens, var, lamda, tbar, norm = weights[key]
-            peak.setIntensity(intens / norm)
-            peak.setSigmaIntensity(np.sqrt(var) / norm)
-            peak.setWavelength(lamda / norm)
-            peak.setAbsorptionWeightedPathLength(tbar / norm)
+            d = peak.getDSpacing()
+            Q.append(2 * np.pi / d)
+            I_fit, I, sig, lamda, Tbar, weight = fit_dict[key]
+            ind = np.abs(lamda - np.median(lamda)).argmin()
+            wl = lamda[ind]
+            wpl = Tbar[ind]
+            intens = np.sum((I - I_fit) * weight) / np.sum(weight) + I_fit[ind]
+            F2.append(intens)
+            I_fit = intens if np.sum(I_fit) == 0 else I_fit
+            sig_ext = np.sqrt(np.sum(sig**2 * weight) / np.sum(weight))
+            sig_int = np.sqrt(
+                np.sum((I - I_fit) ** 2 * weight) / np.sum(weight)
+            )
+            ratios.append(sig_int / sig_ext)
+            peak.setIntensity(intens)
+            peak.setSigmaIntensity(np.max([sig_ext, sig_int]))
+            peak.setWavelength(wl)
+            peak.setAbsorptionWeightedPathLength(wpl * 1e-8)
             peaks_lean.addPeak(peak)
 
+        F2, Q, ratios = np.array(F2), np.array(Q), np.array(ratios)
+
         filename = os.path.splitext(self.filename)[0] + app + "_merge"
+
+        vmin, vmax = np.min(ratios), np.max(ratios)
+
+        label = "$\sigma_\mathrm{int}/\sigma_\mathrm{ext}$"
+
+        fig, ax = plt.subplots(1, 1, sharey=True, layout="constrained")
+        ax.minorticks_on()
+        ax.set_yscale("log")
+        im = ax.scatter(Q, F2, c=ratios, vmin=vmin, vmax=vmax)
+        ax.set_xlabel("$|Q|$ [$\AA^{-1}]$")
+        ax.set_ylabel("$F^2$ [arb. unit]")
+        cb = fig.colorbar(im, ax=ax, label=label)
+        cb.minorticks_on()
+        fig.savefig(filename + ".pdf")
 
         FilterPeaks(
             InputWorkspace=peaks + "_lean",
@@ -1334,7 +1454,7 @@ class Peaks:
             self.modUB = ol.getModUB().copy()
             self.modHKL = ol.getModHKL().copy()
 
-    def save_peaks(self, name=None):
+    def save_peaks(self, name=None, fit_dict=None):
         if name is not None:
             peaks = name
             app = "_{}".format(name).replace(" ", "_")
@@ -1343,6 +1463,26 @@ class Peaks:
             app = ""
 
         filename = os.path.splitext(self.filename)[0] + app
+
+        FilterPeaks(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
+            FilterVariable="Signal/Noise",
+            FilterValue=3,
+            Operator=">",
+        )
+
+        self.merge_intensities(name, fit_dict)
+
+        # for peak in mtd[peaks]:
+
+        #     I = peak.getIntensity()
+        #     sig_ext = peak.getSigmaIntensity()
+        #     d = peak.getDSpacing()
+        #     Q = 2 * np.pi / d
+        #     ratio = self.error_surface(self.coeffs, Q, I)
+        #     sig_int = ratio * sig_ext
+        #     peak.setSigmaIntensity(np.max([sig_ext, sig_int]))
 
         FilterPeaks(
             InputWorkspace=peaks,
@@ -1370,8 +1510,6 @@ class Peaks:
         self.resort_hkl(peaks, filename + ".hkl")
 
         self.calculate_statistics(peaks, filename + "_symm.txt")
-
-        self.merge_intensities(name)
 
         if self.max_order > 0:
             nuclear = peaks + "_nuc"
@@ -1642,8 +1780,8 @@ def main():
 
     prune = PrunePeaks("peaks", filename=args.filename)
 
-    for workspace in prune.workspaces:
-        peaks.save_peaks(workspace)
+    for workspace, parameters in zip(prune.workspaces, prune.parameters):
+        peaks.save_peaks(workspace, parameters)
 
 
 if __name__ == "__main__":
