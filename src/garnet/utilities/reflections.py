@@ -1272,7 +1272,7 @@ class Peaks:
 
         pdf = kde(x)
 
-        cdf = scipy.integrate.cumtrapz(pdf, x, initial=0)
+        cdf = scipy.integrate.cumulative_trapezoid(pdf, x, initial=0)
         cdf /= cdf[-1]
 
         lower_bound = x[np.searchsorted(cdf, 0.025)]
