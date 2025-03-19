@@ -507,7 +507,7 @@ class BaseDataModel:
         else:
             PlusMD(LHSWorkspace=merge, RHSWorkspace=ws, OutputWorkspace=merge)
 
-            if hasattr(mtd[ws], "getExperimentInfo"):
+            if mtd[ws].getNumExperimentInfo() > 0:
                 for prop in mtd[ws].getExperimentInfo(0).run().getProperties():
                     if prop.type in ["string", "number"]:
                         log_type = (
