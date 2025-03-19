@@ -137,11 +137,15 @@ class Parametrization(SubPlan):
         if mtd.doesExist("md_bkg_data_split") and mtd.doesExist(
             "md_bkg_norm_split"
         ):
-            data_file = self.get_file(output_file, "bkg_data")
-            norm_file = self.get_file(output_file, "bkg_norm")
+            data_file = self.get_file(output_file, "bkg_data_split")
+            norm_file = self.get_file(output_file, "bkg_norm_split")
 
-            data.save_histograms(data_file, "md_bkg_data", sample_logs=True)
-            data.save_histograms(norm_file, "md_bkg_norm", sample_logs=True)
+            data.save_histograms(
+                data_file, "md_bkg_data_split", sample_logs=True
+            )
+            data.save_histograms(
+                norm_file, "md_bkg_norm_split", sample_logs=True
+            )
 
         mtd.clear()
 
