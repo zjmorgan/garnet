@@ -33,6 +33,11 @@ class Parametrization(SubPlan):
         assert len(self.params["Extents"]) == 3
         assert (np.diff(self.params["Extents"], axis=1) >= 0).all()
 
+        if self.params.get("LogName") is None:
+            self.params["LogName"] = "SequenceTime"
+            self.params["LogExtents"] = [0, 1]
+            self.params["LogBins"] = 0
+
     @staticmethod
     def parametrize_parallel(plan, runs, proc):
         total = plan["Runs"]
@@ -126,8 +131,8 @@ class Parametrization(SubPlan):
         data_file = self.get_file(output_file, "data")
         norm_file = self.get_file(output_file, "norm")
 
-        data.save_histograms(data_file, "md_data_split")
-        data.save_histograms(norm_file, "md_norm_split")
+        data.save_histograms(data_file, "md_data_split", sample_logs=True)
+        data.save_histograms(norm_file, "md_norm_split", sample_logs=True)
 
         if mtd.doesExist("md_bkg_data_split") and mtd.doesExist(
             "md_bkg_norm_split"
@@ -135,8 +140,8 @@ class Parametrization(SubPlan):
             data_file = self.get_file(output_file, "bkg_data")
             norm_file = self.get_file(output_file, "bkg_norm")
 
-            data.save_histograms(data_file, "md_bkg_data")
-            data.save_histograms(norm_file, "md_bkg_norm")
+            data.save_histograms(data_file, "md_bkg_data", sample_logs=True)
+            data.save_histograms(norm_file, "md_bkg_norm", sample_logs=True)
 
         mtd.clear()
 
@@ -291,7 +296,7 @@ class Parametrization(SubPlan):
             axis = []
             for w in W[:, j]:
                 char = chars[np.argmax(W[:, j])]
-                axis.append(char_dict.get(w, "{0}{1}").format(j, char))
+                axis.append(char_dict.get(w, "{0}{1}").format(w, char))
             axes.append(axis)
 
         result = []

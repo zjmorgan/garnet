@@ -315,7 +315,7 @@ class Normalization(SubPlan):
             axis = []
             for w in W[:, j]:
                 char = chars[np.argmax(W[:, j])]
-                axis.append(char_dict.get(w, "{0}{1}").format(j, char))
+                axis.append(char_dict.get(w, "{0}{1}").format(w, char))
             axes.append(axis)
 
         result = []

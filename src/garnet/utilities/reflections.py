@@ -669,6 +669,14 @@ class PrunePeaks:
 
         self.V = V
 
+        lamda = np.array(mtd[self.peaks].column("Wavelength"))
+
+        kde = scipy.stats.gaussian_kde(lamda)
+
+        x = np.linspace(lamda.min(), lamda.max(), 1000)
+
+        self.kde = scipy.interpolate.make_interp_spline(x, kde(x), k=1)
+
         self.extinction_prune()
         self.workspaces, self.parameters = self.save_extinction()
 
@@ -776,30 +784,10 @@ class PrunePeaks:
         midpoint = cumulative_weights[-1] / 2
         return values_sorted[np.searchsorted(cumulative_weights, midpoint)]
 
-    def scale_factor(
-        self, y_hat_val, y_val, e_val, iterations=3, threshold=1.486
-    ):
-        mask = y_hat_val != 0
-        y_hat, y, e = (
-            y_hat_val[mask].copy(),
-            y_val[mask].copy(),
-            e_val[mask].copy(),
-        )
-
-        for iteration in range(iterations):
-            z = y / y_hat
-            w = np.abs(y_hat) / e
-            c = self.weighted_median(z, w)
-
-            residuals = (c * y_hat - y) / e
-
-            mad = np.median(np.abs(residuals - np.median(residuals)))
-            mask = residuals <= threshold * mad
-
-            y_hat, y, e = y_hat[mask], y[mask], e[mask]
-
-            if len(y) == 0:
-                break
+    def scale_factor(self, y_hat_val, y_val, lamda):
+        ratios = y_val / y_hat_val
+        weights = self.kde(lamda)
+        c = self.weighted_median(ratios, weights)
 
         return c
 
@@ -822,9 +810,9 @@ class PrunePeaks:
 
         y = self.extinction_correction(p, I0, two_theta, lamda, Tbar, model)
 
-        s = self.scale_factor(y, I, sig * 0 + 1)
+        s = self.scale_factor(y, I, lamda)
 
-        return ((s * y - I)).tolist()
+        return ((s * y - I) * I / sig).tolist()
 
     def extract_info(self):
         peaks_dict = {}
@@ -919,7 +907,7 @@ class PrunePeaks:
                         param, I0, two_theta, lamda, Tbar, model
                     )
 
-                    s = self.scale_factor(y, I, sig * 0 + 1)
+                    s = self.scale_factor(y, I, lamda)
 
                     self.peaks_dict[key][-1] = s
 
@@ -1128,9 +1116,12 @@ class PrunePeaks:
 
                 *_, t, mask = outliers[key]
 
-                if np.abs(I - I_fit) > t:
+                diff = np.abs(I - I_fit)
+
+                if diff > t:
                     peak.setSigmaIntensity(I)
                 else:
+                    peak.setBinCount(diff)
                     key = (h, k, l, m, n, p)
                     items = weights.get(key)
                     if items is None:
@@ -1204,6 +1195,10 @@ class Peaks:
 
         self.point_groups = point_groups
 
+        self.max_order = 0
+        self.modUB = np.zeros((3, 3))
+        self.modHKL = np.zeros((3, 3))
+
     def rescale_intensities(self):
         scale = 1 if self.scale is None else self.scale
         if mtd[self.peaks].getNumberPeaks() > 1 and self.scale is None:
@@ -1269,9 +1264,46 @@ class Peaks:
 
         self.info_dict = info_dict
 
-        for peak in mtd[self.peaks]:
-            run = int(peak.getRunNumber())
-            peak.setBinCount(run)
+        lamda = np.array(mtd[self.peaks].column("Wavelength"))
+
+        kde = scipy.stats.gaussian_kde(lamda)
+
+        x = np.linspace(lamda.min(), lamda.max(), 1000)
+
+        pdf = kde(x)
+
+        cdf = scipy.integrate.cumtrapz(pdf, x, initial=0)
+        cdf /= cdf[-1]
+
+        lower_bound = x[np.searchsorted(cdf, 0.025)]
+        upper_bound = x[np.searchsorted(cdf, 0.975)]
+
+        filename = os.path.splitext(self.filename)[0]
+
+        fig, ax = plt.subplots(layout="constrained")
+        ax.hist(lamda, bins=100, density=True, color="C0")
+        ax.set_xlabel("$\lambda$ [$\AA$]")
+        ax.minorticks_on()
+        ax.plot(x, pdf, color="C1")
+        ax.axvline(lower_bound, color="k", linestyle="--", linewidth=1)
+        ax.axvline(upper_bound, color="k", linestyle="--", linewidth=1)
+        fig.savefig(filename + ".pdf")
+
+        FilterPeaks(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=self.peaks,
+            FilterVariable="Wavelength",
+            FilterValue=lower_bound,
+            Operator=">",
+        )
+
+        FilterPeaks(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=self.peaks,
+            FilterVariable="Wavelength",
+            FilterValue=upper_bound,
+            Operator="<",
+        )
 
         self.reset_satellite()
 
@@ -1354,7 +1386,7 @@ class Peaks:
                 items = [np.array(item) for item in items]
                 fit_dict[key] = items
 
-        F2, Q, ratios = [], [], []
+        F2, Q, y = [], [], []
 
         for key in fit_dict.keys():
             h, k, l, m, n, p = key
@@ -1363,42 +1395,74 @@ class Peaks:
             peak.setIntHKL(V3D(h, k, l))
             peak.setIntMNP(V3D(m, n, p))
             d = peak.getDSpacing()
-            Q.append(2 * np.pi / d)
             I_fit, I, sig, lamda, Tbar, weight = fit_dict[key]
             ind = np.abs(lamda - np.median(lamda)).argmin()
             wl = lamda[ind]
             wpl = Tbar[ind]
             intens = np.sum((I - I_fit) * weight) / np.sum(weight) + I_fit[ind]
-            F2.append(intens)
             I_fit = intens if np.sum(I_fit) == 0 else I_fit
             sig_ext = np.sqrt(np.sum(sig**2 * weight) / np.sum(weight))
             sig_int = np.sqrt(
-                np.sum((I - I_fit) ** 2 * weight) / np.sum(weight)
+                np.mean((I - I_fit) ** 2 * weight) / np.sum(weight)
             )
-            ratios.append(sig_int / sig_ext)
+            if sig_int > 0:
+                Q.append(2 * np.pi / d)
+                F2.append(intens)
+                y.append(sig_int / sig_ext)
             peak.setIntensity(intens)
-            peak.setSigmaIntensity(np.max([sig_ext, sig_int]))
+            peak.setSigmaIntensity(sig_ext)
+            peak.setBinCount(sig_int)
             peak.setWavelength(wl)
             peak.setAbsorptionWeightedPathLength(wpl * 1e-8)
             peaks_lean.addPeak(peak)
 
-        F2, Q, ratios = np.array(F2), np.array(Q), np.array(ratios)
+        F2, Q, y = np.array(F2), np.array(Q), np.array(y)
+
+        A = np.column_stack(
+            [
+                np.log(F2) ** 2,
+                Q**2,
+                np.log(F2) * Q,
+                np.log(F2),
+                Q,
+                np.ones_like(y),
+            ]
+        )
+        x, *_ = np.linalg.lstsq(A, y)
+
+        y_fit = np.dot(A, x)
 
         filename = os.path.splitext(self.filename)[0] + app + "_merge"
 
-        vmin, vmax = np.min(ratios), np.max(ratios)
+        vmin, vmax = [np.min(y), np.max(y)] if len(y) > 1 else [0.1, 10]
 
         label = "$\sigma_\mathrm{int}/\sigma_\mathrm{ext}$"
 
-        fig, ax = plt.subplots(1, 1, sharey=True, layout="constrained")
-        ax.minorticks_on()
-        ax.set_yscale("log")
-        im = ax.scatter(Q, F2, c=ratios, vmin=vmin, vmax=vmax)
-        ax.set_xlabel("$|Q|$ [$\AA^{-1}]$")
-        ax.set_ylabel("$F^2$ [arb. unit]")
+        fig, ax = plt.subplots(1, 2, sharey=True, layout="constrained")
+        ax[0].minorticks_on()
+        ax[1].minorticks_on()
+        ax[0].set_yscale("log")
+        ax[1].set_yscale("log")
+        im = ax[0].scatter(Q, F2, c=y, vmin=vmin, vmax=vmax, norm="log")
+        ax[1].scatter(Q, F2, c=y_fit, vmin=vmin, vmax=vmax, norm="log")
+        ax[0].set_xlabel("$|Q|$ [$\AA^{-1}]$")
+        ax[1].set_xlabel("$|Q|$ [$\AA^{-1}]$")
+        ax[0].set_ylabel("$F^2$ [arb. unit]")
         cb = fig.colorbar(im, ax=ax, label=label)
         cb.minorticks_on()
         fig.savefig(filename + ".pdf")
+
+        for peak in mtd[peaks + "_lean"]:
+            I = peak.getIntensity()
+            Q = 2 * np.pi / peak.getDSpacing()
+            sig_ext = peak.getSigmaIntensity()
+            sig_int = peak.getBinCount()
+            A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
+            sig_est = np.dot(A, x) * sig_ext
+            sig = np.max([sig_int, sig_ext, sig_est])
+            peak.setSigmaIntensity(sig)
+
+        self.x = x
 
         FilterPeaks(
             InputWorkspace=peaks + "_lean",
@@ -1474,15 +1538,16 @@ class Peaks:
 
         self.merge_intensities(name, fit_dict)
 
-        # for peak in mtd[peaks]:
-
-        #     I = peak.getIntensity()
-        #     sig_ext = peak.getSigmaIntensity()
-        #     d = peak.getDSpacing()
-        #     Q = 2 * np.pi / d
-        #     ratio = self.error_surface(self.coeffs, Q, I)
-        #     sig_int = ratio * sig_ext
-        #     peak.setSigmaIntensity(np.max([sig_ext, sig_int]))
+        for peak in mtd[peaks]:
+            I = peak.getIntensity()
+            Q = 2 * np.pi / peak.getDSpacing()
+            sig = peak.getSigmaIntensity()
+            # diff = peak.getBinCount()
+            A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
+            sig_est = np.dot(A, self.x) * sig
+            sig = np.max([sig, sig_est])
+            # I if diff >= 2 * sig and diff > 0 else sig
+            peak.setSigmaIntensity(sig)
 
         FilterPeaks(
             InputWorkspace=peaks,

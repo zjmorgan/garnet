@@ -507,6 +507,20 @@ class BaseDataModel:
         else:
             PlusMD(LHSWorkspace=merge, RHSWorkspace=ws, OutputWorkspace=merge)
 
+            if hasattr(mtd[ws], "getExperimentInfo"):
+                for prop in mtd[ws].getExperimentInfo(0).run().getProperties():
+                    if prop.type in ["string", "number"]:
+                        log_type = (
+                            "String" if prop.type == "string" else "Number"
+                        )
+                        AddSampleLog(
+                            Workspace=merge,
+                            LogName=prop.name,
+                            LogText=str(prop.value),
+                            LogUnit=str(prop.units),
+                            LogType=log_type,
+                        )
+
             DeleteWorkspace(Workspace=ws)
 
     def divide_histograms(self, ws, num, den):
@@ -663,6 +677,28 @@ class BaseDataModel:
                 CopyOrientationOnly=False,
             )
 
+            logs, units = {}, None
+            for prop in run.getProperties():
+                if "log_" in prop.name and prop.type == "number":
+                    num = int(prop.name.split("_")[1])
+                    logs[num] = prop.value
+                    units = prop.units
+
+            keys = list(logs.keys())
+            keys.sort()
+
+            ref = logs[0] if units == "Seconds" else 0
+
+            data = []
+            for key in keys:
+                data.append(logs[key] - ref)
+
+            if len(data) > 0:
+                AddSampleLog(
+                    Workspace=ws, LogName="log", LogText="0", LogType="String"
+                )
+                run.addProperty("log", data, True)
+
     def convert_to_hkl(self, ws, peaks, projections, extents, bins):
         """
         Convert to binned hkl.
@@ -793,34 +829,41 @@ class BaseDataModel:
 
         """
 
-        log = mtd[ws].run().getProperty(log_name)
+        run = mtd[ws].run()
+        log = run.getProperty(log_name) if run.hasProperty(log_name) else None
 
-        if log_bins > 0:
-            log_min, log_max = log_limits
-            log_interval = (log_max - log_min) / (log_bins - 1)
+        if log is not None:
+            if log_bins > 0:
+                log_min, log_max = log_limits
+                log_interval = (log_max - log_min) / (log_bins - 1)
 
-            GenerateEventsFilter(
-                InputWorkspace=ws,
-                OutputWorkspace="split",
-                InformationWorkspace="info",
-                LogName=log_name,
-                MinimumLogValue=log_min,
-                MaximumLogValue=log_max,
-                LogValueInterval=log_interval,
-            )
+                GenerateEventsFilter(
+                    InputWorkspace=ws,
+                    OutputWorkspace="split",
+                    InformationWorkspace="info",
+                    LogName=log_name,
+                    MinimumLogValue=log_min,
+                    MaximumLogValue=log_max,
+                    LogValueInterval=log_interval,
+                )
 
-            print(mtd["split"].rowCount())
+                log_vals = np.linspace(
+                    log_min - 0.5 * log_interval,
+                    log_max + 0.5 * log_interval,
+                    log_bins + 1,
+                )
 
-            log_vals = np.linspace(
-                log_min - 0.5 * log_interval,
-                log_max + 0.5 * log_interval,
-                log_bins + 1,
-            )
+            else:
+                log_vals = log.timeAverageValue()
 
+            log_units = log.units
         else:
-            log_vals = log.timeAverageValue()
+            start_time = np.datetime64(run.getProperty("start_time").value)
+            duration = run.getProperty("duration").value
+            log_vals = float(start_time.astype(np.int64) * 1e-9 + duration / 2)
+            log_units = "Seconds"
 
-        return log_vals, log.units
+        return log_vals, log_units
 
     def combine_splits(self, md, log_name, log_vals, log_units, index, runs):
         """
@@ -874,27 +917,38 @@ class BaseDataModel:
                         Units=units,
                         OutputWorkspace=md + ws + "_split",
                     )
-                    AddSampleLog(
-                        Workspace=md + ws + "_split",
-                        LogName=log_name,
-                        LogText="0",
-                        LogType="String",
-                    )
-
-                    run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
                     if type(log_vals) is float:
-                        run.addProperty(log_name, runs, True)
-                    else:
-                        run.addProperty(log_name, log_vals.tolist(), True)
-                    run.getProperty(log_name).units = log_units
+                        AddSampleLog(
+                            Workspace=md + ws + "_split",
+                            LogName="log_index",
+                            LogText=str(log_name),
+                            LogUnit=str(log_units),
+                            LogType="String",
+                        )
 
                 if type(log_vals) is float:
-                    run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
-                    # values = run.getProperty(log_name).value
-                    # print('index',index)
-                    # values[index] = log_vals
-                    # run.addProperty(log_name, values, True)
+                    AddSampleLog(
+                        Workspace=md + ws + "_split",
+                        LogName="log_{}".format(index),
+                        LogText=str(log_vals),
+                        LogUnit=str(log_units),
+                        LogType="Number",
+                    )
+
+                    # run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
+                    # if type(log_vals) is float:
+                    #     run.addProperty(log_name, runs, True)
+                    # else:
+                    #     run.addProperty(log_name, log_vals.tolist(), True)
                     # run.getProperty(log_name).units = log_units
+
+                # if type(log_vals) is float:
+                #     run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
+                #     values = run.getProperty(log_name).value
+                #     print('index',index)
+                #     values[index] = log_vals
+                #     run.addProperty(log_name, values, True)
+                #     run.getProperty(log_name).units = log_units
 
                 signal = mtd[md + ws + "_split"].getSignalArray().copy()
                 signal[index] += mtd[md + ws].getSignalArray()
