@@ -2707,162 +2707,20 @@ class PeakEllipsoid:
     def loss(self, r):
         return np.abs(r).sum()
 
-    def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
-        if (np.array(counts.shape) < 9).any():
-            return None
+    def extract_result(self, result, x0, x1, x2, args_1d, args_2d, args_3d):
+        x0, x1, x2, y1d, e1d = args_1d
+        x0, x1, x2, y2d, e2d = args_2d
+        x0, x1, x2, y3d, e3d = args_3d
 
-        if np.sum(counts) < 3 * np.sqrt(np.sum(counts)):
-            return None
+        y1d_0, y1d_1, y1d_2 = y1d
+        y2d_0, y2d_1, y2d_2 = y2d
 
-        # y, e, counts = self.interpolate(x0, x1, x2, y_val, e_val, c_val)
-
-        # peak_mask = np.isfinite(y) & np.isfinite(e)
-
-        y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
-        y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
-        y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_2")
-
-        y0, y1, y2 = y1d_0, y1d_1, y1d_2
-
-        y0_min = np.nanmin(y0)
-        y0_max = np.nanmax(y0)
-
-        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 3:
-            return None
-
-        y1_min = np.nanmin(y1)
-        y1_max = np.nanmax(y1)
-
-        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 3:
-            return None
-
-        y2_min = np.nanmin(y2)
-        y2_max = np.nanmax(y2)
-
-        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 3:
-            return None
-
-        self.params.add("A1d_0", value=y0_max, min=0, max=2 * y0_max)
-        self.params.add("A1d_1", value=y1_max, min=0, max=2 * y1_max)
-        self.params.add("A1d_2", value=y2_max, min=0, max=2 * y2_max)
-
-        self.params.add("H1d_0", value=0.001 * y0_max, min=0, max=2 * y0_max)
-        self.params.add("H1d_1", value=0.001 * y1_max, min=0, max=2 * y1_max)
-        self.params.add("H1d_2", value=0.001 * y2_max, min=0, max=2 * y2_max)
-
-        self.params.add("B1d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
-        self.params.add("B1d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
-        self.params.add("B1d_2", value=y2_min, min=-y2_max, max=5 * y2_max)
-
-        C0_max = (y0_max - y0_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
-        C1_max = (y1_max - y1_min) / (x1[0, -1, 0] - x1[0, 0, 0])
-        C2_max = (y2_max - y2_min) / (x2[0, 0, -1] - x2[0, 0, 0])
-
-        self.params.add("C1d_0", value=0, min=-2 * C0_max, max=2 * C0_max)
-        self.params.add("C1d_1", value=0, min=-2 * C1_max, max=2 * C1_max)
-        self.params.add("C1d_2", value=0, min=-2 * C2_max, max=2 * C2_max)
-
-        y1d = [y1d_0, y1d_1, y1d_2]
-        e1d = [e1d_0, e1d_1, e1d_2]
-
-        args_1d = [x0, x1, x2, y1d, e1d]
-
-        y2d_0, e2d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_0")
-        y2d_1, e2d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_1")
-        y2d_2, e2d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_2")
-
-        y0, y1, y2 = y2d_0, y2d_1, y2d_2
-
-        y0_min = np.nanmin(y0)
-        y0_max = np.nanmax(y0)
-
-        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 3:
-            return None
-
-        y1_min = np.nanmin(y1)
-        y1_max = np.nanmax(y1)
-
-        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 3:
-            return None
-
-        y2_min = np.nanmin(y2)
-        y2_max = np.nanmax(y2)
-
-        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 3:
-            return None
-
-        self.params.add("A2d_0", value=y0_max, min=0, max=2 * y0_max)
-        self.params.add("A2d_1", value=y1_max, min=0, max=2 * y1_max)
-        self.params.add("A2d_2", value=y2_max, min=0, max=2 * y2_max)
-
-        self.params.add("H2d_0", value=0.001 * y0_max, min=0, max=2 * y0_max)
-        self.params.add("H2d_1", value=0.001 * y1_max, min=0, max=2 * y1_max)
-        self.params.add("H2d_2", value=0.001 * y2_max, min=0, max=2 * y2_max)
-
-        self.params.add("B2d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
-        self.params.add("B2d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
-        self.params.add("B2d_2", value=y2_min, min=-y2_max, max=5 * y2_max)
-
-        C01_max = (y0_max - y0_min) / (x1[0, -1, 0] - x1[0, 0, 0])
-        C02_max = (y0_max - y0_min) / (x2[0, 0, -1] - x2[0, 0, 0])
-
-        C10_max = (y1_max - y1_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
-        C12_max = (y1_max - y1_min) / (x2[0, 0, -1] - x2[0, 0, 0])
-
-        C20_max = (y2_max - y2_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
-        C21_max = (y2_max - y2_min) / (x1[0, -1, 0] - x1[0, 0, 0])
-
-        self.params.add("C2d_01", value=0, min=-2 * C01_max, max=2 * C01_max)
-        self.params.add("C2d_02", value=0, min=-2 * C02_max, max=2 * C02_max)
-
-        self.params.add("C2d_10", value=0, min=-2 * C10_max, max=2 * C10_max)
-        self.params.add("C2d_12", value=0, min=-2 * C12_max, max=2 * C12_max)
-
-        self.params.add("C2d_20", value=0, min=-2 * C20_max, max=2 * C20_max)
-        self.params.add("C2d_21", value=0, min=-2 * C21_max, max=2 * C21_max)
-
-        y2d = [y2d_0, y2d_1, y2d_2]
-        e2d = [e2d_0, e2d_1, e2d_2]
-
-        args_2d = [x0, x1, x2, y2d, e2d]
-
-        y3d, e3d = self.normalize(x0, x1, x2, counts, y, e, mode="3d")
-
-        y_min = np.nanmin(y3d)
-        y_max = np.nanmax(y3d)
-
-        if np.isclose(y_max, y_min) or (y > 0).sum() <= 3:
-            return None
-
-        self.params.add("A3d", value=y_max, min=0, max=2 * y_max)
-
-        self.params.add("H3d", value=0.001 * y_max, min=0, max=2 * y_max)
-
-        self.params.add("B3d", value=y_min, min=-2 * y_max, max=2 * y_max)
-
-        args_3d = [x0, x1, x2, y3d, e3d]
+        e1d_0, e1d_1, e1d_2 = e1d
+        e2d_0, e2d_1, e2d_2 = e2d
 
         self.redchi2 = []
         self.intensity = []
         self.sigma = []
-
-        out = Minimizer(
-            self.residual,
-            self.params,
-            fcn_args=(args_1d, args_2d, args_3d),
-            reduce_fcn=self.loss,
-            nan_policy="omit",
-        )
-
-        result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
-            max_nfev=200,
-            col_deriv=True,
-        )
-
-        if report_fit:
-            print(fit_report(result))
 
         self.params = result.params
 
@@ -3027,11 +2885,190 @@ class PeakEllipsoid:
         self.intensity.append(I)
         self.sigma.append(s)
 
-        # ---
-
-        # inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
-
         return c, inv_S, y1, y2, y3
+
+    def estimate_envelope(self, x0, x1, x2, counts, y, e, report_fit=False):
+        if (np.array(counts.shape) < 9).any():
+            return None
+
+        if np.sum(counts) < 3 * np.sqrt(np.sum(counts)):
+            return None
+
+        # y, e, counts = self.interpolate(x0, x1, x2, y_val, e_val, c_val)
+
+        # peak_mask = np.isfinite(y) & np.isfinite(e)
+
+        y1d_0, e1d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_0")
+        y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
+        y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_2")
+
+        y0, y1, y2 = y1d_0, y1d_1, y1d_2
+
+        y0_min = np.nanmin(y0)
+        y0_max = np.nanmax(y0)
+
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 3:
+            return None
+
+        y1_min = np.nanmin(y1)
+        y1_max = np.nanmax(y1)
+
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 3:
+            return None
+
+        y2_min = np.nanmin(y2)
+        y2_max = np.nanmax(y2)
+
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 3:
+            return None
+
+        self.params.add("A1d_0", value=y0_max, min=0, max=2 * y0_max)
+        self.params.add("A1d_1", value=y1_max, min=0, max=2 * y1_max)
+        self.params.add("A1d_2", value=y2_max, min=0, max=2 * y2_max)
+
+        self.params.add("H1d_0", value=0.001 * y0_max, min=0, max=2 * y0_max)
+        self.params.add("H1d_1", value=0.001 * y1_max, min=0, max=2 * y1_max)
+        self.params.add("H1d_2", value=0.001 * y2_max, min=0, max=2 * y2_max)
+
+        self.params.add("B1d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
+        self.params.add("B1d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
+        self.params.add("B1d_2", value=y2_min, min=-y2_max, max=5 * y2_max)
+
+        C0_max = (y0_max - y0_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
+        C1_max = (y1_max - y1_min) / (x1[0, -1, 0] - x1[0, 0, 0])
+        C2_max = (y2_max - y2_min) / (x2[0, 0, -1] - x2[0, 0, 0])
+
+        self.params.add("C1d_0", value=0, min=-2 * C0_max, max=2 * C0_max)
+        self.params.add("C1d_1", value=0, min=-2 * C1_max, max=2 * C1_max)
+        self.params.add("C1d_2", value=0, min=-2 * C2_max, max=2 * C2_max)
+
+        y1d = [y1d_0, y1d_1, y1d_2]
+        e1d = [e1d_0, e1d_1, e1d_2]
+
+        args_1d = [x0, x1, x2, y1d, e1d]
+
+        y2d_0, e2d_0 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_0")
+        y2d_1, e2d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_1")
+        y2d_2, e2d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_2")
+
+        y0, y1, y2 = y2d_0, y2d_1, y2d_2
+
+        y0_min = np.nanmin(y0)
+        y0_max = np.nanmax(y0)
+
+        if np.isclose(y0_max, y0_min) or (y0 > 0).sum() <= 3:
+            return None
+
+        y1_min = np.nanmin(y1)
+        y1_max = np.nanmax(y1)
+
+        if np.isclose(y1_max, y1_min) or (y1 > 0).sum() <= 3:
+            return None
+
+        y2_min = np.nanmin(y2)
+        y2_max = np.nanmax(y2)
+
+        if np.isclose(y2_max, y2_min) or (y2 > 0).sum() <= 3:
+            return None
+
+        self.params.add("A2d_0", value=y0_max, min=0, max=2 * y0_max)
+        self.params.add("A2d_1", value=y1_max, min=0, max=2 * y1_max)
+        self.params.add("A2d_2", value=y2_max, min=0, max=2 * y2_max)
+
+        self.params.add("H2d_0", value=0.001 * y0_max, min=0, max=2 * y0_max)
+        self.params.add("H2d_1", value=0.001 * y1_max, min=0, max=2 * y1_max)
+        self.params.add("H2d_2", value=0.001 * y2_max, min=0, max=2 * y2_max)
+
+        self.params.add("B2d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
+        self.params.add("B2d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
+        self.params.add("B2d_2", value=y2_min, min=-y2_max, max=5 * y2_max)
+
+        C01_max = (y0_max - y0_min) / (x1[0, -1, 0] - x1[0, 0, 0])
+        C02_max = (y0_max - y0_min) / (x2[0, 0, -1] - x2[0, 0, 0])
+
+        C10_max = (y1_max - y1_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
+        C12_max = (y1_max - y1_min) / (x2[0, 0, -1] - x2[0, 0, 0])
+
+        C20_max = (y2_max - y2_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
+        C21_max = (y2_max - y2_min) / (x1[0, -1, 0] - x1[0, 0, 0])
+
+        self.params.add("C2d_01", value=0, min=-2 * C01_max, max=2 * C01_max)
+        self.params.add("C2d_02", value=0, min=-2 * C02_max, max=2 * C02_max)
+
+        self.params.add("C2d_10", value=0, min=-2 * C10_max, max=2 * C10_max)
+        self.params.add("C2d_12", value=0, min=-2 * C12_max, max=2 * C12_max)
+
+        self.params.add("C2d_20", value=0, min=-2 * C20_max, max=2 * C20_max)
+        self.params.add("C2d_21", value=0, min=-2 * C21_max, max=2 * C21_max)
+
+        y2d = [y2d_0, y2d_1, y2d_2]
+        e2d = [e2d_0, e2d_1, e2d_2]
+
+        args_2d = [x0, x1, x2, y2d, e2d]
+
+        y3d, e3d = self.normalize(x0, x1, x2, counts, y, e, mode="3d")
+
+        y_min = np.nanmin(y3d)
+        y_max = np.nanmax(y3d)
+
+        if np.isclose(y_max, y_min) or (y > 0).sum() <= 3:
+            return None
+
+        self.params.add("A3d", value=y_max, min=0, max=2 * y_max)
+
+        self.params.add("H3d", value=0.001 * y_max, min=0, max=2 * y_max)
+
+        self.params.add("B3d", value=y_min, min=-2 * y_max, max=2 * y_max)
+
+        args_3d = [x0, x1, x2, y3d, e3d]
+
+        out = Minimizer(
+            self.residual,
+            self.params,
+            fcn_args=(args_1d, args_2d, args_3d),
+            # reduce_fcn=self.loss,
+            nan_policy="omit",
+        )
+
+        result = out.minimize(
+            method="leastsq",
+            Dfun=self.jacobian,
+            max_nfev=50,
+            col_deriv=True,
+        )
+
+        if report_fit:
+            print(fit_report(result))
+
+        self.extract_result(result, x0, x1, x2, args_1d, args_2d, args_3d)
+
+        chi2_1d, chi2_2d, chi2_3d = self.redchi2
+
+        args_1d[-1] = [e * np.sqrt(e.size) for e, chi2 in zip(e1d, chi2_1d)]
+        args_2d[-1] = [e * np.sqrt(e.size) for e, chi2 in zip(e2d, chi2_2d)]
+        args_3d[-1] = e3d * np.sqrt(e3d.size)
+
+        # print([np.shape(e) for e in e2d])
+        # print([np.shape(e*np.sqrt(chi2)) for e, chi2 in zip(e2d, chi2_2d)])
+
+        out = Minimizer(
+            self.residual,
+            self.params,
+            fcn_args=(args_1d, args_2d, args_3d),
+            # reduce_fcn=self.loss,
+            nan_policy="omit",
+        )
+
+        result = out.minimize(
+            method="leastsq",
+            Dfun=self.jacobian,
+            max_nfev=50,
+            col_deriv=True,
+        )
+
+        return self.extract_result(
+            result, x0, x1, x2, args_1d, args_2d, args_3d
+        )
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -3115,17 +3152,17 @@ class PeakEllipsoid:
 
         S = np.linalg.inv(inv_S)
 
-        c0, c1, c2 = c
+        # c0, c1, c2 = c
 
-        dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
+        # dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
 
-        dxv = [dx0, dx1, dx2]
+        # dxv = [dx0, dx1, dx2]
 
-        threshold = np.einsum("i...,ij,j...->...", dxv, inv_S, dxv) <= 1
+        # threshold = np.einsum("i...,ij,j...->...", dxv, inv_S, dxv) <= 1
 
-        if threshold.sum() < 13:
-            print("Low counts")
-            return None
+        # if threshold.sum() < 13:
+        #     print("Low counts")
+        #     return None
 
         V, W = np.linalg.eigh(S)
 

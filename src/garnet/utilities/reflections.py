@@ -170,7 +170,7 @@ class WobbleCorrection:
 
         return np.exp(-0.5 * x**2 / (1 + b * lamda) ** 2)
 
-    def cost(self, coeffs, sigma=0.2):
+    def cost(self, coeffs, sigma=1):
         diff = []
 
         for key in self.peak_dict.keys():
@@ -192,15 +192,17 @@ class WobbleCorrection:
             diff += (w * (y[j] / y_bar - 1)).flatten().tolist()
 
         diff += list(coeffs)
-        return np.nansum(diff)
+        return diff
 
     def refine_centering(self):
         sol = scipy.optimize.least_squares(
             self.cost,
-            x0=[0.5, 0.5, 0.5, 0.5],
+            x0=[0, 0, 0, 0.5],
             bounds=[(-1, -1, -1, 0), (1, 1, 1, 1)],
             verbose=2,
         )
+
+        assert sol.status >= 1
 
         coeffs = sol.x
 
@@ -654,7 +656,6 @@ class PrunePeaks:
         self.filename = filename
 
         self.remove_non_integrated()
-        self.remove_off_centered()
 
         self.models = ["type I gaussian", "type I lorentzian", "type II"]
 
@@ -692,15 +693,6 @@ class PrunePeaks:
                 or shape["radius1"] == 0
                 or shape["radius2"] == 0
             ):
-                peak.setSigmaIntensity(peak.getIntensity())
-
-    def remove_off_centered(self, relerr=0.05):
-        ol = mtd[self.peaks].sample().getOrientedLattice()
-
-        for peak in mtd[self.peaks]:
-            h, k, l = peak.getHKL()
-            d0 = ol.d(h, k, l)
-            if np.abs(peak.getDSpacing() / d0 - 1) > relerr:
                 peak.setSigmaIntensity(peak.getIntensity())
 
     def spherical_extinction(self):
@@ -922,6 +914,7 @@ class PrunePeaks:
                 mask = (I0s > 0) & (scales > 0)
 
                 ax.plot(scales[mask], I0s[mask], ".")
+
             ax.minorticks_on()
             ax.set_xlabel("scale $s$")
             ax.set_ylabel("$I_0$")
@@ -987,8 +980,12 @@ class PrunePeaks:
 
         zcrit = np.sqrt(scipy.stats.chi2.ppf(1 - 1 / (2 * n), df=1))
 
-        t = np.max(
-            [c1 * np.median(I), c4 * zcrit * np.max([sig_ext, sig_int])]
+        t = (
+            np.max(
+                [c1 * np.median(I), c4 * zcrit * np.max([sig_ext, sig_int])]
+            )
+            if n > 1
+            else -np.inf
         )
 
         mask = np.abs(I_fit - I) < t
@@ -1138,6 +1135,20 @@ class PrunePeaks:
                 items = [np.array(item) for item in items]
                 weights[key] = items
 
+            print(model)
+
+            for peak in mtd[peaks]:
+                h, k, l = [int(val) for val in peak.getIntHKL()]
+                m, n, p = [int(val) for val in peak.getIntMNP()]
+
+                key = (h, k, l, m, n, p)
+
+                items = weights.get(key)
+                if items is not None:
+                    if len(items[0]) == 1:
+                        print("->", key)
+                        peak.setSigmaIntensity(peak.getIntensity())
+
             outlier = {}
 
             for key in weights.keys():
@@ -1204,7 +1215,7 @@ class Peaks:
         if mtd[self.peaks].getNumberPeaks() > 1 and self.scale is None:
             I_max = max(mtd[self.peaks].column("Intens"))
             if I_max > 0:
-                scale = 1e4 / I_max
+                scale = 1e3 / I_max
             self.scale = scale
 
         _, indices = np.unique(mtd[self.peaks].column(0), return_inverse=True)
@@ -1218,13 +1229,67 @@ class Peaks:
         with open(filename, "w") as f:
             f.write("{:.4e}".format(scale))
 
-    def remove_off_centered(self, relerr=0.05):
+    def remove_off_centered(self):
         ol = mtd[self.peaks].sample().getOrientedLattice()
+
+        powder_err = []
+        peak_err = []
+        Q0_mod = []
 
         for peak in mtd[self.peaks]:
             h, k, l = peak.getHKL()
             d0 = ol.d(h, k, l)
-            if np.abs(peak.getDSpacing() / d0 - 1) > relerr:
+            powder_err.append(peak.getDSpacing() / d0 - 1)
+            Q0 = 2 * np.pi * ol.getUB() @ np.array([h, k, l])
+            peak_err.append(peak.getQSampleFrame() - Q0)
+            Q0_mod.append(2 * np.pi / d0)
+
+        powder_err = np.array(powder_err)
+        peak_err = np.array(peak_err)
+        Q0_mod = np.array(Q0_mod)
+
+        powder_Q1, powder_Q3 = np.nanpercentile(powder_err, [25, 75])
+        peak_Q1, peak_Q3 = np.nanpercentile(peak_err, [25, 75], axis=0)
+
+        powder_IQR = powder_Q3 - powder_Q1
+        peak_IQR = peak_Q3 - peak_Q1
+
+        powder_min = powder_Q1 - 1.5 * powder_IQR
+        powder_max = powder_Q3 + 1.5 * powder_IQR
+
+        peak_min = peak_Q1 - 1.5 * peak_IQR
+        peak_max = peak_Q3 + 1.5 * peak_IQR
+
+        filename = os.path.splitext(self.filename)[0]
+
+        fig, ax = plt.subplots(4, 1, layout="constrained")
+        ax[0].set_xlabel("$|Q|$ [$\AA^{-1}$]")
+        ax[0].set_ylabel("$d/d_0-1$")
+        ax[1].set_ylabel("$\Delta{Q_1}$ [$\AA^{-1}$]")
+        ax[2].set_ylabel("$\Delta{Q_2}$ [$\AA^{-1}$]")
+        ax[3].set_ylabel("$\Delta{Q_3}$ [$\AA^{-1}$]")
+        ax[0].minorticks_on()
+        ax[1].minorticks_on()
+        ax[2].minorticks_on()
+        ax[3].minorticks_on()
+        ax[0].plot(Q0_mod, powder_err, ".", color="C0")
+        ax[1].plot(Q0_mod, peak_err[:, 0], ".", color="C1")
+        ax[2].plot(Q0_mod, peak_err[:, 1], ".", color="C2")
+        ax[3].plot(Q0_mod, peak_err[:, 2], ".", color="C3")
+        ax[0].axhline(powder_min, color="k", linestyle="--", linewidth=1)
+        ax[0].axhline(powder_max, color="k", linestyle="--", linewidth=1)
+        ax[1].axhline(peak_min[0], color="k", linestyle="--", linewidth=1)
+        ax[1].axhline(peak_max[0], color="k", linestyle="--", linewidth=1)
+        ax[2].axhline(peak_min[1], color="k", linestyle="--", linewidth=1)
+        ax[2].axhline(peak_max[1], color="k", linestyle="--", linewidth=1)
+        ax[3].axhline(peak_min[2], color="k", linestyle="--", linewidth=1)
+        ax[3].axhline(peak_max[2], color="k", linestyle="--", linewidth=1)
+        fig.savefig(filename + "_cont.pdf")
+
+        for i, peak in enumerate(mtd[self.peaks]):
+            powder = powder_err[i] > powder_max or powder_err[i] < powder_min
+            contamination = (peak_err[i] > peak_max) | (peak_err[i] < peak_min)
+            if contamination.any():
                 peak.setSigmaIntensity(peak.getIntensity())
 
     def load_peaks(self):

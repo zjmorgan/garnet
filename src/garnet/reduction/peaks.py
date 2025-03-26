@@ -1575,12 +1575,12 @@ class PeakModel:
 
         """
 
-        radii = [0, 0, 0]
+        radii = [r0, r1, r2]
 
         valid = self.set_peak_center(no, c0, c1, c2)
 
-        if valid:
-            radii = [r0, r1, r2]
+        if not valid:
+            print(self.get_peak_name(no))
 
         shape = PeakShapeEllipsoid(
             [V3D(*v0), V3D(*v1), V3D(*v2)], radii, radii, radii
