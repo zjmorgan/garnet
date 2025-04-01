@@ -1568,10 +1568,10 @@ class Peaks:
                 mod_mnp.append(np.array(int_mnp))
                 mod_hkl.append(np.array(hkl - int_hkl))
 
+        ol = mtd[self.peaks].sample().getOrientedLattice()
+
         if len(mod_mnp) > 0:
             mod_vec = np.linalg.pinv(mod_mnp) @ np.array(mod_hkl)
-
-            ol = mtd[self.peaks].sample().getOrientedLattice()
 
             ol.setModVec1(V3D(*mod_vec[0]))
             ol.setModVec2(V3D(*mod_vec[1]))
@@ -1587,6 +1587,12 @@ class Peaks:
             self.max_order = 0
             self.modUB = np.zeros((3, 3))
             self.modHKL = np.zeros((3, 3))
+
+            ol.setModVec1(V3D(0, 0, 0))
+            ol.setModVec2(V3D(0, 0, 0))
+            ol.setModVec3(V3D(0, 0, 0))
+
+            ol.setModUB(self.modUB)
 
     def save_peaks(self, name=None, fit_dict=None):
         if name is not None:
