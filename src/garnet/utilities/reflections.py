@@ -1588,6 +1588,8 @@ class Peaks:
             self.modUB = np.zeros((3, 3))
             self.modHKL = np.zeros((3, 3))
 
+            ol.setMaxOrder(0)
+
             ol.setModVec1(V3D(0, 0, 0))
             ol.setModVec2(V3D(0, 0, 0))
             ol.setModVec3(V3D(0, 0, 0))
