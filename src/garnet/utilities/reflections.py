@@ -1287,7 +1287,7 @@ class Peaks:
         fig.savefig(filename + "_cont.pdf")
 
         for i, peak in enumerate(mtd[self.peaks]):
-            powder = powder_err[i] > powder_max or powder_err[i] < powder_min
+            # powder = powder_err[i] > powder_max or powder_err[i] < powder_min
             contamination = (peak_err[i] > peak_max) | (peak_err[i] < peak_min)
             if contamination.any():
                 peak.setSigmaIntensity(peak.getIntensity())
@@ -1582,6 +1582,11 @@ class Peaks:
             self.max_order = ol.getMaxOrder()
             self.modUB = ol.getModUB().copy()
             self.modHKL = ol.getModHKL().copy()
+
+        else:
+            self.max_order = 0
+            self.modUB = np.zeros((3, 3))
+            self.modHKL = np.zeros((3, 3))
 
     def save_peaks(self, name=None, fit_dict=None):
         if name is not None:

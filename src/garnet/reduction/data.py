@@ -834,6 +834,7 @@ class BaseDataModel:
 
         if log is not None:
             if log_bins > 0:
+                assert log is not None
                 log_min, log_max = log_limits
                 log_interval = (log_max - log_min) / (log_bins - 1)
 
