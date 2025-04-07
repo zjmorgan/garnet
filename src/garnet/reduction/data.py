@@ -849,8 +849,8 @@ class BaseDataModel:
                 )
 
                 log_vals = np.linspace(
-                    log_min - 0.5 * log_interval,
-                    log_max + 0.5 * log_interval,
+                    log_min,
+                    log_max,
                     log_bins,
                 )
 
@@ -892,8 +892,9 @@ class BaseDataModel:
             names.append("bin")
             units.append("index")
         else:
-            extents.append(log_vals[0])
-            extents.append(log_vals[-1])
+            interval = np.diff(log_vals).mean()
+            extents.append(log_vals[0] - 0.5 * interval)
+            extents.append(log_vals[-1] + 0.5 * interval)
             bins.append(len(log_vals))
             names.append(log_name)
             units.append(log_units)
