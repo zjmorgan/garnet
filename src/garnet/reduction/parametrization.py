@@ -378,7 +378,8 @@ class Parametrization(SubPlan):
         UB_file = file.replace(".nxs", ".mat")
 
         for ws in ["data", "norm", "result"]:
-            data.add_UBW(ws, UB_file, self.params["Projections"])
+            if os.path.exists(UB_file):
+                data.add_UBW(ws, UB_file, self.params["Projections"])
 
         for ind, file in enumerate(files):
             UB_file = file.replace(".nxs", ".mat")
