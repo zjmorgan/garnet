@@ -88,8 +88,6 @@ class Parametrization(SubPlan):
                     "data", run, self.total
                 )
 
-                assert len(workspaces) > 0
-
                 for index, workspace in zip(indices, workspaces):
                     data.apply_mask(workspace, self.plan.get("MaskFile"))
 
