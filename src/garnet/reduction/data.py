@@ -851,7 +851,7 @@ class BaseDataModel:
                 log_vals = np.linspace(
                     log_min - 0.5 * log_interval,
                     log_max + 0.5 * log_interval,
-                    log_bins + 1,
+                    log_bins,
                 )
 
             else:
