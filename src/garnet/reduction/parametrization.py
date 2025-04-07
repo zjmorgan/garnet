@@ -125,14 +125,15 @@ class Parametrization(SubPlan):
 
         output_file = self.get_output_file()
 
-        UB_file = output_file.replace(".nxs", ".mat")
-        data.save_UB(UB_file, "md")
+        if mtd.doesExist("md"):
+            UB_file = output_file.replace(".nxs", ".mat")
+            data.save_UB(UB_file, "md")
 
-        data_file = self.get_file(output_file, "data")
-        norm_file = self.get_file(output_file, "norm")
+            data_file = self.get_file(output_file, "data")
+            norm_file = self.get_file(output_file, "norm")
 
-        data.save_histograms(data_file, "md_data_split", sample_logs=True)
-        data.save_histograms(norm_file, "md_norm_split", sample_logs=True)
+            data.save_histograms(data_file, "md_data_split", sample_logs=True)
+            data.save_histograms(norm_file, "md_norm_split", sample_logs=True)
 
         if mtd.doesExist("md_bkg_data_split") and mtd.doesExist(
             "md_bkg_norm_split"
@@ -345,14 +346,18 @@ class Parametrization(SubPlan):
             data_file = self.get_file(file, "data")
             norm_file = self.get_file(file, "norm")
 
-            data.load_histograms(data_file, "tmp_data")
-            data.load_histograms(norm_file, "tmp_norm")
+            if os.path.exists(data_file) and os.path.exists(norm_file):
+                data.load_histograms(data_file, "tmp_data")
+                data.load_histograms(norm_file, "tmp_norm")
 
-            data.combine_histograms("tmp_data", "data")
-            data.combine_histograms("tmp_norm", "norm")
+                data.combine_histograms("tmp_data", "data")
+                data.combine_histograms("tmp_norm", "norm")
 
-            bkg_data_file = self.get_file(file, "bkg_data")
-            bkg_norm_file = self.get_file(file, "bkg_norm")
+                os.remove(data_file)
+                os.remove(norm_file)
+
+                bkg_data_file = self.get_file(file, "bkg_data")
+                bkg_norm_file = self.get_file(file, "bkg_norm")
 
             if os.path.exists(bkg_data_file) and os.path.exists(bkg_norm_file):
                 data.load_histograms(bkg_data_file, "tmp_bkg_data")
@@ -363,9 +368,6 @@ class Parametrization(SubPlan):
 
                 os.remove(bkg_data_file)
                 os.remove(bkg_norm_file)
-
-            os.remove(data_file)
-            os.remove(norm_file)
 
         data_file = self.get_file(diag_file, "data")
         norm_file = self.get_file(diag_file, "norm")
@@ -381,7 +383,8 @@ class Parametrization(SubPlan):
         for ind, file in enumerate(files):
             UB_file = file.replace(".nxs", ".mat")
 
-            os.remove(UB_file)
+            if os.path.exists(UB_file):
+                os.remove(UB_file)
 
         data.save_histograms(data_file, "data", sample_logs=True)
         data.save_histograms(norm_file, "norm", sample_logs=True)
