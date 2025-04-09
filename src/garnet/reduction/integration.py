@@ -2687,9 +2687,9 @@ class PeakEllipsoid:
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
 
-        ridge = self.regularization(params)
+        # ridge = self.regularization(params)
 
-        cost = np.concatenate([cost_1d, cost_2d, cost_3d, ridge])
+        cost = np.concatenate([cost_1d, cost_2d, cost_3d])
 
         return cost
 
@@ -2698,9 +2698,9 @@ class PeakEllipsoid:
         jac_2d = self.jacobian_2d(params, *args_2d)
         jac_3d = self.jacobian_3d(params, *args_3d)
 
-        ridge = self.regularization_jac(params)
+        # ridge = self.regularization_jac(params)
 
-        jac = np.column_stack([jac_1d, jac_2d, jac_3d, ridge])
+        jac = np.column_stack([jac_1d, jac_2d, jac_3d])
 
         return jac
 
