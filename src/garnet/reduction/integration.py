@@ -3022,6 +3022,8 @@ class PeakEllipsoid:
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
+        assert True
+
         out = Minimizer(
             self.residual,
             self.params,
