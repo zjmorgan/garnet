@@ -1061,9 +1061,9 @@ class PeakProfile:
             y2_fit, c2, A, B, A_err, B_err = self.model(r2, dr2, y2, e2, x2, Q)
             res.append(((y2_fit - y2) / e2).flatten())
 
-        r_ridge = [r0, r1, r2, dr0, dr1, dr2]
+        # r_ridge = [r0, r1, r2, dr0, dr1, dr2]
 
-        return np.concatenate([*res, r_ridge])
+        return np.concatenate(res)
 
     def extract_fit(self):
         r0 = self.params["r0"].value
@@ -2926,9 +2926,9 @@ class PeakEllipsoid:
         self.params.add("A1d_1", value=y1_max, min=0, max=2 * y1_max)
         self.params.add("A1d_2", value=y2_max, min=0, max=2 * y2_max)
 
-        self.params.add("H1d_0", value=0.001 * y0_max, min=0, max=2 * y0_max)
-        self.params.add("H1d_1", value=0.001 * y1_max, min=0, max=2 * y1_max)
-        self.params.add("H1d_2", value=0.001 * y2_max, min=0, max=2 * y2_max)
+        self.params.add("H1d_0", value=0, min=0, max=2 * y0_max, vary=False)
+        self.params.add("H1d_1", value=0, min=0, max=2 * y1_max, vary=False)
+        self.params.add("H1d_2", value=0, min=0, max=2 * y2_max, vary=False)
 
         self.params.add("B1d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
         self.params.add("B1d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
@@ -2975,9 +2975,9 @@ class PeakEllipsoid:
         self.params.add("A2d_1", value=y1_max, min=0, max=2 * y1_max)
         self.params.add("A2d_2", value=y2_max, min=0, max=2 * y2_max)
 
-        self.params.add("H2d_0", value=0.001 * y0_max, min=0, max=2 * y0_max)
-        self.params.add("H2d_1", value=0.001 * y1_max, min=0, max=2 * y1_max)
-        self.params.add("H2d_2", value=0.001 * y2_max, min=0, max=2 * y2_max)
+        self.params.add("H2d_0", value=0, min=0, max=2 * y0_max, vary=False)
+        self.params.add("H2d_1", value=0, min=0, max=2 * y1_max, vary=False)
+        self.params.add("H2d_2", value=0, min=0, max=2 * y2_max, vary=False)
 
         self.params.add("B2d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
         self.params.add("B2d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
@@ -3016,7 +3016,7 @@ class PeakEllipsoid:
 
         self.params.add("A3d", value=y_max, min=0, max=2 * y_max)
 
-        self.params.add("H3d", value=0.001 * y_max, min=0, max=2 * y_max)
+        self.params.add("H3d", value=0, min=0, max=2 * y_max, vary=False)
 
         self.params.add("B3d", value=y_min, min=-2 * y_max, max=2 * y_max)
 
@@ -3040,31 +3040,31 @@ class PeakEllipsoid:
         if report_fit:
             print(fit_report(result))
 
-        self.extract_result(result, x0, x1, x2, args_1d, args_2d, args_3d)
+        # self.extract_result(result, x0, x1, x2, args_1d, args_2d, args_3d)
 
-        chi2_1d, chi2_2d, chi2_3d = self.redchi2
+        # chi2_1d, chi2_2d, chi2_3d = self.redchi2
 
-        args_1d[-1] = [e * np.sqrt(e.size) for e, chi2 in zip(e1d, chi2_1d)]
-        args_2d[-1] = [e * np.sqrt(e.size) for e, chi2 in zip(e2d, chi2_2d)]
-        args_3d[-1] = e3d * np.sqrt(e3d.size)
+        # args_1d[-1] = [e * np.sqrt(e.size) for e, chi2 in zip(e1d, chi2_1d)]
+        # args_2d[-1] = [e * np.sqrt(e.size) for e, chi2 in zip(e2d, chi2_2d)]
+        # args_3d[-1] = e3d * np.sqrt(e3d.size)
 
-        # print([np.shape(e) for e in e2d])
-        # print([np.shape(e*np.sqrt(chi2)) for e, chi2 in zip(e2d, chi2_2d)])
+        # # print([np.shape(e) for e in e2d])
+        # # print([np.shape(e*np.sqrt(chi2)) for e, chi2 in zip(e2d, chi2_2d)])
 
-        out = Minimizer(
-            self.residual,
-            self.params,
-            fcn_args=(args_1d, args_2d, args_3d),
-            # reduce_fcn=self.loss,
-            nan_policy="omit",
-        )
+        # out = Minimizer(
+        #     self.residual,
+        #     self.params,
+        #     fcn_args=(args_1d, args_2d, args_3d),
+        #     # reduce_fcn=self.loss,
+        #     nan_policy="omit",
+        # )
 
-        result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
-            max_nfev=50,
-            col_deriv=True,
-        )
+        # result = out.minimize(
+        #     method="leastsq",
+        #     Dfun=self.jacobian,
+        #     max_nfev=50,
+        #     col_deriv=True,
+        # )
 
         return self.extract_result(
             result, x0, x1, x2, args_1d, args_2d, args_3d
