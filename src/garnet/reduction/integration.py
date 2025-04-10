@@ -3033,7 +3033,7 @@ class PeakEllipsoid:
         result = out.minimize(
             method="leastsq",
             # Dfun=self.jacobian,
-            max_nfev=50,
+            max_nfev=100,
             col_deriv=True,
         )
 
