@@ -2707,7 +2707,7 @@ class PeakEllipsoid:
     def loss(self, r):
         return np.abs(r).sum()
 
-    def extract_result(self, result, x0, x1, x2, args_1d, args_2d, args_3d):
+    def extract_result(self, result, args_1d, args_2d, args_3d):
         x0, x1, x2, y1d, e1d = args_1d
         x0, x1, x2, y2d, e2d = args_2d
         x0, x1, x2, y3d, e3d = args_3d
@@ -2902,7 +2902,7 @@ class PeakEllipsoid:
         y1d_1, e1d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_1")
         y1d_2, e1d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="1d_2")
 
-        y0, y1, y2 = y1d_0, y1d_1, y1d_2
+        y0, y1, y2 = y1d_0.copy(), y1d_1.copy(), y1d_2.copy()
 
         y0_min = np.nanmin(y0)
         y0_max = np.nanmax(y0)
@@ -2951,7 +2951,7 @@ class PeakEllipsoid:
         y2d_1, e2d_1 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_1")
         y2d_2, e2d_2 = self.normalize(x0, x1, x2, counts, y, e, mode="2d_2")
 
-        y0, y1, y2 = y2d_0, y2d_1, y2d_2
+        y0, y1, y2 = y2d_0.copy(), y2d_1.copy(), y2d_2.copy()
 
         y0_min = np.nanmin(y0)
         y0_max = np.nanmax(y0)
@@ -3022,8 +3022,6 @@ class PeakEllipsoid:
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
-        assert True
-
         out = Minimizer(
             self.residual,
             self.params,
@@ -3034,10 +3032,12 @@ class PeakEllipsoid:
 
         result = out.minimize(
             method="leastsq",
-            Dfun=self.jacobian,
+            # Dfun=self.jacobian,
             max_nfev=50,
             col_deriv=True,
         )
+
+        # assert False
 
         if report_fit:
             print(fit_report(result))
@@ -3068,9 +3068,7 @@ class PeakEllipsoid:
         #     col_deriv=True,
         # )
 
-        return self.extract_result(
-            result, x0, x1, x2, args_1d, args_2d, args_3d
-        )
+        return self.extract_result(result, args_1d, args_2d, args_3d)
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
@@ -3140,7 +3138,11 @@ class PeakEllipsoid:
             print("Invalid data")
             return None
 
-        weights = self.estimate_envelope(x0, x1, x2, counts, y, e)
+        weights = None
+        try:
+            weights = self.estimate_envelope(x0, x1, x2, counts, y, e)
+        except Exception as e:
+            print("Exception estimating enveiope: {}".format(e))
 
         if weights is None:
             print("Invalid weight estimate")
