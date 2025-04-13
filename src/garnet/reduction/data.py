@@ -1731,11 +1731,11 @@ class LaueData(BaseDataModel):
             Target="Wavelength",
         )
 
-        CompressEvents(
-            InputWorkspace=event_name,
-            OutputWorkspace=event_name,
-            Tolerance=0.0001,
-        )
+        # CompressEvents(
+        #     InputWorkspace=event_name,
+        #     OutputWorkspace=event_name,
+        #     Tolerance=0.0001,
+        # )
 
         NormaliseByCurrent(
             InputWorkspace=event_name, OutputWorkspace=event_name

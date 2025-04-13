@@ -48,6 +48,8 @@ from PyPDF2 import PdfMerger
 
 import argparse
 
+from garnet.reduction.ub import Optimization
+
 point_group_dict = {
     "-1": "-1 (Triclinic)",
     "1": "1 (Triclinic)",
@@ -1210,6 +1212,35 @@ class Peaks:
         self.modUB = np.zeros((3, 3))
         self.modHKL = np.zeros((3, 3))
 
+    def refine_UB(self, peaks):
+        opt = Optimization(peaks)
+
+        ol = mtd[peaks].sample().getOrientedLattice()
+
+        a, b, c = ol.a(), ol.b(), ol.c()
+        alpha, beta, gamma = ol.alpha(), ol.beta(), ol.gamma()
+
+        if np.allclose([a, b], c) and np.allclose([alpha, beta, gamma], 90):
+            cell = "Cubic"
+        elif np.allclose([a, b], c) and np.allclose([alpha, beta], gamma):
+            cell = "Rhombohedral"
+        elif np.isclose(a, b) and np.allclose([alpha, beta, gamma], 90):
+            cell = "Tetragonal"
+        elif (
+            np.isclose(a, b)
+            and np.allclose([alpha, beta], 90)
+            and np.isclose(gamma, 120)
+        ):
+            cell = "Hexagonal"
+        elif np.allclose([alpha, beta, gamma], 90):
+            cell = "Orthorhombic"
+        elif np.allclose([alpha, gamma], 90):
+            cell = "Monoclinic"
+        else:
+            cell = "Tricilinic"
+
+        opt.optimize_lattice(cell)
+
     def rescale_intensities(self):
         scale = 1 if self.scale is None else self.scale
         if mtd[self.peaks].getNumberPeaks() > 1 and self.scale is None:
@@ -1647,6 +1678,8 @@ class Peaks:
             Filename=filename + ".hkl",
             DirectionCosines=True,
         )
+
+        self.refine_UB(peaks)
 
         SaveIsawUB(InputWorkspace=peaks, Filename=filename + ".mat")
 
