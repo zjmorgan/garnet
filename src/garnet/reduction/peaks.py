@@ -1353,6 +1353,50 @@ class PeakModel:
 
         return peak.getGoniometerMatrix()
 
+    def get_projection_matrix(self, no):
+        two_theta, az_phi = self.get_angles(no)
+
+        two_theta = np.deg2rad(two_theta)
+        az_phi = np.deg2rad(az_phi)
+
+        kf_hat = np.array(
+            [
+                np.sin(two_theta) * np.cos(az_phi),
+                np.sin(two_theta) * np.sin(az_phi),
+                np.cos(two_theta),
+            ]
+        )
+
+        ki_hat = np.array([0, 0, 1])
+
+        n = kf_hat - ki_hat
+        n /= np.linalg.norm(n)
+
+        R = self.get_goniometer_matrix(no)
+
+        if (R @ n) @ n < 0:
+            n *= -1
+
+        v = np.cross(ki_hat, kf_hat)
+        v /= np.linalg.norm(v)
+
+        u = np.cross(v, n)
+        u /= np.linalg.norm(u)
+
+        return (R.T @ n).tolist(), (R.T @ u).tolist(), (R.T @ v).tolist()
+
+    def get_projection_peak_origin(self, no):
+        projections = self.get_projection_matrix(no)
+
+        UB = self.get_UB()
+
+        W = np.column_stack(projections)
+        Q = 2 * np.pi * W.T @ UB @ self.get_hkl(no)
+
+        Wp = np.linalg.inv(W.T @ (2 * np.pi * UB)).T
+
+        return Wp.tolist(), Q.tolist()
+
     def get_goniometer_angles(self, no):
         """
         Goniometer Euler angles of the peak.

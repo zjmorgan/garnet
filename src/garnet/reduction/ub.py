@@ -431,6 +431,8 @@ class Optimization:
 
         self.Q, self.hkl = np.array(Qs), np.array(hkls)
 
+        self.min_req = True if len(self.hkl) > 3 else False
+
     def get_UB(self):
         """
         Current UB matrux.
@@ -608,7 +610,7 @@ class Optimization:
 
         """
 
-        if mtd.doesExist(self.peaks):
+        if mtd.doesExist(self.peaks) and self.min_req:
             a, b, c, alpha, beta, gamma = self.get_lattice_parameters()
 
             phi, theta, omega = self.get_orientation_angles()

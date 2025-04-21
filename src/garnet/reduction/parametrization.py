@@ -8,6 +8,7 @@ config["Q.convention"] = "Crystallography"
 import numpy as np
 
 from garnet.reduction.data import DataModel
+from garnet.reduction.peaks import PeaksModel, PeakModel
 from garnet.reduction.plan import SubPlan
 from garnet.config.instruments import beamlines
 
@@ -38,6 +39,10 @@ class Parametrization(SubPlan):
             self.params["LogExtents"] = [0, 1]
             self.params["LogBins"] = 0
 
+        if self.params.get("MillerIndex") is not None:
+            assert len(self.params["MillerIndex"]) == 3
+            self.params["Projections"] = np.eye(3).tolist()
+
     @staticmethod
     def parametrize_parallel(plan, runs, proc):
         total = plan["Runs"]
@@ -55,6 +60,11 @@ class Parametrization(SubPlan):
         data.update_raw_path(self.plan)
 
         runs = self.plan["Runs"]
+
+        peaks = PeaksModel()
+
+        projections = self.params["Projections"]
+        extents = np.array(self.params["Extents"].copy()).tolist()
 
         if data.laue:
             self.run = 0
@@ -107,10 +117,24 @@ class Parametrization(SubPlan):
                         workspace, "md", lorentz_corr=False
                     )
 
+                    hkl = self.params.get("MillerIndex")
+                    if hkl is not None:
+                        if not mtd.doesExist("peaks"):
+                            peaks.create_peaks("md", "peaks")
+                            peaks.add_peak("peaks", hkl)
+                            peak = PeakModel("peaks")
+                            (
+                                projections,
+                                origin,
+                            ) = peak.get_projection_peak_origin(0)
+                            for i in range(3):
+                                for j in range(2):
+                                    extents[i][j] += origin[i]
+
                     data.normalize_to_hkl(
                         "md",
-                        self.params["Projections"],
-                        self.params["Extents"],
+                        projections,
+                        extents,
                         self.params["Bins"],
                     )
 
@@ -270,7 +294,9 @@ class Parametrization(SubPlan):
         log_extents = self.params.get("LogExtents")
 
         name = (
-            "" if log_bins == 0 else log_name.replace(" ", "").replace("/", "")
+            ""
+            if log_bins == 0
+            else "_" + log_name.replace(" ", "").replace("/", "")
         )
 
         log_vals = [*log_extents, log_bins]
@@ -296,26 +322,32 @@ class Parametrization(SubPlan):
 
         chars = ["h", "k", "l"]
 
-        axes = []
-        for j in [0, 1, 2]:
-            axis = []
-            for w in W[:, j]:
-                char = chars[np.argmax(W[:, j])]
-                axis.append(char_dict.get(w, "{0}{1}").format(w, char))
-            axes.append(axis)
+        if self.params.get("MillerIndex") is None:
+            axes = []
+            for j in [0, 1, 2]:
+                axis = []
+                for w in W[:, j]:
+                    char = chars[np.argmax(W[:, j])]
+                    axis.append(char_dict.get(w, "{0}{1}").format(w, char))
+                axes.append(axis)
 
-        result = []
-        for item0, item1 in zip(axes[0], axes[1]):
-            if item0 == "0":
-                result.append(item1)
-            elif item1 == "0":
-                result.append(item0)
-            elif "-" in item1:
-                result.append(item0 + item1)
-            else:
-                result.append(item0 + "+" + item1)
+            result = []
+            for item0, item1 in zip(axes[0], axes[1]):
+                if item0 == "0":
+                    result.append(item1)
+                elif item1 == "0":
+                    result.append(item0)
+                elif "-" in item1:
+                    result.append(item0 + item1)
+                else:
+                    result.append(item0 + "+" + item1)
+        else:
+            result = [str(val) for val in self.params["MillerIndex"]]
 
-        proj = "_(" + ",".join(result) + ")" + "_[" + ",".join(axes[2]) + "]"
+        proj = "_(" + ",".join(result) + ")"
+
+        if self.params.get("MillerIndex") is None:
+            proj += "_[" + ",".join(axes[2]) + "]"
 
         return proj
 

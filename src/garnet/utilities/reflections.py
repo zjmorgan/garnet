@@ -1331,6 +1331,11 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
+        # for peak in mtd['peaks']:
+        #     wl = peak.getWavelength()
+        #     peak.setIntensity(peak.getIntensity())
+        #     peak.setSigmaIntensity(peak.getSigmaIntensity())
+
         self.remove_off_centered()
 
         run_info = mtd[self.peaks].run()
@@ -1376,8 +1381,8 @@ class Peaks:
         cdf = scipy.integrate.cumulative_trapezoid(pdf, x, initial=0)
         cdf /= cdf[-1]
 
-        lower_bound = x[np.searchsorted(cdf, 0.025)]
-        upper_bound = x[np.searchsorted(cdf, 0.975)]
+        lower_bound = x[np.searchsorted(cdf, 0.01)]
+        upper_bound = x[np.searchsorted(cdf, 0.99)]
 
         filename = os.path.splitext(self.filename)[0]
 

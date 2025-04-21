@@ -33,6 +33,7 @@ from mantid.simpleapi import (
     ConvertHFIRSCDtoMDE,
     ReplicateMD,
     BinMD,
+    SliceMD,
     DivideMD,
     MDNorm,
     ConvertWANDSCDtoQ,
@@ -772,6 +773,32 @@ class BaseDataModel:
         dQ = 4 * np.pi / lamda * np.cos(np.deg2rad(two_theta) * 0.5) * self.dt
 
         return dQ
+
+    def clear_norm(self, md):
+        if mtd.doesExist(md + "_data"):
+            DeleteWorkspace(Workspace=md + "_data")
+        if mtd.doesExist(md + "_norm"):
+            DeleteWorkspace(Workspace=md + "_norm")
+
+        if mtd.doesExist(md + "_bkg_data"):
+            DeleteWorkspace(Workspace=md + "_bkg_data")
+        if mtd.doesExist(md + "_bkg_norm"):
+            DeleteWorkspace(Workspace=md + "_bkg_norm")
+
+    def slice_roi(self, md, extents):
+        extents = np.array(extents).flatten().tolist()
+
+        SliceMD(
+            InputWorkspace=md,
+            AxisAligned=False,
+            AlignedDim0="Q_sample_x,",
+            BasisVector0="Q_sample_x,Angstrom^-1,1,0,0",
+            BasisVector1="Q_sample_y,Angstrom^-1,0,1,0",
+            BasisVector2="Q_sample_z,Angstrom^-1,0,0,1",
+            OutputExtents=extents,
+            OutputBins="1,1,1",
+            OutputWorkspace=md + "_slice",
+        )
 
     def bin_in_Q(self, md, extents, bins, projections):
         """
@@ -1597,6 +1624,16 @@ class LaueData(BaseDataModel):
 
             self.wavelength_band = [lamda_min, lamda_max]
 
+            # y = mtd["spectra"].extractY()
+
+            # lamda = mtd["spectra"].extractX()
+            # lamda = 0.5 * (lamda[:, 1:] + lamda[:, :-1])
+
+            # y *= lamda**4
+
+            # for i in range(y.shape[0]):
+            #     mtd["spectra"].setY(i, y[i])
+
             CreateDetectorTable(
                 InputWorkspace="spectra", DetectorTableWorkspace="spectra_det"
             )
@@ -1641,6 +1678,16 @@ class LaueData(BaseDataModel):
 
             RemoveLogs(Workspace="efficiency")
 
+            # y = mtd["efficiency"].extractY()
+
+            # two_theta = np.array(mtd["detectors"].column(2))
+
+            # y /= 2 * np.sin(0.5 * two_theta.reshape(-1, 1)) ** 2
+
+            # for i in range(y.shape[0]):
+
+            #     mtd["efficiency"].setY(i, y[i])
+
             CreateDetectorTable(
                 InputWorkspace="efficiency",
                 DetectorTableWorkspace="efficiency_det",
@@ -1657,7 +1704,7 @@ class LaueData(BaseDataModel):
                     self.efficiency_dict[ind] = i
 
     def calculate_correction_factor(self):
-        if not mtd.doesExist("factor"):
+        if not mtd.doesExist("norm"):
             params = [
                 mtd["spectra"].getXDimension().getMinimum(),
                 mtd["spectra"].getXDimension().getBinWidth(),
@@ -1666,30 +1713,32 @@ class LaueData(BaseDataModel):
 
             Rebin(
                 InputWorkspace="efficiency",
-                OutputWorkspace="factor",
+                OutputWorkspace="norm",
                 Params=params,
                 PreserveEvents=False,
             )
 
-            two_theta = np.array(mtd["detectors"].column(2))
             det_ids = np.array(mtd["detectors"].column(4))
+            # two_theta = np.array(mtd["detectors"].column(2))
+
+            # k = mtd["spectra"].extractX()
+            # k = 0.5 * (k[:, 1:] + k[:, :-1])
+
+            # lamda = 2 * np.pi / k
 
             y_sp = mtd["spectra"].extractY()
             y_ef = mtd["efficiency"].extractY()
-
-            lamda = mtd["factor"].extractX()
-            lamda = 0.5 * (lamda[:, 1:] + lamda[:, :-1])
-
+            y_sp /= y_sp.max()
+            y_ef /= y_ef.max()
             for i, det_id in enumerate(det_ids):
                 ind_ef = self.efficiency_dict.get(det_id)
                 ind_sp = self.spectra_dict.get(det_id)
 
                 if ind_ef is not None and ind_sp is not None:
+                    # L = lamda[ind_sp]**4 / (2 * np.sin(0.5*two_theta[i]) ** 2)
                     y = y_ef[ind_ef] * y_sp[ind_sp]
-                    L = lamda[ind_ef] ** 4 / (
-                        2 * np.sin(0.5 * two_theta[i]) ** 2
-                    )
-                    mtd["factor"].setY(i, y * L)
+                    mtd["norm"].setY(i, y)
+                    mtd["norm"].setE(i, y * 0)
 
     def crop_for_normalization(self, event_name):
         """
@@ -1731,26 +1780,34 @@ class LaueData(BaseDataModel):
             Target="Wavelength",
         )
 
-        # CompressEvents(
-        #     InputWorkspace=event_name,
-        #     OutputWorkspace=event_name,
-        #     Tolerance=0.0001,
-        # )
+        CompressEvents(
+            InputWorkspace=event_name,
+            OutputWorkspace=event_name,
+            Tolerance=0.0001,
+        )
 
         NormaliseByCurrent(
             InputWorkspace=event_name, OutputWorkspace=event_name
         )
 
-        if mtd.doesExist("bkg"):
-            Minus(
-                LHSWorkspace=event_name,
-                RHSWorkspace="bkg",
-                OutputWorkspace=event_name,
-            )
+        # if mtd.doesExist("bkg"):
+        #     Minus(
+        #         LHSWorkspace=event_name,
+        #         RHSWorkspace="bkg",
+        #         OutputWorkspace=event_name,
+        #     )
 
         Divide(
             LHSWorkspace=event_name,
-            RHSWorkspace="factor",
+            RHSWorkspace="spectra",
+            OutputWorkspace=event_name,
+            WarnOnZeroDivide=False,
+            AllowDifferentNumberSpectra=True,
+        )
+
+        Divide(
+            LHSWorkspace=event_name,
+            RHSWorkspace="efficiency",
             OutputWorkspace=event_name,
             WarnOnZeroDivide=False,
             AllowDifferentNumberSpectra=True,

@@ -94,13 +94,13 @@ if __name__ == "__main__":
         data = DataModel(beamlines[rp.plan["Instrument"]])
         data.update_raw_path(rp.plan)
 
-        if reduction == "int":
-            profile_fit = rp.plan["Integration"].get("ProfileFit")
-            if profile_fit is None:
-                profile_fit = True
-            by_run = False
-            if data.laue and not profile_fit:
-                by_run = True
+        # if reduction == "int":
+        #     profile_fit = rp.plan["Integration"].get("ProfileFit")
+        #     if profile_fit is None:
+        #         profile_fit = True
+        #     by_run = False
+        #     if data.laue and not profile_fit:
+        #         by_run = True
 
         if by_run:
             pt = ParallelTasks(func, comb)
@@ -122,4 +122,8 @@ if __name__ == "__main__":
 
             inst.integrate(n_proc)
 
-        rp.save_plan(filename.replace(".yaml", "_" + reduction + ".json"))
+        fname = filename.replace(".yaml", "_" + reduction + ".json")
+
+        fname = os.path.join(inst.get_output_path(), os.path.basename(fname))
+
+        rp.save_plan(fname)
