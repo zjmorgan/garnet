@@ -1332,7 +1332,7 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
-        ub_file = self.filename.replace(".nss", ".mat")
+        ub_file = self.filename.replace(".nxs", ".mat")
 
         if os.path.exists(ub_file):
             LoadIsawUB(Filename=ub_file, InputWorkspace=self.peaks)
