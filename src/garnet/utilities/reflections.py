@@ -17,6 +17,7 @@ from mantid.simpleapi import (
     SaveHKL,
     SaveReflections,
     SaveIsawUB,
+    LoadIsawUB,
     CloneWorkspace,
     CopySample,
     SetGoniometer,
@@ -1224,7 +1225,6 @@ class Peaks:
 
         a, b, c = ol.a(), ol.b(), ol.c()
         alpha, beta, gamma = ol.alpha(), ol.beta(), ol.gamma()
-        print(a, b, c, alpha, beta, gamma)
 
         if np.allclose([a, b], c) and np.allclose([alpha, beta, gamma], 90):
             cell = "Cubic"
@@ -1332,10 +1332,10 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
-        # for peak in mtd['peaks']:
-        #     wl = peak.getWavelength()
-        #     peak.setIntensity(peak.getIntensity())
-        #     peak.setSigmaIntensity(peak.getSigmaIntensity())
+        ub_file = self.filename.replace(".nss", ".mat")
+
+        if os.path.exists(ub_file):
+            LoadIsawUB(Filename=ub_file, InputWorkspace=self.peaks)
 
         self.remove_off_centered()
 
