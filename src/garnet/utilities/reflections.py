@@ -1224,6 +1224,7 @@ class Peaks:
 
         a, b, c = ol.a(), ol.b(), ol.c()
         alpha, beta, gamma = ol.alpha(), ol.beta(), ol.gamma()
+        print(a, b, c, alpha, beta, gamma)
 
         if np.allclose([a, b], c) and np.allclose([alpha, beta, gamma], 90):
             cell = "Cubic"
