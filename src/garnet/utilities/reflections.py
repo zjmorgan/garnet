@@ -1242,7 +1242,7 @@ class Peaks:
         elif np.allclose([alpha, gamma], 90):
             cell = "Monoclinic"
         else:
-            cell = "Tricilinic"
+            cell = "Triclinic"
 
         opt.optimize_lattice(cell)
 

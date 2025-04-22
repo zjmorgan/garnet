@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 
 import numpy as np
 
@@ -1451,27 +1452,29 @@ class LaueData(BaseDataModel):
 
         cols, rows = self.instrument_config["BankPixels"]
 
-        det_id = np.array(mtd["detectors"].column(4)).reshape(-1, cols, rows)
+        # det_id = np.array(mtd["detectors"].column(4)).reshape(-1, cols, rows)
         det_map = np.array(mtd["detectors"].column(5)).reshape(-1, cols, rows)
 
-        grouped_ids = {}
-        for i in range(det_id.shape[0]):
-            for j in range(det_id.shape[1]):
-                for k in range(det_id.shape[2]):
-                    key = (i, j // c, k // r)
-                    detector_id = str(det_map[i, j, k])
-                    if key in grouped_ids:
-                        grouped_ids[key].append(detector_id)
-                    else:
-                        grouped_ids[key] = [detector_id]
-
+        shape = det_map.shape
+        i, j, k = np.meshgrid(
+            np.arange(shape[0]),
+            np.arange(shape[1]),
+            np.arange(shape[2]),
+            indexing="ij",
+        )
+        keys = np.stack((i, j // c, k // r), axis=-1)
+        keys_flat = keys.reshape(-1, keys.shape[-1])
+        det_map_flat = det_map.ravel().astype(str)
+        grouped_ids = defaultdict(list)
+        for key, detector_id in zip(map(tuple, keys_flat), det_map_flat):
+            grouped_ids[key].append(detector_id)
         self.grouping = ",".join(
-            ["+".join(grouped_ids[key]) for key in grouped_ids.keys()]
+            "+".join(group) for group in grouped_ids.values()
         )
 
     def group_pixels(self, ws):
         """
-        Group pixels with grouping file.
+        Group pixels with grouping pattern.
 
         Parameters
         ----------
@@ -1485,6 +1488,12 @@ class LaueData(BaseDataModel):
                 InputWorkspace=ws,
                 GroupingPattern=self.grouping,
                 OutputWorkspace=ws,
+            )
+
+            CompressEvents(
+                InputWorkspace=ws,
+                OutputWorkspace=ws,
+                Tolerance=0.0001,
             )
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
