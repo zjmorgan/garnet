@@ -128,6 +128,9 @@ class BaseDataModel:
             OutputWorkspace="unity", DataValue=1, ErrorValue=1
         )
 
+    def workspace_exists(self, ws):
+        return ws if mtd.doesExist(ws) else None
+
     def update_raw_path(self, plan):
         """
         Set additional parameters for data file.
@@ -786,21 +789,6 @@ class BaseDataModel:
         if mtd.doesExist(md + "_bkg_norm"):
             DeleteWorkspace(Workspace=md + "_bkg_norm")
 
-    def slice_roi(self, md, extents):
-        extents = np.array(extents).flatten().tolist()
-
-        SliceMD(
-            InputWorkspace=md,
-            AxisAligned=False,
-            AlignedDim0="Q_sample_x,",
-            BasisVector0="Q_sample_x,Angstrom^-1,1,0,0",
-            BasisVector1="Q_sample_y,Angstrom^-1,0,1,0",
-            BasisVector2="Q_sample_z,Angstrom^-1,0,0,1",
-            OutputExtents=extents,
-            OutputBins="1,1,1",
-            OutputWorkspace=md + "_slice",
-        )
-
     def bin_in_Q(self, md, extents, bins, projections):
         """
         Histogram data into Q-space.
@@ -874,6 +862,7 @@ class BaseDataModel:
                     MinimumLogValue=log_min,
                     MaximumLogValue=log_max,
                     LogValueInterval=log_interval,
+                    LogBoundary="Left",
                 )
 
                 log_vals = np.linspace(
@@ -964,21 +953,6 @@ class BaseDataModel:
                         LogUnit=str(log_units),
                         LogType="Number",
                     )
-
-                    # run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
-                    # if type(log_vals) is float:
-                    #     run.addProperty(log_name, runs, True)
-                    # else:
-                    #     run.addProperty(log_name, log_vals.tolist(), True)
-                    # run.getProperty(log_name).units = log_units
-
-                # if type(log_vals) is float:
-                #     run = mtd[md + ws + "_split"].getExperimentInfo(0).run()
-                #     values = run.getProperty(log_name).value
-                #     print('index',index)
-                #     values[index] = log_vals
-                #     run.addProperty(log_name, values, True)
-                #     run.getProperty(log_name).units = log_units
 
                 signal = mtd[md + ws + "_split"].getSignalArray().copy()
                 signal[index] += mtd[md + ws].getSignalArray()
@@ -1218,20 +1192,16 @@ class MonochromaticData(BaseDataModel):
                 Q2_min, Q2_max, nQ2
             )
 
-            bkg_ws = ws + "_bkg" if mtd.doesExist(ws + "_bkg") else None
+            bkg_ws = self.workspace_exists(ws + "_bkg")
 
-            bkg_data = ws + "_bkg_data" if mtd.doesExist(ws + "_bkg") else None
-            bkg_norm = ws + "_bkg_norm" if mtd.doesExist(ws + "_bkg") else None
+            bkg_data = self.workspace_exists(ws + "_bkg_data")
+            bkg_norm = self.workspace_exists(ws + "_bkg_norm")
 
-            _data = ws + "_data" if mtd.doesExist(ws + "_data") else None
-            _norm = ws + "_norm" if mtd.doesExist(ws + "_norm") else None
+            _data = self.workspace_exists(ws + "_data")
+            _norm = self.workspace_exists(ws + "_norm")
 
-            __data = (
-                ws + "_bkg_data" if mtd.doesExist(ws + "_bkg_data") else None
-            )
-            __norm = (
-                ws + "_bkg_norm" if mtd.doesExist(ws + "_bkg_norm") else None
-            )
+            __data = self.workspace_exists(ws + "_bkg_data")
+            __norm = self.workspace_exists(ws + "_bkg_norm")
 
             ConvertWANDSCDtoQ(
                 InputWorkspace=ws,
@@ -1327,11 +1297,11 @@ class LaueData(BaseDataModel):
 
         self.set_goniometer(event_name)
 
-        if self.grouping is not None and grouping is not None:
-            self.create_grouping(grouping)
+        # if self.grouping is not None and grouping is not None:
+        #     self.create_grouping(grouping)
 
-        if self.grouping is not None:
-            self.group_pixels(event_name)
+        # if self.grouping is not None:
+        #     self.group_pixels(event_name)
 
     def calculate_maximum_Q(self):
         """
@@ -1490,11 +1460,11 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=ws,
             )
 
-            CompressEvents(
-                InputWorkspace=ws,
-                OutputWorkspace=ws,
-                Tolerance=0.0001,
-            )
+            # CompressEvents(
+            #     InputWorkspace=ws,
+            #     OutputWorkspace=ws,
+            #     Tolerance=0.0001,
+            # )
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
         """
@@ -1789,11 +1759,11 @@ class LaueData(BaseDataModel):
             Target="Wavelength",
         )
 
-        CompressEvents(
-            InputWorkspace=event_name,
-            OutputWorkspace=event_name,
-            Tolerance=0.0001,
-        )
+        # CompressEvents(
+        #     InputWorkspace=event_name,
+        #     OutputWorkspace=event_name,
+        #     Tolerance=0.0001,
+        # )
 
         NormaliseByCurrent(
             InputWorkspace=event_name, OutputWorkspace=event_name
@@ -1951,20 +1921,16 @@ class LaueData(BaseDataModel):
                 Q2_min, Q2_max, nQ2
             )
 
-            bkg_ws = "bkg_md" if mtd.doesExist("bkg_md") else None
+            bkg_ws = self.workspace_exists("bkg_md")
 
-            bkg_data = md + "_bkg_data" if mtd.doesExist("bkg_md") else None
-            bkg_norm = md + "_bkg_norm" if mtd.doesExist("bkg_md") else None
+            bkg_data = self.workspace_exists(md + "_bkg_data")
+            bkg_norm = self.workspace_exists(md + "_bkg_norm")
 
-            _data = md + "_data" if mtd.doesExist(md + "_data") else None
-            _norm = md + "_norm" if mtd.doesExist(md + "_norm") else None
+            _data = self.workspace_exists(md + "_data")
+            _norm = self.workspace_exists(md + "_norm")
 
-            __data = (
-                md + "_bkg_data" if mtd.doesExist(md + "_bkg_data") else None
-            )
-            __norm = (
-                md + "_bkg_norm" if mtd.doesExist(md + "_bkg_norm") else None
-            )
+            __data = self.workspace_exists(md + "_bkg_data")
+            __norm = self.workspace_exists(md + "_bkg_norm")
 
             MDNorm(
                 InputWorkspace="md",

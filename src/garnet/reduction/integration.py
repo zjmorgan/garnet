@@ -588,10 +588,10 @@ class Integration(SubPlan):
                 ]
             )
 
-            ind = np.nanargmax(intens)
+            # ind = np.nanargmax(intens)
 
-            I = intens[ind]
-            sigma = sig[ind]
+            I = intens[-1]
+            sigma = sig[-1]
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
@@ -645,7 +645,7 @@ class Integration(SubPlan):
         return mask
 
     def interpolate(self, x0, x1, x2, d, n):
-        data_mask = np.isfinite(d) & (d > 0)
+        data_mask = np.isfinite(n) & (n > 0)
         detection_mask = self.detection_mask(n)
 
         gd = d.copy()

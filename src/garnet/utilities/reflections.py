@@ -1260,7 +1260,7 @@ class Peaks:
         for i, peak in zip(indices.tolist(), mtd[self.peaks]):
             peak.setIntensity(scale * peak.getIntensity())
             peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
-            peak.setRunNumber(1)
+            peak.setRunNumber(i)
 
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
         with open(filename, "w") as f:
@@ -1343,7 +1343,7 @@ class Peaks:
         run_keys = run_info.keys()
 
         keys = ["h", "k", "l", "m", "n", "p", "run"]
-        vals = ["intens", "sig"]
+        vals = ["intens", "sig", "vol"]
 
         info_dict = {}
 
@@ -1364,12 +1364,24 @@ class Peaks:
 
             intens = run_info.getLogData("peaks_intens").value
             sig = run_info.getLogData("peaks_sig").value
+            # vol = run_info.getLogData("peaks_vol").value
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
-                info_dict[key] = intens[i], sig[i]
+                info_dict[key] = intens[i], sig[i]  # , vol[i]
 
         self.info_dict = info_dict
+
+        # LoadIsawSpectrum(SpectraFile='/SNS/TOPAZ/IPTS-31856/shared/calibration/Spectrum_2025A_CG_3-3mmBN_53072_53076.dat', OutputWorkspace='spectrum', InstrumentName='TOPAZ')
+
+        # for peak in mtd[self.peaks]:
+        #     h, k, l = np.array(peak.getIntHKL()).astype(int).tolist()
+        #     m, n, p = np.array(peak.getIntMNP()).astype(int).tolist()
+        #     run = peak.getRunNumber()
+        #     key = (run, h, k, l, m, n, p)
+        #     I, sig = info_dict[key]
+        #     peak.setIntensity(I)
+        #     peak.setSigmaIntensity(sig)
 
         lamda = np.array(mtd[self.peaks].column("Wavelength"))
 
@@ -1669,6 +1681,13 @@ class Peaks:
             # I if diff >= 2 * sig and diff > 0 else sig
             peak.setSigmaIntensity(sig)
 
+        _, indices = np.unique(
+            mtd[peaks].column("BankName"), return_inverse=True
+        )
+
+        for i, peak in zip(indices.tolist(), mtd[peaks]):
+            peak.setRunNumber(i)
+
         FilterPeaks(
             InputWorkspace=peaks,
             OutputWorkspace=peaks,
@@ -1688,6 +1707,7 @@ class Peaks:
             InputWorkspace=peaks,
             Filename=filename + ".hkl",
             DirectionCosines=True,
+            ApplyAnvredCorrections=False,
         )
 
         self.refine_UB(peaks)
