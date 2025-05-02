@@ -1565,6 +1565,8 @@ class LaueData(BaseDataModel):
         if not mtd.doesExist("flux"):
             LoadNexus(Filename=flux_file, OutputWorkspace="flux")
 
+            NormaliseSpectra(InputWorkspace="flux", OutputWorkspace="flux")
+
             RemoveLogs(Workspace="flux")
 
             self.k_min = mtd["flux"].getXDimension().getMinimum()
