@@ -567,8 +567,8 @@ class Integration(SubPlan):
 
             ellipsoid.integrate(*norm_params)
 
-            I = ellipsoid.intensity[-1]
-            sigma = ellipsoid.sigma[-1]
+            I = ellipsoid.intensity[-2]
+            sigma = ellipsoid.sigma[-2]
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
