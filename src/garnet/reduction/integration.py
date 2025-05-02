@@ -166,19 +166,13 @@ class Integration(SubPlan):
                 self.plan["VanadiumFile"], self.plan.get("FluxFile")
             )
 
-            # data.load_efficiency_file(self.plan["EfficiencyFile"])
-
-            # data.load_spectra_file(self.plan["SpectraFile"])
-
             data.crop_for_normalization("data")
 
             data.apply_mask("data", self.plan.get("MaskFile"))
 
+            data.group_pixels("data")
+
             # data.load_background(self.plan.get("BackgroundFile"), "data")
-
-            # data.calculate_correction_factor()
-
-            # data.normalize_data("data")
 
             data.load_clear_UB(self.plan["UBFile"], "data", run)
 
@@ -573,25 +567,8 @@ class Integration(SubPlan):
 
             ellipsoid.integrate(*norm_params)
 
-            intens = np.array(
-                [
-                    x
-                    for item in ellipsoid.intensity
-                    for x in (item if isinstance(item, list) else [item])
-                ]
-            )
-            sig = np.array(
-                [
-                    x
-                    for item in ellipsoid.sigma
-                    for x in (item if isinstance(item, list) else [item])
-                ]
-            )
-
-            # ind = np.nanargmax(intens)
-
-            I = intens[-1]
-            sigma = sig[-1]
+            I = ellipsoid.intensity[-1]
+            sigma = ellipsoid.sigma[-1]
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
@@ -648,13 +625,13 @@ class Integration(SubPlan):
         data_mask = np.isfinite(n) & (n > 0)
         detection_mask = self.detection_mask(n)
 
-        gd = d.copy()
-        gn = n.copy()
+        # gd = d.copy()
+        # gn = n.copy()
 
-        gd[~detection_mask] = np.nan
-        gn[~detection_mask] = np.nan
+        # gd[~detection_mask] = np.nan
+        # gn[~detection_mask] = np.nan
 
-        return gd, gn, data_mask, detection_mask
+        return d, n, data_mask, detection_mask
 
     def extract_peak_info(self, peaks_ws, r_cut, norm=False):
         """
@@ -731,7 +708,7 @@ class Integration(SubPlan):
 
             interp = self.interpolate(Q0, Q1, Q2, d, n)
 
-            d, n, data_mask, detection_mask = interp
+            # d, n, data_mask, detection_mask = interp
 
             data_info = (Q0, Q1, Q2, *interp, dQ, Q, k, projections)
 
@@ -1349,9 +1326,9 @@ class PeakEllipsoid:
         self.params.add("r1", value=r1, min=dx1, max=r1_max)
         self.params.add("r2", value=r2, min=dx2, max=r2_max)
 
-        self.params.add("u0", value=0.0, min=-np.pi / 6, max=np.pi / 6)
-        self.params.add("u1", value=0.0, min=-np.pi / 6, max=np.pi / 6)
-        self.params.add("u2", value=0.0, min=-np.pi / 6, max=np.pi / 6)
+        self.params.add("u0", value=0.0, min=-np.pi / 2, max=np.pi / 2)
+        self.params.add("u1", value=0.0, min=-np.pi / 2, max=np.pi / 2)
+        self.params.add("u2", value=0.0, min=-np.pi / 2, max=np.pi / 2)
 
     def S_matrix(self, r0, r1, r2, u0, u1, u2):
         U = self.U_matrix(u0, u1, u2)
@@ -1405,6 +1382,9 @@ class PeakEllipsoid:
     def normalize(self, x0, x1, x2, d, n, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
+        # d = self.filter_array(d_val)
+        # n = self.filter_array(n_val)
+
         if mode == "1d_0":
             d_int = np.nansum(d, axis=(1, 2))
             n_int = np.nanmean(n / dx1 / dx2, axis=(1, 2))
@@ -1427,28 +1407,18 @@ class PeakEllipsoid:
             d_int = d.copy()
             n_int = n.copy()
 
-        # d_int = self.uniform_filter(d_int)
-        # n_int = self.uniform_filter(n_int)
-
         y_int, e_int = self.data_norm(d_int, n_int)
 
         return y_int, e_int
 
-    def uniform_filter(self, data, size=3):
-        valid_mask = np.isfinite(data)
+    def filter_array(self, data, size=3):
+        array = np.array(data)
 
-        data_fill = np.where(valid_mask, data, 0)
+        array[~np.isfinite(array)] = 0
 
-        data_filt = scipy.ndimage.uniform_filter(
-            data_fill, size=size, mode="constant", cval=0
+        result = scipy.ndimage.gaussian_filter(
+            array, size=size, mode="constant", cval=0
         )
-        mask_filt = scipy.ndimage.uniform_filter(
-            valid_mask.astype(float), size=size, mode="constant", cval=0
-        )
-
-        result = data_filt / mask_filt
-        result[mask_filt == 0] = np.nan
-        result[~valid_mask] = np.nan
 
         return result
 
@@ -3288,13 +3258,21 @@ class PeakEllipsoid:
         b = np.nansum(d_bkg) / np.nanmean(n_bkg)
         b_err = np.sqrt(np.nansum(d_bkg)) / np.nanmean(n_bkg)
 
+        N_pk = np.nansum(n_pk > 0)
+        N_bkg = np.nansum(n_bkg > 0)
+
         if not np.isfinite(b):
             b = 0
         if not np.isfinite(b_err):
             b_err = 0
 
-        intens = np.nansum(d_pk) / np.nanmean(n_pk) - b
-        sig = np.sqrt(np.nansum(d_pk) / np.nanmean(n_pk) ** 2 + b_err**2)
+        vol_ratio = N_pk / N_bkg
+
+        intens = np.nansum(d_pk) / np.nanmean(n_pk) - vol_ratio * b
+        sig = np.sqrt(
+            (np.sqrt(np.nansum(d_pk)) / np.nanmean(n_pk)) ** 2
+            + (vol_ratio * b_err) ** 2
+        )
 
         if not sig > 0:
             sig = np.inf
@@ -3327,7 +3305,8 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         freq = d / n  # - np.nanmean(d[bkg] / n[bkg])
-        freq[~(pk | bkg)] = np.nan
+        freq[~pk] = np.nan
+        # freq[~(pk | bkg)] = np.nan
 
         intens_raw, sig_raw, b_raw, b_raw_err = self.extract_raw_intensity(
             d, pk, bkg

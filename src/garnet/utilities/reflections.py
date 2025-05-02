@@ -18,6 +18,7 @@ from mantid.simpleapi import (
     SaveReflections,
     SaveIsawUB,
     LoadIsawUB,
+    LoadIsawSpectrum,
     CloneWorkspace,
     CopySample,
     SetGoniometer,
@@ -1260,7 +1261,7 @@ class Peaks:
         for i, peak in zip(indices.tolist(), mtd[self.peaks]):
             peak.setIntensity(scale * peak.getIntensity())
             peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
-            peak.setRunNumber(i)
+            peak.setRunNumber(1)
 
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
         with open(filename, "w") as f:
@@ -1329,6 +1330,13 @@ class Peaks:
             if contamination.any():
                 peak.setSigmaIntensity(peak.getIntensity())
 
+    def load_spectrum(self, filename, instrument):
+        LoadIsawSpectrum(
+            SpectraFile=filename,
+            OutputWorkspace="spectrum",
+            InstrumentName=instrument,
+        )
+
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
@@ -1371,8 +1379,6 @@ class Peaks:
                 info_dict[key] = intens[i], sig[i]  # , vol[i]
 
         self.info_dict = info_dict
-
-        # LoadIsawSpectrum(SpectraFile='/SNS/TOPAZ/IPTS-31856/shared/calibration/Spectrum_2025A_CG_3-3mmBN_53072_53076.dat', OutputWorkspace='spectrum', InstrumentName='TOPAZ')
 
         # for peak in mtd[self.peaks]:
         #     h, k, l = np.array(peak.getIntHKL()).astype(int).tolist()
@@ -1686,7 +1692,7 @@ class Peaks:
         )
 
         for i, peak in zip(indices.tolist(), mtd[peaks]):
-            peak.setRunNumber(i)
+            peak.setRunNumber(1)
 
         FilterPeaks(
             InputWorkspace=peaks,
@@ -1707,7 +1713,7 @@ class Peaks:
             InputWorkspace=peaks,
             Filename=filename + ".hkl",
             DirectionCosines=True,
-            ApplyAnvredCorrections=False,
+            SortBy="RunNumber",
         )
 
         self.refine_UB(peaks)
@@ -1985,10 +1991,10 @@ def main():
 
     peaks.save_peaks()
 
-    prune = PrunePeaks("peaks", filename=args.filename)
+    # prune = PrunePeaks("peaks", filename=args.filename)
 
-    for workspace, parameters in zip(prune.workspaces, prune.parameters):
-        peaks.save_peaks(workspace, parameters)
+    # for workspace, parameters in zip(prune.workspaces, prune.parameters):
+    #     peaks.save_peaks(workspace, parameters)
 
 
 if __name__ == "__main__":

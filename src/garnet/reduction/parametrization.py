@@ -73,9 +73,7 @@ class Parametrization(SubPlan):
             for run in runs:
                 self.run += 1
 
-                data.load_data(
-                    "data", self.plan["IPTS"], run, self.plan.get("Grouping")
-                )
+                data.load_data("data", self.plan["IPTS"], run, None)
 
                 data.load_generate_normalization(
                     self.plan["VanadiumFile"], self.plan.get("FluxFile")
@@ -123,10 +121,8 @@ class Parametrization(SubPlan):
                             peaks.create_peaks("md", "peaks")
                             peaks.add_peak("peaks", hkl)
                             peak = PeakModel("peaks")
-                            (
-                                projections,
-                                origin,
-                            ) = peak.get_projection_peak_origin(0)
+                            proj_orig = peak.get_projection_peak_origin(0)
+                            projections, origin = proj_orig
                             for i in range(3):
                                 for j in range(2):
                                     extents[i][j] += origin[i]

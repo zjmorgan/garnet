@@ -27,6 +27,7 @@ from mantid.simpleapi import (
     HB3AAdjustSampleNorm,
     CorelliCrossCorrelate,
     NormaliseByCurrent,
+    NormaliseSpectra,
     GroupDetectors,
     LoadEmptyInstrument,
     CopyInstrumentParameters,
@@ -1274,9 +1275,11 @@ class LaueData(BaseDataModel):
                 FilterByTofMax=16600,
             )
 
-        # FilterBadPulses(InputWorkspace=event_name,
-        #                 LowerCutOff=70,
-        #                 OutputWorkspace=event_name)
+        FilterBadPulses(
+            InputWorkspace=event_name,
+            LowerCutOff=70,
+            OutputWorkspace=event_name,
+        )
 
         MaskDetectorsIf(
             InputWorkspace=event_name,
@@ -1297,11 +1300,10 @@ class LaueData(BaseDataModel):
 
         self.set_goniometer(event_name)
 
-        # if self.grouping is not None and grouping is not None:
-        #     self.create_grouping(grouping)
-
-        # if self.grouping is not None:
-        #     self.group_pixels(event_name)
+        if self.grouping is None and grouping is not None:
+            self.preprocess_detectors(event_name)
+            self.create_grouping(grouping)
+            self.delete_workspace("detectors")
 
     def calculate_maximum_Q(self):
         """
@@ -1416,13 +1418,13 @@ class LaueData(BaseDataModel):
 
         """
 
-        grouping = "1x1" if grouping is None else grouping
+        if grouping is None or grouping == "1x1":
+            return
 
         c, r = [int(val) for val in grouping.split("x")]
 
         cols, rows = self.instrument_config["BankPixels"]
 
-        # det_id = np.array(mtd["detectors"].column(4)).reshape(-1, cols, rows)
         det_map = np.array(mtd["detectors"].column(5)).reshape(-1, cols, rows)
 
         shape = det_map.shape
@@ -1460,11 +1462,11 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=ws,
             )
 
-            # CompressEvents(
-            #     InputWorkspace=ws,
-            #     OutputWorkspace=ws,
-            #     Tolerance=0.0001,
-            # )
+            CompressEvents(
+                InputWorkspace=ws,
+                OutputWorkspace=ws,
+                Tolerance=0.001,
+            )
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
         """
@@ -1759,11 +1761,11 @@ class LaueData(BaseDataModel):
             Target="Wavelength",
         )
 
-        # CompressEvents(
-        #     InputWorkspace=event_name,
-        #     OutputWorkspace=event_name,
-        #     Tolerance=0.0001,
-        # )
+        CompressEvents(
+            InputWorkspace=event_name,
+            OutputWorkspace=event_name,
+            Tolerance=0.001,
+        )
 
         NormaliseByCurrent(
             InputWorkspace=event_name, OutputWorkspace=event_name
@@ -1923,8 +1925,8 @@ class LaueData(BaseDataModel):
 
             bkg_ws = self.workspace_exists("bkg_md")
 
-            bkg_data = self.workspace_exists(md + "_bkg_data")
-            bkg_norm = self.workspace_exists(md + "_bkg_norm")
+            bkg_data = md + "_bkg_data" if mtd.doesExist("bkg_md") else None
+            bkg_norm = md + "_bkg_norm" if mtd.doesExist("bkg_md") else None
 
             _data = self.workspace_exists(md + "_data")
             _norm = self.workspace_exists(md + "_norm")
