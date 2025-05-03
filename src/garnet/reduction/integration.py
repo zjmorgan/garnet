@@ -602,36 +602,18 @@ class Integration(SubPlan):
 
         return key, value
 
-    def detection_mask(self, counts):
-        coords = np.argwhere(counts > 0)
-
-        if coords.size == 0:
-            return np.zeros_like(counts, dtype=bool)
-
-        min_coords = coords.min(axis=0)
-        max_coords = coords.max(axis=0) + 1
-
-        mask = np.zeros_like(counts, dtype=bool)
-        mask[
-            tuple(
-                slice(min_c, max_c)
-                for min_c, max_c in zip(min_coords, max_coords)
-            )
-        ] = True
-
-        return mask
-
     def interpolate(self, x0, x1, x2, d, n):
         data_mask = np.isfinite(n) & (n > 0)
-        detection_mask = self.detection_mask(n)
 
-        # gd = d.copy()
-        # gn = n.copy()
+        gd = d.copy()
+        gn = n.copy()
 
-        # gd[~detection_mask] = np.nan
-        # gn[~detection_mask] = np.nan
+        gd[~data_mask] = np.nan
+        gn[~data_mask] = np.nan
 
-        return d, n, data_mask, detection_mask
+        gd += 1
+
+        return gd, gn, data_mask, data_mask
 
     def extract_peak_info(self, peaks_ws, r_cut, norm=False):
         """
@@ -665,7 +647,7 @@ class Integration(SubPlan):
             hkl = [h, k, l]
 
             lamda = peak.get_wavelength(i)
-            k = 2 * np.pi / lamda
+            kappa = 2 * np.pi / lamda
 
             angles = peak.get_angles(i)
 
@@ -710,7 +692,7 @@ class Integration(SubPlan):
 
             # d, n, data_mask, detection_mask = interp
 
-            data_info = (Q0, Q1, Q2, *interp, dQ, Q, k, projections)
+            data_info = (Q0, Q1, Q2, *interp, dQ, Q, kappa, projections)
 
             peak_file = self.get_plot_file(peak_name)
 
@@ -3180,41 +3162,6 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def optimize_signal_to_noise(
-        self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S
-    ):
-        pk, bkg = self.peak_roi(x0, x1, x2, c, S, val_mask)
-
-        intens, sig, b, b_err = self.extract_intensity(y, e, pk, bkg)
-
-        if not sig > 0:
-            sig = intens
-
-        signal_to_noise = intens / sig
-
-        if signal_to_noise > 3:
-            bounds = [(0.5, 2), (0.5, 2), (0.5, 2)]
-
-            args = (x0, x1, x2, y, e, val_mask, c, S)
-
-            res = scipy.optimize.differential_evolution(
-                self.negative_signal_to_noise, bounds, args=args, polish=False
-            )
-
-            x = res.x
-
-            return S @ np.diag(x)
-
-        else:
-            return S
-
-    def negative_signal_to_noise(self, x, x0, x1, x2, y, e, val_mask, c, S):
-        pk, bkg = self.peak_roi(x0, x1, x2, c, S @ np.diag(x) ** 2, val_mask)
-
-        intens, sig, b, b_err = self.extract_intensity(y, e, pk, bkg)
-
-        return -intens / sig
-
     def peak_roi(self, x0, x1, x2, c, S, val_mask):
         c0, c1, c2 = c
 
@@ -3305,8 +3252,8 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         freq = d / n  # - np.nanmean(d[bkg] / n[bkg])
-        freq[~pk] = np.nan
-        # freq[~(pk | bkg)] = np.nan
+        # freq[~pk] = np.nan
+        freq[~(pk | bkg)] = np.nan
 
         intens_raw, sig_raw, b_raw, b_raw_err = self.extract_raw_intensity(
             d, pk, bkg
@@ -3324,20 +3271,6 @@ class PeakEllipsoid:
         self.data_norm_fit = xye, params
 
         return intens, sig
-
-    def estimate_uncertainty(
-        self, x0, x1, x2, y, e, counts, val_mask, det_mask, c, S
-    ):
-        intens, N = [], 31
-
-        for scale in np.linspace(0.5, 2, N):
-            pk, bkg = self.peak_roi(x0, x1, x2, c, S * scale**2, val_mask)
-
-            intens.append(self.extract_intensity(y, e, pk, bkg)[0])
-
-        err = np.nanstd(intens) / N
-
-        return err
 
     def sigma_clip(self, array, sigma=3, maxiters=5):
         array = np.array(array, dtype=float)
