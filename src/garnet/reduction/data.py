@@ -39,7 +39,6 @@ from mantid.simpleapi import (
     DivideMD,
     MDNorm,
     ConvertWANDSCDtoQ,
-    ConvertQtoHKLMDHisto,
     ConvertUnits,
     CropWorkspaceForMDNorm,
     RecalculateTrajectoriesExtents,
@@ -705,58 +704,6 @@ class BaseDataModel:
                 )
                 run.addProperty("log", data, True)
 
-    def convert_to_hkl(self, ws, peaks, projections, extents, bins):
-        """
-        Convert to binned hkl.
-
-        Parameters
-        ----------
-        ws : str
-            3D Q-sample data.
-        peaks: str
-            Table with UB matrix.
-        projections : list
-            Projection axis vectors.
-        extents : list
-            Min/max pairs defining the bin center limits.
-        bins : list
-            Number of bins.
-
-        """
-
-        if mtd.doesExist(ws) and mtd.doesExist(peaks):
-            v0, v1, v2 = projections
-
-            (x0_min, x0_max), (x1_min, x1_max), (x2_min, x2_max) = extents
-
-            n0, n1, n2 = bins
-
-            x0_min, x0_max, _ = self.calculate_binning_from_bins(
-                x0_min, x0_max, n0
-            )
-
-            x1_min, x1_max, _ = self.calculate_binning_from_bins(
-                x1_min, x1_max, n1
-            )
-
-            x2_min, Q2_max, _ = self.calculate_binning_from_bins(
-                x2_min, x2_max, n2
-            )
-
-            bins = [n0, n1, n2]
-            extents = [x0_min, x0_max, x1_min, x1_max, x2_min, x2_max]
-
-            ConvertQtoHKLMDHisto(
-                InputWorkspace=ws,
-                PeaksWorkspace=peaks,
-                OutputWorkspace=ws + "_hkl",
-                Uproj="{},{},{}".format(*v0),
-                Vproj="{},{},{}".format(*v1),
-                Wproj="{},{},{}".format(*v2),
-                Extents="{},{},{}".format(*extents),
-                Bins="{},{},{}".format(*bins),
-            )
-
     def get_resolution_in_Q(self, lamda, two_theta):
         """
         Obtain the wavelength and detector-dependent Q-resolution
@@ -1223,12 +1170,12 @@ class MonochromaticData(BaseDataModel):
                 TemporaryNormalizationWorkspace=_norm,
                 TemporaryBackgroundDataWorkspace=__data,
                 TemporaryBackgroundNormalizationWorkspace=__norm,
-                Uproj="{},{},{}".format(*v0),
-                Vproj="{},{},{}".format(*v1),
-                Wproj="{},{},{}".format(*v2),
-                BinningDim0="{},{},{}".format(Q0_min, Q0_max, nQ0),
-                BinningDim1="{},{},{}".format(Q1_min, Q1_max, nQ1),
-                BinningDim2="{},{},{}".format(Q2_min, Q2_max, nQ2),
+                Uproj=v0,
+                Vproj=v1,
+                Wproj=v2,
+                BinningDim0=[Q0_min, Q0_max, nQ0],
+                BinningDim1=[Q1_min, Q1_max, nQ1],
+                BinningDim2=[Q2_min, Q2_max, nQ2],
             )
 
 
@@ -1237,6 +1184,9 @@ class LaueData(BaseDataModel):
         super(LaueData, self).__init__(instrument_config)
 
         self.laue = True
+
+        self.sa_cal = False
+        self.flux_cal = False
 
     def load_data(self, event_name, IPTS, runs, grouping=None, time_cut=None):
         """
@@ -1352,6 +1302,18 @@ class LaueData(BaseDataModel):
                 LoadIsawDetCal(
                     InputWorkspace=event_name, Filename=detector_calibration
                 )
+
+        if mtd.doesExist("sa") and not self.sa_cal:
+            self.sa_cal = True
+            self.apply_calibration(
+                "sa", detector_calibration, tube_calibration
+            )
+
+        if mtd.doesExist("flux") and not self.flux_cal:
+            self.flux_cal = True
+            self.apply_calibration(
+                "flux", detector_calibration, tube_calibration
+            )
 
     def preprocess_detectors(self, ws=None):
         """
@@ -1499,6 +1461,7 @@ class LaueData(BaseDataModel):
                 MinValues=Q_min_vals,
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
+                PreprocDetectorsWS="detectors",
             )
 
             RecalculateTrajectoriesExtents(
@@ -1536,6 +1499,7 @@ class LaueData(BaseDataModel):
                 MinValues=Q_min_vals,
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
+                PreprocDetectorsWS="detectors",
             )
 
     def load_generate_normalization(self, vanadium_file, flux_file):
@@ -1577,152 +1541,6 @@ class LaueData(BaseDataModel):
 
             self.wavelength_band = [lamda_min, lamda_max]
 
-    def load_spectra_file(self, spectra_file):
-        """
-        Load a spectra file.
-
-        Parameters
-        ----------
-        spectra_file : str
-            Spectra file.
-
-        """
-
-        if not mtd.doesExist("spectra"):
-            LoadNexus(Filename=spectra_file, OutputWorkspace="spectra")
-
-            ConvertUnits(
-                InputWorkspace="spectra",
-                OutputWorkspace="spectra",
-                Target="Wavelength",
-            )
-
-            RemoveLogs(Workspace="spectra")
-
-            lamda_min = mtd["spectra"].getXDimension().getMinimum()
-            lamda_max = mtd["spectra"].getXDimension().getMaximum()
-
-            self.k_min = 2 * np.pi / lamda_max
-            self.k_max = 2 * np.pi / lamda_min
-
-            self.wavelength_band = [lamda_min, lamda_max]
-
-            # y = mtd["spectra"].extractY()
-
-            # lamda = mtd["spectra"].extractX()
-            # lamda = 0.5 * (lamda[:, 1:] + lamda[:, :-1])
-
-            # y *= lamda**4
-
-            # for i in range(y.shape[0]):
-            #     mtd["spectra"].setY(i, y[i])
-
-            CreateDetectorTable(
-                InputWorkspace="spectra", DetectorTableWorkspace="spectra_det"
-            )
-
-            det_ids = mtd["spectra_det"].column(2)
-
-            self.spectra_dict = {}
-
-            for i, ids in enumerate(det_ids):
-                ids = ids.split(",")
-                min_ind, max_ind = int(ids[0]), int(ids[-1])
-                for ind in range(min_ind, max_ind + 1):
-                    self.spectra_dict[ind] = i
-
-    def load_efficiency_file(self, efficiency_file):
-        """
-        Load an efficiency file.
-
-        Parameters
-        ----------
-        efficiency_file : str
-            Efficiency file.
-
-        """
-
-        if not mtd.doesExist("efficiency"):
-            LoadNexus(Filename=efficiency_file, OutputWorkspace="efficiency")
-
-            ConvertUnits(
-                InputWorkspace="efficiency",
-                OutputWorkspace="efficiency",
-                Target="Wavelength",
-            )
-
-            MaskDetectorsIf(
-                InputWorkspace="efficiency",
-                Operator="LessEqual",
-                OutputWorkspace="efficiency",
-            )
-
-            ExtractMask(InputWorkspace="efficiency", OutputWorkspace="sa_mask")
-
-            RemoveLogs(Workspace="efficiency")
-
-            # y = mtd["efficiency"].extractY()
-
-            # two_theta = np.array(mtd["detectors"].column(2))
-
-            # y /= 2 * np.sin(0.5 * two_theta.reshape(-1, 1)) ** 2
-
-            # for i in range(y.shape[0]):
-
-            #     mtd["efficiency"].setY(i, y[i])
-
-            CreateDetectorTable(
-                InputWorkspace="efficiency",
-                DetectorTableWorkspace="efficiency_det",
-            )
-
-            det_ids = mtd["efficiency_det"].column(2)
-
-            self.efficiency_dict = {}
-
-            for i, ids in enumerate(det_ids):
-                ids = ids.split(",")
-                min_ind, max_ind = int(ids[0]), int(ids[-1])
-                for ind in range(min_ind, max_ind + 1):
-                    self.efficiency_dict[ind] = i
-
-    def calculate_correction_factor(self):
-        if not mtd.doesExist("norm"):
-            params = [
-                mtd["spectra"].getXDimension().getMinimum(),
-                mtd["spectra"].getXDimension().getBinWidth(),
-                mtd["spectra"].getXDimension().getMaximum(),
-            ]
-
-            Rebin(
-                InputWorkspace="efficiency",
-                OutputWorkspace="norm",
-                Params=params,
-                PreserveEvents=False,
-            )
-
-            det_ids = np.array(mtd["detectors"].column(4))
-            # two_theta = np.array(mtd["detectors"].column(2))
-
-            # k = mtd["spectra"].extractX()
-            # k = 0.5 * (k[:, 1:] + k[:, :-1])
-
-            # lamda = 2 * np.pi / k
-
-            y_sp = mtd["spectra"].extractY()
-            y_ef = mtd["efficiency"].extractY()
-            y_sp /= y_sp.max()
-            y_ef /= y_ef.max()
-            for i, det_id in enumerate(det_ids):
-                ind_ef = self.efficiency_dict.get(det_id)
-                ind_sp = self.spectra_dict.get(det_id)
-
-                if ind_ef is not None and ind_sp is not None:
-                    # L = lamda[ind_sp]**4 / (2 * np.sin(0.5*two_theta[i]) ** 2)
-                    y = y_ef[ind_ef] * y_sp[ind_sp]
-                    mtd["norm"].setY(i, y)
-                    mtd["norm"].setE(i, y * 0)
-
     def crop_for_normalization(self, event_name):
         """
         Convert units to momentum and crop to wavelength band.
@@ -1745,56 +1563,6 @@ class LaueData(BaseDataModel):
                 XMax=self.k_max,
                 OutputWorkspace=event_name,
             )
-
-    def normalize_data(self, event_name):
-        """
-        Normalize with detector efficiency and bank spectra.
-
-        event_name : str
-            Name of raw event data.
-        ratio : str
-            Name of normalized ratio workspace.
-
-        """
-
-        ConvertUnits(
-            InputWorkspace=event_name,
-            OutputWorkspace=event_name,
-            Target="Wavelength",
-        )
-
-        CompressEvents(
-            InputWorkspace=event_name,
-            OutputWorkspace=event_name,
-            Tolerance=0.001,
-        )
-
-        NormaliseByCurrent(
-            InputWorkspace=event_name, OutputWorkspace=event_name
-        )
-
-        # if mtd.doesExist("bkg"):
-        #     Minus(
-        #         LHSWorkspace=event_name,
-        #         RHSWorkspace="bkg",
-        #         OutputWorkspace=event_name,
-        #     )
-
-        Divide(
-            LHSWorkspace=event_name,
-            RHSWorkspace="spectra",
-            OutputWorkspace=event_name,
-            WarnOnZeroDivide=False,
-            AllowDifferentNumberSpectra=True,
-        )
-
-        Divide(
-            LHSWorkspace=event_name,
-            RHSWorkspace="efficiency",
-            OutputWorkspace=event_name,
-            WarnOnZeroDivide=False,
-            AllowDifferentNumberSpectra=True,
-        )
 
     def load_background(self, filename, event_name):
         """
@@ -1941,15 +1709,15 @@ class LaueData(BaseDataModel):
                 SolidAngleWorkspace="sa",
                 FluxWorkspace="flux",
                 BackgroundWorkspace=bkg_ws,
-                QDimension0="{},{},{}".format(*v0),
-                QDimension1="{},{},{}".format(*v1),
-                QDimension2="{},{},{}".format(*v2),
+                QDimension0=v0,
+                QDimension1=v1,
+                QDimension2=v2,
                 Dimension0Name="QDimension0",
                 Dimension1Name="QDimension1",
                 Dimension2Name="QDimension2",
-                Dimension0Binning="{},{},{}".format(Q0_min, dQ0, Q0_max),
-                Dimension1Binning="{},{},{}".format(Q1_min, dQ1, Q1_max),
-                Dimension2Binning="{},{},{}".format(Q2_min, dQ2, Q2_max),
+                Dimension0Binning=[Q0_min, dQ0, Q0_max],
+                Dimension1Binning=[Q1_min, dQ1, Q1_max],
+                Dimension2Binning=[Q2_min, dQ2, Q2_max],
                 SymmetryOperations=symmetry,
                 TemporaryDataWorkspace=_data,
                 TemporaryNormalizationWorkspace=_norm,

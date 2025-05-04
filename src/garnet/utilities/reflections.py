@@ -1370,13 +1370,13 @@ class Peaks:
             p = run_info.getLogData("peaks_p").value
             run = run_info.getLogData("peaks_run").value
 
-            intens = run_info.getLogData("peaks_intens").value
-            sig = run_info.getLogData("peaks_sig").value
-            # vol = run_info.getLogData("peaks_vol").value
+            # intens = run_info.getLogData("peaks_intens").value
+            # sig = run_info.getLogData("peaks_sig").value
+            vol = run_info.getLogData("peaks_vol").value
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
-                info_dict[key] = intens[i], sig[i]  # , vol[i]
+                info_dict[key] = vol[i]  # intens[i], sig[i]
 
         self.info_dict = info_dict
 
@@ -1385,9 +1385,9 @@ class Peaks:
         #     m, n, p = np.array(peak.getIntMNP()).astype(int).tolist()
         #     run = peak.getRunNumber()
         #     key = (run, h, k, l, m, n, p)
-        #     I, sig = info_dict[key]
-        #     peak.setIntensity(I)
-        #     peak.setSigmaIntensity(sig)
+        #     vol = info_dict[key]
+        #     peak.setIntensity(peak.getIntensity() * vol)
+        #     peak.setSigmaIntensity(peak.getSigmaIntensity() * vol)
 
         lamda = np.array(mtd[self.peaks].column("Wavelength"))
 

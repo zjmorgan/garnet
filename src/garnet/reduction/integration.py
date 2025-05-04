@@ -154,6 +154,10 @@ class Integration(SubPlan):
                 "data", self.plan["IPTS"], run, self.plan.get("Grouping")
             )
 
+            data.load_generate_normalization(
+                self.plan["VanadiumFile"], self.plan.get("FluxFile")
+            )
+
             data.apply_calibration(
                 "data",
                 self.plan.get("DetectorCalibration"),
@@ -161,10 +165,6 @@ class Integration(SubPlan):
             )
 
             data.preprocess_detectors("data")
-
-            data.load_generate_normalization(
-                self.plan["VanadiumFile"], self.plan.get("FluxFile")
-            )
 
             data.crop_for_normalization("data")
 
@@ -537,9 +537,9 @@ class Integration(SubPlan):
 
         data_info, peak_info = value
 
-        Q0, Q1, Q2, *interp, dQ, Q, k, projections = data_info
+        Q0, Q1, Q2, d, n, *interp, dQ, Q, kappa, projections = data_info
 
-        d, n, val_mask, det_mask = interp
+        gd, gn, val_mask, det_mask = interp
 
         peak_file, hkl, d_spacing, wavelength, angles, goniometer = peak_info
 
@@ -547,7 +547,7 @@ class Integration(SubPlan):
 
         params = None
         try:
-            args = (Q0, Q1, Q2, d, n, val_mask, det_mask, dQ, Q)
+            args = (Q0, Q1, Q2, gd, gn, val_mask, det_mask, dQ, Q)
             params = ellipsoid.fit(*args)
         except Exception as e:
             print("Exception fitting data: {}".format(e))
@@ -565,10 +565,10 @@ class Integration(SubPlan):
 
             norm_params = Q0, Q1, Q2, d, n, val_mask, det_mask, c, S
 
-            ellipsoid.integrate(*norm_params)
+            I, sigma = ellipsoid.integrate(*norm_params)
 
-            I = ellipsoid.intensity[-2]
-            sigma = ellipsoid.sigma[-2]
+            # I = ellipsoid.intensity[-1]
+            # sigma = ellipsoid.sigma[-1]
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
@@ -603,15 +603,18 @@ class Integration(SubPlan):
         return key, value
 
     def interpolate(self, x0, x1, x2, d, n):
-        data_mask = np.isfinite(n) & (n > 0)
-
         gd = d.copy()
         gn = n.copy()
+
+        gd = scipy.ndimage.gaussian_filter(d, sigma=1)
+        gn = scipy.ndimage.gaussian_filter(n, sigma=1)
+
+        data_mask = np.isfinite(gn) & (gn > 0)
 
         gd[~data_mask] = np.nan
         gn[~data_mask] = np.nan
 
-        gd += 1
+        # gd += 1
 
         return gd, gn, data_mask, data_mask
 
@@ -692,7 +695,7 @@ class Integration(SubPlan):
 
             # d, n, data_mask, detection_mask = interp
 
-            data_info = (Q0, Q1, Q2, *interp, dQ, Q, kappa, projections)
+            data_info = (Q0, Q1, Q2, d, n, *interp, dQ, Q, kappa, projections)
 
             peak_file = self.get_plot_file(peak_name)
 
@@ -917,7 +920,7 @@ class PeakCentroid:
 
         for key in peak_dict.keys():
             data_info = peak_dict[key][0]
-            Q0, Q1, Q2, *interp, dQ, Q, k, projections = data_info
+            Q0, Q1, Q2, _, _, *interp, dQ, Q, k, projections = data_info
             d, n, val_mask, det_mask = interp
 
             x0 = Q0 - Q
@@ -1152,7 +1155,7 @@ class PeakProfile:
 
         for key in peak_dict.keys():
             data_info = peak_dict[key][0]
-            Q0, Q1, Q2, *interp, dQ, Q, k, projections = data_info
+            Q0, Q1, Q2, _, _, *interp, dQ, Q, k, projections = data_info
             d, n, val_mask, det_mask = interp
 
             d0 = np.nansum(d, axis=(1, 2))
@@ -2111,17 +2114,17 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "1d_1")
         y2_gauss = self.gaussian(*args, "1d_2")
 
-        y0_lorentz = self.lorentzian(*args, "1d_0")
-        y1_lorentz = self.lorentzian(*args, "1d_1")
-        y2_lorentz = self.lorentzian(*args, "1d_2")
+        # y0_lorentz = self.lorentzian(*args, "1d_0")
+        # y1_lorentz = self.lorentzian(*args, "1d_1")
+        # y2_lorentz = self.lorentzian(*args, "1d_2")
 
         dA0 = y0_gauss / e0
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        dH0 = y0_lorentz / e0
-        dH1 = y1_lorentz / e1
-        dH2 = y2_lorentz / e2
+        # dH0 = y0_lorentz / e0
+        # dH1 = y1_lorentz / e1
+        # dH2 = y2_lorentz / e2
 
         dB0 = 1 / e0
         dB1 = 1 / e1
@@ -2387,17 +2390,17 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "2d_1")
         y2_gauss = self.gaussian(*args, "2d_2")
 
-        y0_lorentz = self.lorentzian(*args, "2d_0")
-        y1_lorentz = self.lorentzian(*args, "2d_1")
-        y2_lorentz = self.lorentzian(*args, "2d_2")
+        # y0_lorentz = self.lorentzian(*args, "2d_0")
+        # y1_lorentz = self.lorentzian(*args, "2d_1")
+        # y2_lorentz = self.lorentzian(*args, "2d_2")
 
         dA0 = y0_gauss / e0
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        dH0 = y0_lorentz / e0
-        dH1 = y1_lorentz / e1
-        dH2 = y2_lorentz / e2
+        # dH0 = y0_lorentz / e0
+        # dH1 = y1_lorentz / e1
+        # dH2 = y2_lorentz / e2
 
         dB0 = 1 / e0
         dB1 = 1 / e1
@@ -2600,11 +2603,11 @@ class PeakEllipsoid:
         args = x0, x1, x2, c, inv_S
 
         y_gauss = self.gaussian(*args, "3d")
-        y_lorentz = self.lorentzian(*args, "3d")
+        # y_lorentz = self.lorentzian(*args, "3d")
 
         dA = y_gauss / e
 
-        dH = y_lorentz / e
+        # dH = y_lorentz / e
 
         dB = 1 / e
 
@@ -3202,8 +3205,10 @@ class PeakEllipsoid:
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
 
-        b = np.nansum(d_bkg) / np.nanmean(n_bkg)
-        b_err = np.sqrt(np.nansum(d_bkg)) / np.nanmean(n_bkg)
+        bkg_norm = np.nansum(d_bkg * n_bkg) / np.nansum(d_bkg)
+
+        b = np.nansum(d_bkg) / bkg_norm
+        b_err = np.sqrt(np.nansum(d_bkg)) / bkg_norm
 
         N_pk = np.nansum(n_pk > 0)
         N_bkg = np.nansum(n_bkg > 0)
@@ -3215,10 +3220,11 @@ class PeakEllipsoid:
 
         vol_ratio = N_pk / N_bkg
 
-        intens = np.nansum(d_pk) / np.nanmean(n_pk) - vol_ratio * b
+        pk_norm = np.nansum(d_pk * n_pk) / np.nansum(d_pk)
+
+        intens = np.nansum(d_pk) / pk_norm - vol_ratio * b
         sig = np.sqrt(
-            (np.sqrt(np.nansum(d_pk)) / np.nanmean(n_pk)) ** 2
-            + (vol_ratio * b_err) ** 2
+            np.nansum(d_pk) / pk_norm**2 + (vol_ratio * b_err) ** 2
         )
 
         if not sig > 0:
