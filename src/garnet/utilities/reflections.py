@@ -1253,7 +1253,7 @@ class Peaks:
         if mtd[self.peaks].getNumberPeaks() > 1 and self.scale is None:
             I_max = max(mtd[self.peaks].column("Intens"))
             if I_max > 0:
-                scale = 1e3 / I_max
+                scale = 1e4 / I_max
             self.scale = scale
 
         _, indices = np.unique(mtd[self.peaks].column(0), return_inverse=True)
@@ -1991,10 +1991,10 @@ def main():
 
     peaks.save_peaks()
 
-    # prune = PrunePeaks("peaks", filename=args.filename)
+    prune = PrunePeaks("peaks", filename=args.filename)
 
-    # for workspace, parameters in zip(prune.workspaces, prune.parameters):
-    #     peaks.save_peaks(workspace, parameters)
+    for workspace, parameters in zip(prune.workspaces, prune.parameters):
+        peaks.save_peaks(workspace, parameters)
 
 
 if __name__ == "__main__":
