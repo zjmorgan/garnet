@@ -3194,7 +3194,7 @@ class PeakEllipsoid:
         sig = np.sqrt(np.nansum(d_pk + b_err**2))
 
         if not sig > 0:
-            sig = np.inf
+            sig = intens
 
         return intens, sig, b, b_err
 
@@ -3205,10 +3205,15 @@ class PeakEllipsoid:
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
 
-        bkg_norm = np.nansum(d_bkg * n_bkg) / np.nansum(d_bkg)
+        bkg_cnts = np.nansum(d_bkg)
 
-        b = np.nansum(d_bkg) / bkg_norm
-        b_err = np.sqrt(np.nansum(d_bkg)) / bkg_norm
+        if bkg_cnts == 0.0:
+            bkg_cnts = np.inf
+
+        bkg_norm = np.nansum(d_bkg * n_bkg) / bkg_cnts
+
+        b = bkg_cnts / bkg_norm if bkg_norm > 0 else 0
+        b_err = np.sqrt(bkg_cnts) / bkg_norm if bkg_norm > 0 else 0
 
         N_pk = np.nansum(n_pk > 0)
         N_bkg = np.nansum(n_bkg > 0)
@@ -3218,17 +3223,24 @@ class PeakEllipsoid:
         if not np.isfinite(b_err):
             b_err = 0
 
-        vol_ratio = N_pk / N_bkg
+        vol_ratio = N_pk / N_bkg if N_bkg > 0 else 0
 
-        pk_norm = np.nansum(d_pk * n_pk) / np.nansum(d_pk)
+        pk_cnts = np.nansum(d_pk)
 
-        intens = np.nansum(d_pk) / pk_norm - vol_ratio * b
-        sig = np.sqrt(
-            np.nansum(d_pk) / pk_norm**2 + (vol_ratio * b_err) ** 2
+        if pk_cnts == 0.0:
+            pk_cnts = np.inf
+
+        pk_norm = np.nansum(d_pk * n_pk) / pk_cnts
+
+        intens = pk_cnts / pk_norm - vol_ratio * b if pk_norm > 0 else 0
+        sig = (
+            np.sqrt(pk_cnts / pk_norm**2 + (vol_ratio * b_err) ** 2)
+            if pk_norm > 0
+            else 0
         )
 
         if not sig > 0:
-            sig = np.inf
+            sig = intens
 
         return intens, sig, b, b_err
 
