@@ -826,7 +826,7 @@ class PeakPlot(BasePlot):
         x1_min, x1_max = x1[0, 0] - d1, x1[-1, 0] + d1
         x2_min, x2_max = x2[0, 0] - d2, x2[0, -1] + d2
 
-        vmin, vmax = np.nanmin(y), np.nanmax(y)
+        vmin, vmax = self._color_limits(y)
 
         self.proj_im[4].set_data(y.T)
         self.proj_im[4].set_extent((x1_min, x1_max, x2_min, x2_max))
@@ -834,7 +834,7 @@ class PeakPlot(BasePlot):
 
         # ---
 
-        vmin, vmax = np.nanmin(y_fit), np.nanmax(y_fit)
+        vmin, vmax = self._color_limits(y_fit)
 
         self.proj_im[5].set_data(y_fit.T)
         self.proj_im[5].set_extent((x1_min, x1_max, x2_min, x2_max))
@@ -854,7 +854,7 @@ class PeakPlot(BasePlot):
         x0_min, x0_max = x0[0, 0] - d0, x0[-1, 0] + d0
         x2_min, x2_max = x2[0, 0] - d2, x2[0, -1] + d2
 
-        vmin, vmax = np.nanmin(y), np.nanmax(y)
+        vmin, vmax = self._color_limits(y)
 
         self.proj_im[2].set_data(y.T)
         self.proj_im[2].set_extent((x0_min, x0_max, x2_min, x2_max))
@@ -862,7 +862,7 @@ class PeakPlot(BasePlot):
 
         # ---
 
-        vmin, vmax = np.nanmin(y_fit), np.nanmax(y_fit)
+        vmin, vmax = self._color_limits(y_fit)
 
         self.proj_im[3].set_data(y_fit.T)
         self.proj_im[3].set_extent((x0_min, x0_max, x2_min, x2_max))
@@ -882,7 +882,7 @@ class PeakPlot(BasePlot):
         x0_min, x0_max = x0[0, 0] - d0, x0[-1, 0] + d0
         x1_min, x1_max = x1[0, 0] - d1, x1[0, -1] + d1
 
-        vmin, vmax = np.nanmin(y), np.nanmax(y)
+        vmin, vmax = self._color_limits(y)
 
         self.proj_im[0].set_data(y.T)
         self.proj_im[0].set_extent((x0_min, x0_max, x1_min, x1_max))
@@ -890,7 +890,7 @@ class PeakPlot(BasePlot):
 
         # ---
 
-        vmin, vmax = np.nanmin(y_fit), np.nanmax(y_fit)
+        vmin, vmax = self._color_limits(y_fit)
 
         self.proj_im[1].set_data(y_fit.T)
         self.proj_im[1].set_extent((x0_min, x0_max, x1_min, x1_max))
@@ -937,7 +937,7 @@ class PeakPlot(BasePlot):
         y1[~mask_1] = np.nan
         y2[~mask_2] = np.nan
 
-        vmin, vmax = np.nanmin(y2), np.nanmax(y2)
+        vmin, vmax = self._color_limits(y2)
 
         self.norm_im[0].set_data(y2.T)
         self.norm_im[0].set_extent((x0_min, x0_max, x1_min, x1_max))
@@ -947,7 +947,7 @@ class PeakPlot(BasePlot):
 
         # ---
 
-        vmin, vmax = np.nanmin(y1), np.nanmax(y1)
+        vmin, vmax = self._color_limits(y1)
 
         self.norm_im[1].set_data(y1.T)
         self.norm_im[1].set_extent((x0_min, x0_max, x2_min, x2_max))
@@ -957,7 +957,7 @@ class PeakPlot(BasePlot):
 
         # ---
 
-        vmin, vmax = np.nanmin(y0), np.nanmax(y0)
+        vmin, vmax = self._color_limits(y0)
 
         self.norm_im[2].set_data(y0.T)
         self.norm_im[2].set_extent((x1_min, x1_max, x2_min, x2_max))
@@ -997,6 +997,9 @@ class PeakPlot(BasePlot):
         vmin, vmax = np.nanmin(y), np.nanmax(y)
 
         if vmin >= vmax:
+            vmin, vmax = 0, 1
+
+        if np.isclose(vmin, vmax) or not np.isfinite([vmin, vmax]).all():
             vmin, vmax = 0, 1
 
         return vmin, vmax

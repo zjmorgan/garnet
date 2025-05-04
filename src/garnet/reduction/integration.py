@@ -614,8 +614,6 @@ class Integration(SubPlan):
         gd[~data_mask] = np.nan
         gn[~data_mask] = np.nan
 
-        # gd += 1
-
         return gd, gn, data_mask, data_mask
 
     def extract_peak_info(self, peaks_ws, r_cut, norm=False):
@@ -3223,7 +3221,7 @@ class PeakEllipsoid:
         if not np.isfinite(b_err):
             b_err = 0
 
-        vol_ratio = N_pk / N_bkg if N_bkg > 0 else 0
+        ratio = N_pk / N_bkg if N_bkg > 0 else 0
 
         pk_cnts = np.nansum(d_pk)
 
@@ -3232,9 +3230,9 @@ class PeakEllipsoid:
 
         pk_norm = np.nansum(d_pk * n_pk) / pk_cnts
 
-        intens = pk_cnts / pk_norm - vol_ratio * b if pk_norm > 0 else 0
+        intens = pk_cnts / pk_norm - ratio * b if pk_norm > 0 else 0
         sig = (
-            np.sqrt(pk_cnts / pk_norm**2 + (vol_ratio * b_err) ** 2)
+            np.sqrt(pk_cnts / pk_norm**2 + (ratio * b_err) ** 2)
             if pk_norm > 0
             else 0
         )
@@ -3270,7 +3268,6 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         freq = d / n  # - np.nanmean(d[bkg] / n[bkg])
-        # freq[~pk] = np.nan
         freq[~(pk | bkg)] = np.nan
 
         intens_raw, sig_raw, b_raw, b_raw_err = self.extract_raw_intensity(
