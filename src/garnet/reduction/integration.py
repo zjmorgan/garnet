@@ -897,10 +897,6 @@ class PeakCentroid:
         return med, mad
 
     def model(self, y, e, x0, x1, x2):
-        # dx0 = x0[1, 0, 0] - x0[0, 0, 0]
-        # dx1 = x1[0, 1, 0] - x1[0, 0, 0]
-        # dx2 = x2[0, 0, 1] - x2[0, 0, 0]
-
         # B, B_err = self.sigma_clip(y, maxiters=3)
         B = np.nanpercentile(y, 15)
 
@@ -910,9 +906,15 @@ class PeakCentroid:
 
         wgt = np.nansum(w)
 
-        c0 = np.nansum(x0 * w) / wgt
-        c1 = np.nansum(x1 * w) / wgt
-        c2 = np.nansum(x2 * w) / wgt
+        if wgt > 0:
+            c0 = np.nansum(x0 * w) / wgt
+            c1 = np.nansum(x1 * w) / wgt
+            c2 = np.nansum(x2 * w) / wgt
+
+        else:
+            c0 = (x0[1, 0, 0] + x0[0, 0, 0]) / 2
+            c1 = (x1[0, 1, 0] + x1[0, 0, 0]) / 2
+            c2 = (x2[0, 0, 1] + x2[0, 0, 0]) / 2
 
         return c0, c1, c2
 
@@ -986,7 +988,7 @@ class PeakProfile:
         num = np.nansum(w * (y_hat - y_hat_bar) * (y - y_bar))
         den = np.nansum(w * (y_hat - y_hat_bar) ** 2)
 
-        A = num / den
+        A = num / den if den > 0 else 0
         B = y_bar - A * y_hat_bar
         M = 2
 
@@ -1002,20 +1004,23 @@ class PeakProfile:
 
         N = np.nansum(np.isfinite(y))
 
-        residual_var = np.nansum(w * residuals**2) / (N - M)
+        A_err, B_err = 0, 0
 
-        var_A = residual_var / den
-        var_B = residual_var * (1 / sum_w + (y_hat_bar**2 / den))
+        if N >= 3 and den > 0 and A > 0:
+            residual_var = np.nansum(w * residuals**2) / (N - M)
 
-        A_err = np.sqrt(var_A)
-        B_err = np.sqrt(var_B)
+            var_A = residual_var / den
+            var_B = residual_var * (1 / sum_w + (y_hat_bar**2 / den))
 
-        if A == 0:
-            if sum_w > 0:
-                B_err = np.sqrt(residual_var / sum_w)
-            else:
-                B_err = 0
-            A_err = 0
+            A_err = np.sqrt(var_A)
+            B_err = np.sqrt(var_B)
+
+            if A == 0:
+                if sum_w > 0:
+                    B_err = np.sqrt(residual_var / sum_w)
+                else:
+                    B_err = 0
+                A_err = 0
 
         return A, B, A_err, B_err, y_fit
 
@@ -1062,8 +1067,6 @@ class PeakProfile:
         for y2, e2, x2, Q in zip(y2s, e2s, x2s, Qs):
             y2_fit, c2, A, B, A_err, B_err = self.model(r2, dr2, y2, e2, x2, Q)
             res.append(((y2_fit - y2) / e2).flatten())
-
-        # r_ridge = [r0, r1, r2, dr0, dr1, dr2]
 
         return np.concatenate(res)
 

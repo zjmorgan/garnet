@@ -129,7 +129,7 @@ class PeakProfilePlot(BasePlot):
     def draw_boundary(self, Q, k, params):
         (r0, r1, r2), (dr0, dr1, dr2) = params
 
-        if len(Q) > 0:
+        if len(Q) > 1:
             Q_min, Q_max = np.min(Q), np.max(Q)
             k_min, k_max = np.min(k), np.max(k)
         else:

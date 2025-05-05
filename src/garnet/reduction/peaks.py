@@ -1597,7 +1597,11 @@ class PeakModel:
         Qx, Qy, Qz = R @ Q
 
         if -4 * np.pi * Qz / np.linalg.norm(Q) ** 2 > 0:
-            mtd[self.peaks].getPeak(no).setQSampleFrame(V3D(c0, c1, c2))
+            try:
+                mtd[self.peaks].getPeak(no).setQSampleFrame(V3D(c0, c1, c2))
+            except Exception as e:
+                print("Exception re-centering: {}".format(e))
+                return False
             return True
         else:
             return False
