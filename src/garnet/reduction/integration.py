@@ -551,6 +551,7 @@ class Integration(SubPlan):
             params = ellipsoid.fit(*args)
         except Exception as e:
             print("Exception fitting data: {}".format(e))
+            return key, None
 
         value = None
 
@@ -565,7 +566,11 @@ class Integration(SubPlan):
 
             norm_params = Q0, Q1, Q2, d, n, val_mask, det_mask, c, S
 
-            I, sigma = ellipsoid.integrate(*norm_params)
+            try:
+                I, sigma = ellipsoid.integrate(*norm_params)
+            except Exception as e:
+                print("Exception extracting intensity: {}".format(e))
+                return key, None
 
             # I = ellipsoid.intensity[-1]
             # sigma = ellipsoid.sigma[-1]
@@ -597,6 +602,7 @@ class Integration(SubPlan):
                     self.peak_plot.save_plot(peak_file)
                 except Exception as e:
                     print("Exception saving figure: {}".format(e))
+                    return key, None
 
             value = I, sigma, shape, [*ellipsoid.info, *shape[:3]]
 
@@ -1544,6 +1550,9 @@ class PeakEllipsoid:
 
         I = np.nansum(y[pk] - b) * dx
         sig = np.sqrt(np.nansum(e[pk] ** 2 + b_err**2)) * dx
+
+        if np.isclose(sig, 0) or I < sig:
+            sig = float("inf")
 
         return I, sig
 
@@ -3122,6 +3131,7 @@ class PeakEllipsoid:
             weights = self.estimate_envelope(x0, x1, x2, d, n)
         except Exception as e:
             print("Exception estimating enveiope: {}".format(e))
+            return None
 
         if weights is None:
             print("Invalid weight estimate")
@@ -3192,7 +3202,7 @@ class PeakEllipsoid:
         sig = np.sqrt(np.nansum(d_pk + b_err**2))
 
         if not sig > 0:
-            sig = intens
+            sig = float("inf")
 
         return intens, sig, b, b_err
 
@@ -3238,7 +3248,7 @@ class PeakEllipsoid:
         )
 
         if not sig > 0:
-            sig = intens
+            sig = float("inf")
 
         return intens, sig, b, b_err
 
@@ -3277,7 +3287,7 @@ class PeakEllipsoid:
         self.info += [intens_raw, sig_raw]
 
         if not np.isfinite(sig):
-            sig = intens
+            sig = float("inf")
 
         xye = (x0, x1, x2), (dx0, dx1, dx2), freq
 
