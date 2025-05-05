@@ -2,6 +2,10 @@ import os
 import sys
 import traceback
 
+import faulthandler
+
+faulthandler.enable()
+
 import multiprocess as multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -33,46 +37,49 @@ class ParallelTasks:
         """
 
         runs = plan["Runs"]
-
-        pool = multiprocessing.Pool(processes=n_proc)
-
-        def terminate_pool(e):
-            print(e)
-            pool.terminate()
-
         split = [split.tolist() for split in np.array_split(runs, n_proc)]
-
         join_args = [(plan, s, proc) for proc, s in enumerate(split)]
 
-        config["MultiThreaded.MaxCores"] == "1"
+        config["MultiThreaded.MaxCores"] = "1"
         os.environ["OPENBLAS_NUM_THREADS"] = "1"
         os.environ["MKL_NUM_THREADS"] = "1"
         os.environ["NUMEXPR_NUM_THREADS"] = "1"
         os.environ["OMP_NUM_THREADS"] = "1"
         os.environ["TBB_THREAD_ENABLED"] = "0"
 
-        try:
-            result = pool.starmap_async(
-                self.safe_function_wrapper,
-                join_args,
-                error_callback=terminate_pool,
-            )
-            self.results = result.get()
-        except Exception as e:
-            print("Exception in pool: {}".format(e))
-            traceback.print_exc()
-            pool.terminate()
-            sys.exit()
+        if n_proc == 1:
+            self.results = [
+                self.safe_function_wrapper(*args) for args in join_args
+            ]
+        else:
+            pool = multiprocessing.Pool(processes=n_proc)
 
-        pool.close()
-        pool.join()
+            def terminate_pool(e):
+                print(e)
+                pool.terminate()
 
-        config["MultiThreaded.MaxCores"] == "4"
-        os.environ.pop("OPENBLAS_NUM_THREADS")
-        os.environ.pop("MKL_NUM_THREADS")
-        os.environ.pop("NUMEXPR_NUM_THREADS")
-        os.environ.pop("OMP_NUM_THREADS")
-        os.environ.pop("TBB_THREAD_ENABLED")
+            try:
+                result = pool.starmap_async(
+                    self.safe_function_wrapper,
+                    join_args,
+                    error_callback=terminate_pool,
+                )
+                self.results = result.get()
+            except Exception as e:
+                print("Exception in pool: {}".format(e))
+                traceback.print_exc()
+                pool.terminate()
+                sys.exit()
+
+            pool.close()
+            pool.join()
+
+        config["MultiThreaded.MaxCores"] = "4"
+        os.environ.pop("OPENBLAS_NUM_THREADS", None)
+        os.environ.pop("MKL_NUM_THREADS", None)
+        os.environ.pop("NUMEXPR_NUM_THREADS", None)
+        os.environ.pop("OMP_NUM_THREADS", None)
+        os.environ.pop("TBB_THREAD_ENABLED", None)
 
         if self.combine is not None:
             self.combine(plan, self.results)

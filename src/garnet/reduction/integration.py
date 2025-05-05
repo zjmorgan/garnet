@@ -3049,10 +3049,10 @@ class PeakEllipsoid:
         )
 
         result = out.minimize(
-            method="leastsq",
-            # Dfun=self.jacobian,
+            method="least_squares",
+            # jac=self.jacobian,
             max_nfev=200,
-            col_deriv=True,
+            # col_deriv=True,
         )
 
         if report_fit:
