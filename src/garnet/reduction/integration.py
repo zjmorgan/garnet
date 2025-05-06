@@ -547,7 +547,7 @@ class Integration(SubPlan):
 
         params = None
         try:
-            args = (Q0, Q1, Q2, gd, gn, val_mask, det_mask, dQ, Q)
+            args = (Q0, Q1, Q2, d, n, gd, gn, val_mask, det_mask, dQ, Q)
             params = ellipsoid.fit(*args)
         except Exception as e:
             print("Exception fitting data: {}".format(e))
@@ -2900,9 +2900,9 @@ class PeakEllipsoid:
 
         return c, inv_S, y1, y2, y3
 
-    def estimate_envelope(self, x0, x1, x2, d, n, report_fit=False):
-        y = d / n
-        e = np.sqrt(d) / n
+    def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=False):
+        y = gd / gn
+        e = np.sqrt(gd) / gn
 
         if (np.array(e.shape) < 3).any():
             return None
@@ -2910,9 +2910,9 @@ class PeakEllipsoid:
         if np.sum(d) < 3 * np.sqrt(np.sum(d)):
             return None
 
-        y1d_0, e1d_0 = self.normalize(x0, x1, x2, d, n, mode="1d_0")
-        y1d_1, e1d_1 = self.normalize(x0, x1, x2, d, n, mode="1d_1")
-        y1d_2, e1d_2 = self.normalize(x0, x1, x2, d, n, mode="1d_2")
+        y1d_0, e1d_0 = self.normalize(x0, x1, x2, gd, gn, mode="1d_0")
+        y1d_1, e1d_1 = self.normalize(x0, x1, x2, gd, gn, mode="1d_1")
+        y1d_2, e1d_2 = self.normalize(x0, x1, x2, gd, gn, mode="1d_2")
 
         y0, y1, y2 = y1d_0.copy(), y1d_1.copy(), y1d_2.copy()
 
@@ -3052,6 +3052,59 @@ class PeakEllipsoid:
         if report_fit:
             print(fit_report(result))
 
+        y = d / n
+        e = np.sqrt(d) / n
+
+        if (np.array(e.shape) < 3).any():
+            return None
+
+        if np.sum(d) < 3 * np.sqrt(np.sum(d)):
+            return None
+
+        y1d_0, e1d_0 = self.normalize(x0, x1, x2, d, n, mode="1d_0")
+        y1d_1, e1d_1 = self.normalize(x0, x1, x2, d, n, mode="1d_1")
+        y1d_2, e1d_2 = self.normalize(x0, x1, x2, d, n, mode="1d_2")
+
+        y1d = [y1d_0, y1d_1, y1d_2]
+        e1d = [e1d_0, e1d_1, e1d_2]
+
+        args_1d = [x0, x1, x2, y1d, e1d]
+
+        y2d_0, e2d_0 = self.normalize(x0, x1, x2, d, n, mode="2d_0")
+        y2d_1, e2d_1 = self.normalize(x0, x1, x2, d, n, mode="2d_1")
+        y2d_2, e2d_2 = self.normalize(x0, x1, x2, d, n, mode="2d_2")
+
+        y2d = [y2d_0, y2d_1, y2d_2]
+        e2d = [e2d_0, e2d_1, e2d_2]
+
+        args_2d = [x0, x1, x2, y2d, e2d]
+
+        y3d, e3d = self.normalize(x0, x1, x2, d, n, mode="3d")
+
+        args_3d = [x0, x1, x2, y3d, e3d]
+
+        self.params = result.params
+
+        self.params["c0"].set(vary=False)
+        self.params["c1"].set(vary=False)
+        self.params["c2"].set(vary=False)
+
+        self.params["u0"].set(vary=False)
+        self.params["u1"].set(vary=False)
+        self.params["u2"].set(vary=False)
+
+        out = Minimizer(
+            self.residual,
+            self.params,
+            fcn_args=(args_1d, args_2d, args_3d),
+            nan_policy="omit",
+        )
+
+        result = out.minimize(
+            method="least_squares",
+            max_nfev=100,
+        )
+
         return self.extract_result(result, args_1d, args_2d, args_3d)
 
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
@@ -3078,6 +3131,8 @@ class PeakEllipsoid:
         x2_proj,
         d_val,
         n_val,
+        gd,
+        gn,
         val_mask,
         det_mask,
         dx,
@@ -3110,6 +3165,9 @@ class PeakEllipsoid:
         d = d_val[i0:j0, i1:j1, i2:j2].copy()
         n = n_val[i0:j0, i1:j1, i2:j2].copy()
 
+        gd = gd[i0:j0, i1:j1, i2:j2].copy()
+        gn = gn[i0:j0, i1:j1, i2:j2].copy()
+
         if (np.array(y.shape) <= 3).any():
             return None
 
@@ -3125,9 +3183,9 @@ class PeakEllipsoid:
 
         weights = None
         try:
-            weights = self.estimate_envelope(x0, x1, x2, d, n)
+            weights = self.estimate_envelope(x0, x1, x2, d, n, gd, gn)
         except Exception as e:
-            print("Exception estimating enveiope: {}".format(e))
+            print("Exception estimating envelope: {}".format(e))
             return None
 
         if weights is None:
