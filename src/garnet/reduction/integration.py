@@ -572,8 +572,8 @@ class Integration(SubPlan):
                 print("Exception extracting intensity: {}".format(e))
                 return key, None
 
-            # I = ellipsoid.intensity[-1]
-            # sigma = ellipsoid.sigma[-1]
+            # I = ellipsoid.intensity[-2]
+            # sigma = ellipsoid.sigma[-2]
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
@@ -604,16 +604,13 @@ class Integration(SubPlan):
                     print("Exception saving figure: {}".format(e))
                     return key, None
 
-            value = I, sigma, shape, [*ellipsoid.info, *shape[:3]]
+            value = I, sigma, shape, [*ellipsoid.info, *shape[:3]], hkl
 
         return key, value
 
     def interpolate(self, x0, x1, x2, d, n):
-        gd = d.copy()
-        gn = n.copy()
-
-        gd = scipy.ndimage.gaussian_filter(d, sigma=1)
-        gn = scipy.ndimage.gaussian_filter(n, sigma=1)
+        gd = scipy.ndimage.gaussian_filter(d.copy(), sigma=1)
+        gn = scipy.ndimage.gaussian_filter(n.copy(), sigma=1)
 
         data_mask = np.isfinite(gn) & (gn > 0)
 
@@ -691,9 +688,7 @@ class Integration(SubPlan):
                     "md", extents, bins, projections
                 )
 
-                counts = data.extract_counts("md_bin")
-
-                n = (counts > 0) * 1.0
+                n = 1.0 * (data.extract_counts("md_bin") > 0)
 
             interp = self.interpolate(Q0, Q1, Q2, d, n)
 
@@ -738,13 +733,15 @@ class Integration(SubPlan):
 
         for i, value in peak_dict.items():
             if value is not None:
-                I, sigma, shape, info = value
+                I, sigma, shape, info, hkl = value
 
                 peak.set_peak_intensity(i, I, sigma)
 
                 peak.set_peak_shape(i, *shape)
 
                 peak.add_diagonstic_info(i, info)
+
+                print("({} {} {}) / ({} {} {})".format(*hkl, *peak.get_hkl(i)))
 
     def bin_axes(self, R, two_theta, az_phi):
         two_theta = np.deg2rad(two_theta)
@@ -814,11 +811,11 @@ class Integration(SubPlan):
             dQ_cut = 3 * [r_cut]
         else:
             (r0, r1, r2), (dr0, dr1, dr2) = r_cut
-            k = 2 * np.pi / lamda
-            Q = 2 * k * np.sin(0.5 * np.deg2rad(two_theta))
+            kappa = 2 * np.pi / lamda
+            Q = 2 * kappa * np.sin(0.5 * np.deg2rad(two_theta))
             dQ_cut = [
-                2 * r0 * (1 + dr0 * k),
-                2 * r1 * (1 + dr1 * k),
+                2 * r0 * (1 + dr0 * kappa),
+                2 * r1 * (1 + dr1 * kappa),
                 2 * r2 * (1 + dr2 * Q),
             ]
 
@@ -933,7 +930,7 @@ class PeakCentroid:
             x1 = Q1
             x2 = Q2
 
-            y = d  # / n
+            y = d.copy()  # / n
             e = np.sqrt(d)  # / n
 
             ys.append(y)
@@ -1373,9 +1370,6 @@ class PeakEllipsoid:
 
     def normalize(self, x0, x1, x2, d, n, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
-
-        # d = self.filter_array(d_val)
-        # n = self.filter_array(n_val)
 
         if mode == "1d_0":
             d_int = np.nansum(d, axis=(1, 2))
@@ -3209,6 +3203,29 @@ class PeakEllipsoid:
 
         return intens, sig, b, b_err
 
+    def extract_intensity_norm(self, d, n, pk, bkg):
+        d_pk = d[pk].copy()
+        n_pk = n[pk].copy()
+
+        d_bkg = d[bkg].copy()
+        n_bkg = n[bkg].copy()
+
+        b = np.nansum(d_bkg / n_bkg)
+        b_err = np.sqrt(np.nansum(d_bkg / n_bkg**2))
+
+        if not np.isfinite(b):
+            b = 0
+        if not np.isfinite(b_err):
+            b_err = 0
+
+        intens = np.nansum(d_pk / n_pk - b)
+        sig = np.sqrt(np.nansum(d_pk / n_pk**2) + b_err**2)
+
+        if not sig > 0:
+            sig = float("inf")
+
+        return intens, sig, b, b_err
+
     def extract_intensity(self, d, n, pk, bkg):
         d_pk = d[pk].copy()
         n_pk = n[pk].copy()
@@ -3221,10 +3238,8 @@ class PeakEllipsoid:
         if bkg_cnts == 0.0:
             bkg_cnts = np.inf
 
-        bkg_norm = np.nansum(d_bkg * n_bkg) / bkg_cnts
-
-        b = bkg_cnts / bkg_norm if bkg_norm > 0 else 0
-        b_err = np.sqrt(bkg_cnts) / bkg_norm if bkg_norm > 0 else 0
+        b = bkg_cnts
+        b_err = np.sqrt(bkg_cnts)
 
         N_pk = np.nansum(n_pk > 0)
         N_bkg = np.nansum(n_bkg > 0)
@@ -3241,11 +3256,11 @@ class PeakEllipsoid:
         if pk_cnts == 0.0:
             pk_cnts = np.inf
 
-        pk_norm = np.nansum(d_pk * n_pk) / pk_cnts
+        pk_norm = np.nanmean(n_pk)
 
-        intens = pk_cnts / pk_norm - ratio * b if pk_norm > 0 else 0
+        intens = (pk_cnts - ratio * b) / pk_norm if pk_norm > 0 else 0
         sig = (
-            np.sqrt(pk_cnts / pk_norm**2 + (ratio * b_err) ** 2)
+            np.sqrt(pk_cnts + (ratio * b_err) ** 2) / pk_norm
             if pk_norm > 0
             else 0
         )
@@ -3261,9 +3276,6 @@ class PeakEllipsoid:
         d3x = dx0 * dx1 * dx2
 
         pk, bkg = self.peak_roi(x0, x1, x2, c, S, val_mask)
-
-        d[~(d > 0)] = np.nan
-        n[~(n > 0)] = np.nan
 
         d[np.isinf(d)] = np.nan
         n[np.isinf(n)] = np.nan

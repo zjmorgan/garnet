@@ -1256,8 +1256,9 @@ class Peaks:
                 scale = 1e4 / I_max
             self.scale = scale
 
-        _, indices = np.unique(mtd[self.peaks].column(0), return_inverse=True)
+        # _, indices = np.unique(mtd[self.peaks].column(0), return_inverse=True)
 
+        indices = np.arange(mtd[self.peaks].getNumberPeaks())
         for i, peak in zip(indices.tolist(), mtd[self.peaks]):
             peak.setIntensity(scale * peak.getIntensity())
             peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
@@ -1639,9 +1640,13 @@ class Peaks:
 
             ol.setModUB(ol.getUB() @ ol.getModHKL())
 
-            self.max_order = ol.getMaxOrder()
+            max_order = ol.getMaxOrder()
+
+            self.max_order = max_order if max_order > 0 else 1
             self.modUB = ol.getModUB().copy()
             self.modHKL = ol.getModHKL().copy()
+
+            ol.setMaxOrder(self.max_order)
 
         else:
             self.max_order = 0
@@ -1655,6 +1660,8 @@ class Peaks:
             ol.setModVec3(V3D(0, 0, 0))
 
             ol.setModUB(self.modUB)
+
+        print(self.max_order)
 
     def save_peaks(self, name=None, fit_dict=None):
         if name is not None:
@@ -1713,6 +1720,7 @@ class Peaks:
             InputWorkspace=peaks,
             Filename=filename + ".hkl",
             DirectionCosines=True,
+            ApplyAnvredCorrections=False,
             SortBy="RunNumber",
         )
 
@@ -1747,6 +1755,8 @@ class Peaks:
                 InputWorkspace=nuclear,
                 Filename=filename + "_nuc.hkl",
                 DirectionCosines=True,
+                ApplyAnvredCorrections=False,
+                SortBy="RunNumber",
             )
 
             SaveIsawUB(InputWorkspace=nuclear, Filename=filename + "_nuc.mat")
@@ -1772,6 +1782,8 @@ class Peaks:
                 InputWorkspace=satellite,
                 Filename=filename + "_sat.hkl",
                 DirectionCosines=True,
+                ApplyAnvredCorrections=False,
+                SortBy="RunNumber",
             )
 
             SaveIsawUB(
