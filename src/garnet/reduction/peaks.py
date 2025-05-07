@@ -1044,6 +1044,9 @@ class PeaksModel:
                 "bkg_err",
                 "intens",
                 "sig",
+                "N" "data",
+                "err",
+                "norm",
                 "Qx",
                 "Qy",
                 "Qz",
@@ -1456,12 +1459,17 @@ class PeakModel:
             "bkg_err",
             "intens",
             "sig",
+            "N" "data",
+            "err",
+            "norm",
             "Qx",
             "Qy",
             "Qz",
         ]
 
         vals = [run, h, k, l, m, n, p] + values
+
+        assert len(vals) == len(keys)
 
         for key, val in zip(keys, vals):
             log = "peaks_{}".format(key)

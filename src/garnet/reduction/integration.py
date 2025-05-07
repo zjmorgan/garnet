@@ -3259,30 +3259,7 @@ class PeakEllipsoid:
         if not sig > 0:
             sig = float("inf")
 
-        return intens, sig, b, b_err
-
-    def extract_intensity_norm(self, d, n, pk, bkg):
-        d_pk = d[pk].copy()
-        n_pk = n[pk].copy()
-
-        d_bkg = d[bkg].copy()
-        n_bkg = n[bkg].copy()
-
-        b = np.nansum(d_bkg / n_bkg)
-        b_err = np.sqrt(np.nansum(d_bkg / n_bkg**2))
-
-        if not np.isfinite(b):
-            b = 0
-        if not np.isfinite(b_err):
-            b_err = 0
-
-        intens = np.nansum(d_pk / n_pk - b)
-        sig = np.sqrt(np.nansum(d_pk / n_pk**2) + b_err**2)
-
-        if not sig > 0:
-            sig = float("inf")
-
-        return intens, sig, b, b_err
+        return intens, sig
 
     def extract_intensity(self, d, n, pk, bkg):
         d_pk = d[pk].copy()
@@ -3316,17 +3293,17 @@ class PeakEllipsoid:
 
         pk_norm = np.nanmean(n_pk)
 
-        intens = (pk_cnts - ratio * b) / pk_norm if pk_norm > 0 else 0
-        sig = (
-            np.sqrt(pk_cnts + (ratio * b_err) ** 2) / pk_norm
-            if pk_norm > 0
-            else 0
-        )
+        pk_data = pk_cnts - ratio * b
+
+        pk_err = np.sqrt(pk_cnts + (ratio * b_err) ** 2)
+
+        intens = pk_data / pk_norm if pk_norm > 0 else 0
+        sig = pk_err / pk_norm if pk_norm > 0 else 0
 
         if not sig > 0:
             sig = float("inf")
 
-        return intens, sig, b, b_err
+        return intens, sig, b, b_err, N_pk, pk_data, pk_err, pk_norm
 
     def integrate(self, x0, x1, x2, d, n, val_mask, det_mask, c, S):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
@@ -3338,7 +3315,9 @@ class PeakEllipsoid:
         d[np.isinf(d)] = np.nan
         n[np.isinf(n)] = np.nan
 
-        intens, sig, b, b_err = self.extract_intensity(d, n, pk, bkg)
+        result = self.extract_intensity(d, n, pk, bkg)
+
+        intens, sig, b, b_err, N, data, err, norm = result
 
         intens *= d3x
         sig *= d3x
@@ -3353,11 +3332,9 @@ class PeakEllipsoid:
         freq = d / n  # - np.nanmean(d[bkg] / n[bkg])
         freq[~(pk | bkg)] = np.nan
 
-        intens_raw, sig_raw, b_raw, b_raw_err = self.extract_raw_intensity(
-            d, pk, bkg
-        )
+        intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
-        self.info += [intens_raw, sig_raw]
+        self.info += [intens_raw, sig_raw, N, data, err, norm]
 
         if not np.isfinite(sig):
             sig = float("inf")
