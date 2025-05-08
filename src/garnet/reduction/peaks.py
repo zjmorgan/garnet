@@ -1476,6 +1476,7 @@ class PeakModel:
         for key, val in zip(keys, vals):
             log = "peaks_{}".format(key)
             if log not in run_info_keys:
+                print(key, val, type(val))
                 run_info[log] = [val]
             else:
                 items = np.array(run_info.getLogData(log).value).tolist()

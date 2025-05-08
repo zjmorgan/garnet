@@ -3290,6 +3290,13 @@ class PeakEllipsoid:
 
         pk_err = np.sqrt(pk_cnts + (ratio * b_err) ** 2)
 
+        if not np.isfinite(pk_norm):
+            pk_norm = 0
+        if not np.isfinite(pk_data):
+            pk_data = 0
+        if not np.isfinite(pk_err):
+            pk_err = 0
+
         intens = pk_data / pk_norm if pk_norm > 0 else 0
         sig = pk_err / pk_norm if pk_norm > 0 else 0
 

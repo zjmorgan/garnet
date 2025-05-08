@@ -1502,14 +1502,15 @@ class Peaks:
 
                 items = fit_dict.get(key)
                 if items is None:
-                    items = [], [], [], [], [], [], []
-                items[0].append(N * vol)
-                items[1].append(data)
-                items[2].append(err)
-                items[3].append(lamda)
-                items[4].append(Tbar)
-                items[5].append(norm)
-                items[6].append(sigma)
+                    items = [], [], [], [], [], [], [], []
+                items[0].append(N)
+                items[1].append(vol)
+                items[2].append(data)
+                items[3].append(err)
+                items[4].append(lamda)
+                items[5].append(Tbar)
+                items[6].append(norm)
+                items[7].append(sigma)
                 fit_dict[key] = items
 
             for key in fit_dict.keys():
@@ -1526,12 +1527,12 @@ class Peaks:
             peak.setIntHKL(V3D(h, k, l))
             peak.setIntMNP(V3D(m, n, p))
             d = peak.getDSpacing()
-            vol, data, err, lamda, Tbar, norm, sigma = fit_dict[key]
-            wl = np.nansum(lamda * norm) / np.nansum(norm)
-            wpl = np.nansum(Tbar * norm) / np.nansum(norm)
-            peak_norm = np.nansum(norm)
-            peak_data = np.nansum(data * vol)
-            peak_err = np.sqrt(np.nansum((err * vol) ** 2))
+            N, vol, data, err, lamda, Tbar, norm, sigma = fit_dict[key]
+            wl = np.nansum(lamda * norm * N) / np.nansum(norm * N)
+            wpl = np.nansum(Tbar * norm * N) / np.nansum(norm * N)
+            peak_norm = np.nansum(norm * N)
+            peak_data = np.nansum(data * vol * N)
+            peak_err = np.sqrt(np.nansum((err * vol * N) ** 2))
             intens = self.scale * peak_data / peak_norm
             sig_int = self.scale * peak_err / peak_norm
             sig_ext = np.nanmean(sigma)
