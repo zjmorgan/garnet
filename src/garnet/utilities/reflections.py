@@ -1380,6 +1380,7 @@ class Peaks:
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
+                print(key)
                 info_dict[key] = N[i], vol[i], data[i], err[i], norm[i]
 
         self.info_dict = info_dict
