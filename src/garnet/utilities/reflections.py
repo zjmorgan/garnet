@@ -1491,7 +1491,7 @@ class Peaks:
                 h, k, l = [int(val) for val in peak.getIntHKL()]
                 m, n, p = [int(val) for val in peak.getIntMNP()]
 
-                run = peak.getRunNuber()
+                run = peak.getRunNumber()
                 key = (run, h, k, l, m, n, p)
 
                 sigma = peak.getSigmaIntensity()
