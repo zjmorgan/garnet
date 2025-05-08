@@ -1359,6 +1359,8 @@ class Peaks:
 
         items = keys + vals
 
+        print(["peaks_{}".format(item) in run_keys for item in items])
+
         log_info = np.all(
             ["peaks_{}".format(item) in run_keys for item in items]
         )
