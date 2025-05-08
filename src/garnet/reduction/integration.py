@@ -3086,6 +3086,13 @@ class PeakEllipsoid:
         self.params["u1"].set(vary=False)
         self.params["u2"].set(vary=False)
 
+        r0 = self.params["r0"].value
+        r1 = self.params["r1"].value
+        r2 = self.params["r2"].value
+
+        self.params["r1"].set(expr="{}*r0".format(r1 / r0))
+        self.params["r2"].set(expr="{}*r0".format(r2 / r0))
+
         out = Minimizer(
             self.residual,
             self.params,
