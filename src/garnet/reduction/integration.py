@@ -3269,8 +3269,8 @@ class PeakEllipsoid:
         b = bkg_cnts
         b_err = np.sqrt(bkg_cnts)
 
-        N_pk = np.nansum(n_pk > 0)
-        N_bkg = np.nansum(n_bkg > 0)
+        N_pk = float(np.nansum(n_pk > 0))
+        N_bkg = float(np.nansum(n_bkg > 0))
 
         if not np.isfinite(b):
             b = 0
