@@ -560,10 +560,6 @@ class Integration(SubPlan):
 
             shape = self.revert_ellipsoid_parameters(params, projections)
 
-            # norm_params = Q0, Q1, Q2, y, e, counts, val_mask, det_mask, c, S
-
-            # Sp = ellipsoid.optimize_signal_to_noise(*norm_params)
-
             norm_params = Q0, Q1, Q2, d, n, val_mask, det_mask, c, S
 
             try:
@@ -571,9 +567,6 @@ class Integration(SubPlan):
             except Exception as e:
                 print("Exception extracting intensity: {}".format(e))
                 return key, None
-
-            # I = ellipsoid.intensity[-2]
-            # sigma = ellipsoid.sigma[-2]
 
             if self.make_plot:
                 self.peak_plot.add_ellipsoid_fit(best_fit)
