@@ -1371,13 +1371,15 @@ class Peaks:
             p = run_info.getLogData("peaks_p").value
             run = run_info.getLogData("peaks_run").value
 
-            # intens = run_info.getLogData("peaks_intens").value
-            # sig = run_info.getLogData("peaks_sig").value
+            N = run_info.getLogData("peaks_N").value
             vol = run_info.getLogData("peaks_vol").value
+            data = run_info.getLogData("peaks_data").value
+            err = run_info.getLogData("peaks_err").value
+            norm = run_info.getLogData("peaks_norm").value
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
-                info_dict[key] = vol[i]  # intens[i], sig[i]
+                info_dict[key] = N[i], vol[i], data[i], err[i], norm[i]
 
         self.info_dict = info_dict
 
@@ -1489,22 +1491,25 @@ class Peaks:
                 h, k, l = [int(val) for val in peak.getIntHKL()]
                 m, n, p = [int(val) for val in peak.getIntMNP()]
 
-                key = (h, k, l, m, n, p)
+                run = peak.getRunNuber()
+                key = (run, h, k, l, m, n, p)
 
-                I = peak.getIntensity()
-                sig = peak.getSigmaIntensity()
+                sigma = peak.getSigmaIntensity()
                 lamda = peak.getWavelength()
                 Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
 
+                N, vol, data, err, norm = self.info_dict[key]
+
                 items = fit_dict.get(key)
                 if items is None:
-                    items = [], [], [], [], [], []
-                items[0].append(0)
-                items[1].append(I)
-                items[2].append(sig)
+                    items = [], [], [], [], [], [], []
+                items[0].append(N * vol)
+                items[1].append(data)
+                items[2].append(err)
                 items[3].append(lamda)
                 items[4].append(Tbar)
-                items[5].append(1)
+                items[5].append(norm)
+                items[6].append(sigma)
                 fit_dict[key] = items
 
             for key in fit_dict.keys():
@@ -1521,16 +1526,15 @@ class Peaks:
             peak.setIntHKL(V3D(h, k, l))
             peak.setIntMNP(V3D(m, n, p))
             d = peak.getDSpacing()
-            I_fit, I, sig, lamda, Tbar, weight = fit_dict[key]
-            ind = np.abs(lamda - np.median(lamda)).argmin()
-            wl = lamda[ind]
-            wpl = Tbar[ind]
-            intens = np.sum((I - I_fit) * weight) / np.sum(weight) + I_fit[ind]
-            I_fit = intens if np.sum(I_fit) == 0 else I_fit
-            sig_ext = np.sqrt(np.sum(sig**2 * weight) / np.sum(weight))
-            sig_int = np.sqrt(
-                np.mean((I - I_fit) ** 2 * weight) / np.sum(weight)
-            )
+            vol, data, err, lamda, Tbar, norm, sigma = fit_dict[key]
+            wl = np.nansum(lamda * norm) / np.nansum(norm)
+            wpl = np.nansum(Tbar * norm) / np.nansum(norm)
+            peak_norm = np.nansum(norm)
+            peak_data = np.nansum(data * vol)
+            peak_err = np.sqrt(np.nansum((err * vol) ** 2))
+            intens = self.scale * peak_data / peak_norm
+            sig_int = self.scale * peak_err / peak_norm
+            sig_ext = np.nanmean(sigma)
             if sig_int > 0:
                 Q.append(2 * np.pi / d)
                 F2.append(intens)
