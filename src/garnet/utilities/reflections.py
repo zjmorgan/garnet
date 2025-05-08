@@ -1384,6 +1384,7 @@ class Peaks:
                 info_dict[key] = N[i], vol[i], data[i], err[i], norm[i]
 
         self.info_dict = info_dict
+        print(info_dict)
 
         lamda = np.array(mtd[self.peaks].column("Wavelength"))
 
