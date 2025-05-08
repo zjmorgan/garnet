@@ -1262,7 +1262,7 @@ class Peaks:
         for i, peak in zip(indices.tolist(), mtd[self.peaks]):
             peak.setIntensity(scale * peak.getIntensity())
             peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
-            peak.setBinCount(peak.getRunNumber())
+            peak.setPeakNumber(peak.getRunNumber())
             peak.setRunNumber(1)
 
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
@@ -1359,8 +1359,6 @@ class Peaks:
 
         items = keys + vals
 
-        print(["peaks_{}".format(item) in run_keys for item in items])
-
         log_info = np.all(
             ["peaks_{}".format(item) in run_keys for item in items]
         )
@@ -1374,7 +1372,7 @@ class Peaks:
             p = run_info.getLogData("peaks_p").value
             run = run_info.getLogData("peaks_run").value
 
-            N = run_info.getLogData("peaks_N").value
+            N = run_info.getLogData("peaks_voxels").value
             vol = run_info.getLogData("peaks_vol").value
             data = run_info.getLogData("peaks_data").value
             err = run_info.getLogData("peaks_err").value
@@ -1382,11 +1380,9 @@ class Peaks:
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
-                print(key)
                 info_dict[key] = N[i], vol[i], data[i], err[i], norm[i]
 
         self.info_dict = info_dict
-        print(info_dict)
 
         lamda = np.array(mtd[self.peaks].column("Wavelength"))
 
@@ -1481,38 +1477,40 @@ class Peaks:
         ol = mtd[peaks].sample().getOrientedLattice()
         mod_HKL = ol.getModHKL().copy()
 
-        if fit_dict is None:
-            fit_dict = {}
-            for peak in mtd[peaks]:
-                h, k, l = [int(val) for val in peak.getIntHKL()]
-                m, n, p = [int(val) for val in peak.getIntMNP()]
+        # if fit_dict is None:
+        fit_dict = {}
+        for peak in mtd[peaks]:
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
 
-                run = int(peak.getBinCount())
-                key = (run, h, k, l, m, n, p)
+            run = int(peak.getPeakNumber())
+            key = (run, h, k, l, m, n, p)
 
-                sigma = peak.getSigmaIntensity()
-                lamda = peak.getWavelength()
-                Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
+            sigma = peak.getSigmaIntensity()
+            lamda = peak.getWavelength()
+            Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
 
-                N, vol, data, err, norm = self.info_dict[key]
+            N, vol, data, err, norm = self.info_dict[key]
 
-                items = fit_dict.get(key)
-                if items is None:
-                    items = [], [], [], [], [], [], [], []
-                items[0].append(N)
-                items[1].append(vol)
-                items[2].append(data)
-                items[3].append(err)
-                items[4].append(lamda)
-                items[5].append(Tbar)
-                items[6].append(norm)
-                items[7].append(sigma)
-                fit_dict[key] = items
+            key = (h, k, l, m, n, p)
 
-            for key in fit_dict.keys():
-                items = fit_dict.get(key)
-                items = [np.array(item) for item in items]
-                fit_dict[key] = items
+            items = fit_dict.get(key)
+            if items is None:
+                items = [], [], [], [], [], [], [], []
+            items[0].append(N)
+            items[1].append(vol)
+            items[2].append(data)
+            items[3].append(err)
+            items[4].append(lamda)
+            items[5].append(Tbar)
+            items[6].append(norm)
+            items[7].append(sigma)
+            fit_dict[key] = items
+
+        for key in fit_dict.keys():
+            items = fit_dict.get(key)
+            items = [np.array(item) for item in items]
+            fit_dict[key] = items
 
         F2, Q, y = [], [], []
 
@@ -1528,7 +1526,8 @@ class Peaks:
             wpl = np.nansum(Tbar * norm * N) / np.nansum(norm * N)
             peak_norm = np.nansum(norm * N)
             peak_data = np.nansum(data * vol * N)
-            peak_err = np.sqrt(np.nansum((err * vol * N) ** 2))
+            peak_err = np.sqrt(np.nansum(err**2 * vol * N))
+            # print(peak_data, peak_err, N, vol, data, err)
             intens = self.scale * peak_data / peak_norm
             sig_int = self.scale * peak_err / peak_norm
             sig_ext = np.nanmean(sigma)
@@ -1537,7 +1536,7 @@ class Peaks:
                 F2.append(intens)
                 y.append(sig_int / sig_ext)
             peak.setIntensity(intens)
-            peak.setSigmaIntensity(sig_ext)
+            peak.setSigmaIntensity(sig_int)
             peak.setBinCount(sig_int)
             peak.setWavelength(wl)
             peak.setAbsorptionWeightedPathLength(wpl * 1e-8)
@@ -1579,15 +1578,15 @@ class Peaks:
         cb.minorticks_on()
         fig.savefig(filename + ".pdf")
 
-        for peak in mtd[peaks + "_lean"]:
-            I = peak.getIntensity()
-            Q = 2 * np.pi / peak.getDSpacing()
-            sig_ext = peak.getSigmaIntensity()
-            sig_int = peak.getBinCount()
-            A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
-            sig_est = np.dot(A, x) * sig_ext
-            sig = np.max([sig_int, sig_ext, sig_est])
-            peak.setSigmaIntensity(sig)
+        # for peak in mtd[peaks + "_lean"]:
+        #     I = peak.getIntensity()
+        #     Q = 2 * np.pi / peak.getDSpacing()
+        #     sig_ext = peak.getSigmaIntensity()
+        #     sig_int = peak.getBinCount()
+        #     A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
+        #     sig_est = np.dot(A, x) * sig_ext
+        #     sig = np.max([sig_int, sig_ext, sig_est])
+        #     peak.setSigmaIntensity(sig)
 
         self.x = x
 
