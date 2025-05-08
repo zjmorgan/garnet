@@ -1262,6 +1262,7 @@ class Peaks:
         for i, peak in zip(indices.tolist(), mtd[self.peaks]):
             peak.setIntensity(scale * peak.getIntensity())
             peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
+            peak.setBinCount(peak.getRunNumber())
             peak.setRunNumber(1)
 
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
@@ -1383,15 +1384,6 @@ class Peaks:
 
         self.info_dict = info_dict
 
-        # for peak in mtd[self.peaks]:
-        #     h, k, l = np.array(peak.getIntHKL()).astype(int).tolist()
-        #     m, n, p = np.array(peak.getIntMNP()).astype(int).tolist()
-        #     run = peak.getRunNumber()
-        #     key = (run, h, k, l, m, n, p)
-        #     vol = info_dict[key]
-        #     peak.setIntensity(peak.getIntensity() * vol)
-        #     peak.setSigmaIntensity(peak.getSigmaIntensity() * vol)
-
         lamda = np.array(mtd[self.peaks].column("Wavelength"))
 
         kde = scipy.stats.gaussian_kde(lamda)
@@ -1491,7 +1483,7 @@ class Peaks:
                 h, k, l = [int(val) for val in peak.getIntHKL()]
                 m, n, p = [int(val) for val in peak.getIntMNP()]
 
-                run = peak.getRunNumber()
+                run = int(peak.getBinCount())
                 key = (run, h, k, l, m, n, p)
 
                 sigma = peak.getSigmaIntensity()
