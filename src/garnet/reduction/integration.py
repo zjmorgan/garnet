@@ -10,6 +10,8 @@ import scipy.ndimage
 import scipy.linalg
 import scipy.stats
 
+import skimage.measure
+
 from lmfit import Minimizer, Parameters, fit_report
 
 from mantid.simpleapi import mtd
@@ -601,16 +603,51 @@ class Integration(SubPlan):
 
         return key, value
 
+    def detection_mask(self, data, min_size=10, connectivity=3):
+        """
+        Identify large connected low-value regions in a 3D array.
+
+        Parameters
+        ----------
+        data : ndarray
+            3D input array.
+        min_size : int
+            Minimum number of voxels for a region to be considered significant.
+        connectivity : int
+            Connectivity for region labeling. Use 1, 2, or 3 for 3D.
+
+        Returns
+        -------
+        mask : ndarray (bool)
+            Boolean mask where True marks large low-value regions.
+
+        """
+
+        coverage_mask = data == 0.0
+
+        labeled, _ = skimage.measure.label(
+            coverage_mask, connectivity=connectivity, return_num=True
+        )
+
+        filtered_mask = np.zeros_like(coverage_mask, dtype=bool)
+        for region in skimage.measure.regionprops(labeled):
+            if region.area >= min_size:
+                filtered_mask[labeled == region.label] = True
+
+        return ~filtered_mask
+
     def interpolate(self, x0, x1, x2, d, n):
         gd = scipy.ndimage.gaussian_filter(d.copy(), sigma=1)
         gn = scipy.ndimage.gaussian_filter(n.copy(), sigma=1)
 
         data_mask = np.isfinite(gn) & (gn > 0)
 
+        detection_mask = self.detection_mask(n)
+
         gd[~data_mask] = np.nan
         gn[~data_mask] = np.nan
 
-        return gd, gn, data_mask, data_mask
+        return gd, gn, data_mask, detection_mask
 
     def extract_peak_info(self, peaks_ws, r_cut, norm=False):
         """
@@ -960,9 +997,9 @@ class PeakProfile:
         self.params.add("r1", value=r_cut / 2, min=0.001, max=2 * r_cut)
         self.params.add("r2", value=r_cut / 2, min=0.001, max=2 * r_cut)
 
-        self.params.add("dr0", value=0, min=0, max=r_cut * 10, vary=False)
-        self.params.add("dr1", value=0, min=0, max=r_cut * 10, vary=False)
-        self.params.add("dr2", value=0, min=0, max=r_cut * 10, vary=False)
+        self.params.add("dr0", value=0, min=0, max=r_cut * 10, vary=True)
+        self.params.add("dr1", value=0, min=0, max=r_cut * 10, vary=True)
+        self.params.add("dr2", value=0, min=0, max=r_cut * 10, vary=True)
 
     def calculate_fit(self, y, z, e):
         y_hat = np.exp(-0.5 * z**2)
@@ -1094,31 +1131,33 @@ class PeakProfile:
                 and B2 > 0
             ):
                 y0_hat = y0 - B0
-                e0_hat = e0**2 + B0_err**2
-                y0_hat = y0_hat / A0
-                e0_hat = np.abs(y0_hat) * np.sqrt(
+                e0_hat = np.sqrt(e0**2 + B0_err**2)
+                e0_hat = np.abs(y0_hat / A0) * np.sqrt(
                     (A0_err / A0) ** 2 + (e0_hat / y0_hat) ** 2
                 )
+                y0_hat = y0_hat / A0
                 x0c += c0.tolist()
                 y0c += y0_hat.tolist()
                 e0c += e0_hat.tolist()
 
                 y1_hat = y1 - B1
-                e1_hat = e1**2 + B1_err**2
-                y1_hat = y1_hat / A1
-                e1_hat = np.abs(y1_hat) * np.sqrt(
+                e1_hat = np.sqrt(e1**2 + B1_err**2)
+                e1_hat = np.abs(y1_hat / A1) * np.sqrt(
                     (A1_err / A1) ** 2 + (e1_hat / y1_hat) ** 2
                 )
+                y1_hat = y1_hat / A1
+
                 x1c += c1.tolist()
                 y1c += y1_hat.tolist()
                 e1c += e1_hat.tolist()
 
                 y2_hat = y2 - B2
-                e2_hat = e2**2 + B2_err**2
-                y2_hat = y2_hat / A2
-                e2_hat = np.abs(y2_hat) * np.sqrt(
+                e2_hat = np.sqrt(e2**2 + B2_err**2)
+                e2_hat = np.abs(y2_hat / A2) * np.sqrt(
                     (A2_err / A2) ** 2 + (e2_hat / y2_hat) ** 2
                 )
+                y2_hat = y2_hat / A2
+
                 x2c += c2.tolist()
                 y2c += y2_hat.tolist()
                 e2c += e2_hat.tolist()
@@ -2068,7 +2107,7 @@ class PeakEllipsoid:
         return diff[mask]
 
     def jacobian_1d(self, params, x0, x1, x2, ys, es):
-        params_list = [name for name, par in params.items() if par.vary]
+        params_list = [name for name, par in params.items()]
 
         y0, y1, y2 = ys
         e0, e1, e2 = es
@@ -2111,17 +2150,17 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "1d_1")
         y2_gauss = self.gaussian(*args, "1d_2")
 
-        # y0_lorentz = self.lorentzian(*args, "1d_0")
-        # y1_lorentz = self.lorentzian(*args, "1d_1")
-        # y2_lorentz = self.lorentzian(*args, "1d_2")
+        y0_lorentz = self.lorentzian(*args, "1d_0")
+        y1_lorentz = self.lorentzian(*args, "1d_1")
+        y2_lorentz = self.lorentzian(*args, "1d_2")
 
         dA0 = y0_gauss / e0
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        # dH0 = y0_lorentz / e0
-        # dH1 = y1_lorentz / e1
-        # dH2 = y2_lorentz / e2
+        dH0 = y0_lorentz / e0
+        dH1 = y1_lorentz / e1
+        dH2 = y2_lorentz / e2
 
         dB0 = 1 / e0
         dB1 = 1 / e1
@@ -2194,7 +2233,7 @@ class PeakEllipsoid:
         jac = np.zeros((n_params, n012))
 
         jac[params_list.index("A1d_0"), :n0] = dA0.flatten()
-        # jac[params_list.index("H1d_0"), :n0] = dH0.flatten()
+        jac[params_list.index("H1d_0"), :n0] = dH0.flatten()
         jac[params_list.index("B1d_0"), :n0] = dB0.flatten()
         jac[params_list.index("C1d_0"), :n0] = dC0.flatten()
         jac[params_list.index("c0"), :n0] = dc0_0.flatten()
@@ -2208,7 +2247,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), :n0] = du2_0.flatten()
 
         jac[params_list.index("A1d_1"), n0:n01] = dA1.flatten()
-        # jac[params_list.index("H1d_1"), n0:n01] = dH1.flatten()
+        jac[params_list.index("H1d_1"), n0:n01] = dH1.flatten()
         jac[params_list.index("B1d_1"), n0:n01] = dB1.flatten()
         jac[params_list.index("C1d_1"), n0:n01] = dC1.flatten()
         jac[params_list.index("c0"), n0:n01] = dc0_1.flatten()
@@ -2222,7 +2261,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), n0:n01] = du2_1.flatten()
 
         jac[params_list.index("A1d_2"), n01:n012] = dA2.flatten()
-        # jac[params_list.index("H1d_2"), n01:n012] = dH2.flatten()
+        jac[params_list.index("H1d_2"), n01:n012] = dH2.flatten()
         jac[params_list.index("B1d_2"), n01:n012] = dB2.flatten()
         jac[params_list.index("C1d_2"), n01:n012] = dC2.flatten()
         jac[params_list.index("c0"), n01:n012] = dc0_2.flatten()
@@ -2237,11 +2276,13 @@ class PeakEllipsoid:
 
         # ---
 
-        diff = np.concatenate([e.flatten() for e in es])
+        ind = [i for i, (name, par) in enumerate(params.items()) if par.vary]
+
+        diff = np.concatenate([1 / e.flatten() for e in es])
 
         mask = np.isfinite(diff)
 
-        return jac[:, mask]
+        return jac[ind][:, mask]
 
     def residual_2d(self, params, x0, x1, x2, ys, es):
         y0, y1, y2 = ys
@@ -2339,7 +2380,7 @@ class PeakEllipsoid:
         return diff[mask]
 
     def jacobian_2d(self, params, x0, x1, x2, ys, es):
-        params_list = [name for name, par in params.items() if par.vary]
+        params_list = [name for name, par in params.items()]
 
         y0, y1, y2 = ys
         e0, e1, e2 = es
@@ -2387,17 +2428,17 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "2d_1")
         y2_gauss = self.gaussian(*args, "2d_2")
 
-        # y0_lorentz = self.lorentzian(*args, "2d_0")
-        # y1_lorentz = self.lorentzian(*args, "2d_1")
-        # y2_lorentz = self.lorentzian(*args, "2d_2")
+        y0_lorentz = self.lorentzian(*args, "2d_0")
+        y1_lorentz = self.lorentzian(*args, "2d_1")
+        y2_lorentz = self.lorentzian(*args, "2d_2")
 
         dA0 = y0_gauss / e0
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        # dH0 = y0_lorentz / e0
-        # dH1 = y1_lorentz / e1
-        # dH2 = y2_lorentz / e2
+        dH0 = y0_lorentz / e0
+        dH1 = y1_lorentz / e1
+        dH2 = y2_lorentz / e2
 
         dB0 = 1 / e0
         dB1 = 1 / e1
@@ -2480,7 +2521,7 @@ class PeakEllipsoid:
         jac = np.zeros((n_params, n012))
 
         jac[params_list.index("A2d_0"), :n0] = dA0.flatten()
-        # jac[params_list.index("H2d_0"), :n0] = dH0.flatten()
+        jac[params_list.index("H2d_0"), :n0] = dH0.flatten()
         jac[params_list.index("B2d_0"), :n0] = dB0.flatten()
         jac[params_list.index("C2d_01"), :n0] = dC01.flatten()
         jac[params_list.index("C2d_02"), :n0] = dC02.flatten()
@@ -2495,7 +2536,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), :n0] = du2_0.flatten()
 
         jac[params_list.index("A2d_1"), n0:n01] = dA1.flatten()
-        # jac[params_list.index("H2d_1"), n0:n01] = dH1.flatten()
+        jac[params_list.index("H2d_1"), n0:n01] = dH1.flatten()
         jac[params_list.index("B2d_1"), n0:n01] = dB1.flatten()
         jac[params_list.index("C2d_10"), n0:n01] = dC10.flatten()
         jac[params_list.index("C2d_12"), n0:n01] = dC12.flatten()
@@ -2510,7 +2551,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), n0:n01] = du2_1.flatten()
 
         jac[params_list.index("A2d_2"), n01:n012] = dA2.flatten()
-        # jac[params_list.index("H2d_2"), n01:n012] = dH2.flatten()
+        jac[params_list.index("H2d_2"), n01:n012] = dH2.flatten()
         jac[params_list.index("B2d_2"), n01:n012] = dB2.flatten()
         jac[params_list.index("C2d_20"), n01:n012] = dC20.flatten()
         jac[params_list.index("C2d_21"), n01:n012] = dC21.flatten()
@@ -2526,11 +2567,13 @@ class PeakEllipsoid:
 
         # ---
 
-        diff = np.concatenate([e.flatten() for e in es])
+        ind = [i for i, (name, par) in enumerate(params.items()) if par.vary]
+
+        diff = np.concatenate([1 / e.flatten() for e in es])
 
         mask = np.isfinite(diff)
 
-        return jac[:, mask]
+        return jac[ind][:, mask]
 
     def residual_3d(self, params, x0, x1, x2, y, e):
         c0 = params["c0"]
@@ -2575,7 +2618,7 @@ class PeakEllipsoid:
         return diff[mask]
 
     def jacobian_3d(self, params, x0, x1, x2, y, e):
-        params_list = [name for name, par in params.items() if par.vary]
+        params_list = [name for name, par in params.items()]
 
         c0 = params["c0"]
         c1 = params["c1"]
@@ -2600,11 +2643,11 @@ class PeakEllipsoid:
         args = x0, x1, x2, c, inv_S
 
         y_gauss = self.gaussian(*args, "3d")
-        # y_lorentz = self.lorentzian(*args, "3d")
+        y_lorentz = self.lorentzian(*args, "3d")
 
         dA = y_gauss / e
 
-        # dH = y_lorentz / e
+        dH = y_lorentz / e
 
         dB = 1 / e
 
@@ -2630,7 +2673,7 @@ class PeakEllipsoid:
         jac = np.zeros((n_params, n))
 
         jac[params_list.index("A3d"), :n] = dA.flatten()
-        # jac[params_list.index("H3d"), :n] = dH.flatten()
+        jac[params_list.index("H3d"), :n] = dH.flatten()
         jac[params_list.index("B3d"), :n] = dB.flatten()
         jac[params_list.index("c0"), :n] = dc0.flatten()
         jac[params_list.index("c1"), :n] = dc1.flatten()
@@ -2644,9 +2687,11 @@ class PeakEllipsoid:
 
         # ---
 
-        mask = np.isfinite(e.flatten())
+        ind = [i for i, (name, par) in enumerate(params.items()) if par.vary]
 
-        return jac[:, mask]
+        mask = np.isfinite(1 / e.flatten())
+
+        return jac[ind][:, mask]
 
     def regularization(self, params, lamda=1):
         beta = np.array([params[key] for key in params.keys()])
@@ -2662,23 +2707,6 @@ class PeakEllipsoid:
         return ridge
 
     def residual(self, params, args_1d, args_2d, args_3d):
-        # x0, x1, x2, y1d, e1d = args_1d
-        # x0, x1, x2, y2d, e2d = args_2d
-        # x0, x1, x2, y3d, e3d = args_3d
-
-        # y1d_0, y1d_1, y1d_2 = y1d
-        # y2d_0, y2d_1, y2d_2 = y2d
-
-        # e1d_0, e1d_1, e1d_2 = e1d
-        # e2d_0, e2d_1, e2d_2 = e2d
-
-        # e1d = e1d_0, e1d_1, e1d_2
-        # e2d = e2d_0, e2d_1, e2d_2
-
-        # args_1d = x0, x1, x2, y1d, e1d
-        # args_2d = x0, x1, x2, y2d, e2d
-        # args_3d = x0, x1, x2, y3d, e3d
-
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
@@ -2893,7 +2921,7 @@ class PeakEllipsoid:
 
         return c, inv_S, y1, y2, y3
 
-    def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=False):
+    def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=True):
         y = gd / gn
         e = np.sqrt(gd) / gn
 
@@ -2943,9 +2971,15 @@ class PeakEllipsoid:
         C1_max = (y1_max - y1_min) / (x1[0, -1, 0] - x1[0, 0, 0])
         C2_max = (y2_max - y2_min) / (x2[0, 0, -1] - x2[0, 0, 0])
 
-        self.params.add("C1d_0", value=0, min=-2 * C0_max, max=2 * C0_max)
-        self.params.add("C1d_1", value=0, min=-2 * C1_max, max=2 * C1_max)
-        self.params.add("C1d_2", value=0, min=-2 * C2_max, max=2 * C2_max)
+        self.params.add(
+            "C1d_0", value=0, min=-2 * C0_max, max=2 * C0_max, vary=False
+        )
+        self.params.add(
+            "C1d_1", value=0, min=-2 * C1_max, max=2 * C1_max, vary=False
+        )
+        self.params.add(
+            "C1d_2", value=0, min=-2 * C2_max, max=2 * C2_max, vary=False
+        )
 
         y1d = [y1d_0, y1d_1, y1d_2]
         e1d = [e1d_0, e1d_1, e1d_2]
@@ -2997,14 +3031,26 @@ class PeakEllipsoid:
         C20_max = (y2_max - y2_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
         C21_max = (y2_max - y2_min) / (x1[0, -1, 0] - x1[0, 0, 0])
 
-        self.params.add("C2d_01", value=0, min=-2 * C01_max, max=2 * C01_max)
-        self.params.add("C2d_02", value=0, min=-2 * C02_max, max=2 * C02_max)
+        self.params.add(
+            "C2d_01", value=0, min=-2 * C01_max, max=2 * C01_max, vary=False
+        )
+        self.params.add(
+            "C2d_02", value=0, min=-2 * C02_max, max=2 * C02_max, vary=False
+        )
 
-        self.params.add("C2d_10", value=0, min=-2 * C10_max, max=2 * C10_max)
-        self.params.add("C2d_12", value=0, min=-2 * C12_max, max=2 * C12_max)
+        self.params.add(
+            "C2d_10", value=0, min=-2 * C10_max, max=2 * C10_max, vary=False
+        )
+        self.params.add(
+            "C2d_12", value=0, min=-2 * C12_max, max=2 * C12_max, vary=False
+        )
 
-        self.params.add("C2d_20", value=0, min=-2 * C20_max, max=2 * C20_max)
-        self.params.add("C2d_21", value=0, min=-2 * C21_max, max=2 * C21_max)
+        self.params.add(
+            "C2d_20", value=0, min=-2 * C20_max, max=2 * C20_max, vary=False
+        )
+        self.params.add(
+            "C2d_21", value=0, min=-2 * C21_max, max=2 * C21_max, vary=False
+        )
 
         y2d = [y2d_0, y2d_1, y2d_2]
         e2d = [e2d_0, e2d_1, e2d_2]
@@ -3031,15 +3077,14 @@ class PeakEllipsoid:
             self.residual,
             self.params,
             fcn_args=(args_1d, args_2d, args_3d),
-            # reduce_fcn=self.loss,
-            nan_policy="omit",
+            # nan_policy="omit",
         )
 
         result = out.minimize(
-            method="least_squares",
-            # jac=self.jacobian,
+            method="leastsq",
+            Dfun=self.jacobian,
             max_nfev=200,
-            # col_deriv=True,
+            col_deriv=True,
         )
 
         if report_fit:
@@ -3102,7 +3147,7 @@ class PeakEllipsoid:
 
         result = out.minimize(
             method="least_squares",
-            max_nfev=100,
+            max_nfev=30,
         )
 
         return self.extract_result(result, args_1d, args_2d, args_3d)
@@ -3228,7 +3273,7 @@ class PeakEllipsoid:
 
         return c0, c1, c2, r0, r1, r2, v0, v1, v2
 
-    def peak_roi(self, x0, x1, x2, c, S, val_mask):
+    def peak_roi(self, x0, x1, x2, c, S, det_mask, p=0.997):
         c0, c1, c2 = c
 
         x = np.array([x0 - c0, x1 - c1, x2 - c2])
@@ -3241,7 +3286,21 @@ class PeakEllipsoid:
 
         bkg = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2)  # & val_mask
 
-        return pk, bkg
+        scale = scipy.stats.chi2.ppf(p, df=3)
+
+        inv_var = scale * S_inv
+
+        d2 = np.einsum("i...,ij,j...->...", x, inv_var, x)
+
+        det = 1 / np.linalg.det(inv_var)
+
+        y = np.exp(-0.5 * d2) / np.sqrt((2 * np.pi) ** 3 * det)
+
+        d3x = self.voxel_volume(x0, x1, x2)
+
+        val_mask = pk & det_mask
+
+        return pk, bkg, np.nansum(y[val_mask]) * d3x
 
     def extract_raw_intensity(self, counts, pk, bkg):
         d = counts.copy()
@@ -3269,65 +3328,58 @@ class PeakEllipsoid:
         n_bkg = n[bkg].copy()
 
         bkg_cnts = np.nansum(d_bkg)
+        bkg_norm = np.nansum(n_bkg)
 
         if bkg_cnts == 0.0:
-            bkg_cnts = np.inf
+            bkg_cnts = float("nan")
+        if bkg_norm == 0.0:
+            bkg_norm = float("nan")
 
-        b = bkg_cnts
-        b_err = np.sqrt(bkg_cnts)
+        b = bkg_cnts / bkg_norm
+        b_err = np.sqrt(bkg_cnts) / bkg_norm
 
-        N_pk = float(np.nansum(n_pk > 0))
-        N_bkg = float(np.nansum(n_bkg > 0))
+        vox = float(np.nansum(n_pk > 0))
 
         if not np.isfinite(b):
             b = 0
         if not np.isfinite(b_err):
             b_err = 0
 
-        ratio = N_pk / N_bkg if N_bkg > 0 else 0
-
         pk_cnts = np.nansum(d_pk)
+        pk_norm = np.nansum(n_pk)
 
         if pk_cnts == 0.0:
-            pk_cnts = np.inf
+            pk_cnts = float("nan")
+        if pk_cnts == 0.0:
+            pk_norm = float("nan")
 
-        pk_norm = np.nanmean(n_pk)
-
-        pk_data = pk_cnts - ratio * b
-
-        pk_err = np.sqrt(pk_cnts + (ratio * b_err) ** 2)
-
-        if not np.isfinite(pk_norm):
-            pk_norm = 0
-        if not np.isfinite(pk_data):
-            pk_data = 0
-        if not np.isfinite(pk_err):
-            pk_err = 0
-
-        intens = pk_data / pk_norm if pk_norm > 0 else 0
-        sig = pk_err / pk_norm if pk_norm > 0 else 0
+        intens = vox * (pk_cnts / pk_norm - b)
+        sig = vox * np.sqrt(pk_cnts / pk_norm**2 + b_err**2)
 
         if not sig > 0:
             sig = float("inf")
 
-        return intens, sig, b, b_err, N_pk, pk_data, pk_err, pk_norm
+        return intens, sig, b, b_err, vox, pk_cnts, pk_norm
 
     def integrate(self, x0, x1, x2, d, n, val_mask, det_mask, c, S):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        d3x = dx0 * dx1 * dx2
+        d3x = self.voxel_volume(x0, x1, x2)
 
-        pk, bkg = self.peak_roi(x0, x1, x2, c, S, val_mask)
+        pk, bkg, vol_fract = self.peak_roi(x0, x1, x2, c, S, det_mask)
 
         d[np.isinf(d)] = np.nan
         n[np.isinf(n)] = np.nan
 
         result = self.extract_intensity(d, n, pk, bkg)
 
-        intens, sig, b, b_err, N, data, err, norm = result
+        intens, sig, b, b_err, N, data, norm = result
 
         intens *= d3x
         sig *= d3x
+
+        intens /= vol_fract
+        sig /= vol_fract
 
         self.intensity.append(intens)
         self.sigma.append(sig)
@@ -3341,7 +3393,7 @@ class PeakEllipsoid:
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
-        self.info += [intens_raw, sig_raw, N, data, err, norm]
+        self.info += [intens_raw, sig_raw, N, data, norm]
 
         if not np.isfinite(sig):
             sig = float("inf")

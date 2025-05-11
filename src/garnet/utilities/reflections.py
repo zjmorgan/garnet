@@ -1375,12 +1375,14 @@ class Peaks:
             N = run_info.getLogData("peaks_voxels").value
             vol = run_info.getLogData("peaks_vol").value
             data = run_info.getLogData("peaks_data").value
-            err = run_info.getLogData("peaks_err").value
             norm = run_info.getLogData("peaks_norm").value
+
+            b = run_info.getLogData("peaks_bkg").value
+            b_err = run_info.getLogData("peaks_bkg_err").value
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
-                info_dict[key] = N[i], vol[i], data[i], err[i], norm[i]
+                info_dict[key] = N[i], vol[i], data[i], norm[i], b[i], b_err[i]
 
         self.info_dict = info_dict
 
@@ -1490,21 +1492,22 @@ class Peaks:
             lamda = peak.getWavelength()
             Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
 
-            N, vol, data, err, norm = self.info_dict[key]
+            N, vol, data, norm, b, b_err = self.info_dict[key]
 
             key = (h, k, l, m, n, p)
 
             items = fit_dict.get(key)
             if items is None:
-                items = [], [], [], [], [], [], [], []
+                items = [], [], [], [], [], [], [], [], []
             items[0].append(N)
             items[1].append(vol)
             items[2].append(data)
-            items[3].append(err)
-            items[4].append(lamda)
-            items[5].append(Tbar)
-            items[6].append(norm)
-            items[7].append(sigma)
+            items[3].append(norm)
+            items[4].append(b)
+            items[5].append(b_err)
+            items[6].append(lamda)
+            items[7].append(Tbar)
+            items[8].append(sigma)
             fit_dict[key] = items
 
         for key in fit_dict.keys():
@@ -1521,12 +1524,12 @@ class Peaks:
             peak.setIntHKL(V3D(h, k, l))
             peak.setIntMNP(V3D(m, n, p))
             d = peak.getDSpacing()
-            N, vol, data, err, lamda, Tbar, norm, sigma = fit_dict[key]
+            N, vol, data, norm, b, b_err, lamda, Tbar, sigma = fit_dict[key]
             wl = np.nansum(lamda * norm * N) / np.nansum(norm * N)
             wpl = np.nansum(Tbar * norm * N) / np.nansum(norm * N)
             peak_norm = np.nansum(norm * N)
-            peak_data = np.nansum(data * vol * N)
-            peak_err = np.sqrt(np.nansum(err**2 * vol * N))
+            peak_data = np.nansum((data - b) * vol * N)
+            peak_err = np.sqrt(np.nansum((data + b_err**2) * vol * N))
             # print(peak_data, peak_err, N, vol, data, err)
             intens = self.scale * peak_data / peak_norm
             sig_int = self.scale * peak_err / peak_norm

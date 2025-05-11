@@ -205,22 +205,21 @@ def test_ellipsoid():
 
     data = data_norm * c + b + a * (2 * np.random.random(data_norm.shape) - 1)
     norm = np.full_like(data, c)
+    norm[0, 0, 0] = np.nan
 
     Qx, Qy, Qz = np.meshgrid(Qx, Qy, Qz, indexing="ij")
 
     val_mask = counts > 0
     det_mask = counts > 0
 
-    y = data / norm
-    e = data / norm * 0.1
-
     Q = np.linalg.norm(Q0)
 
-    args = (Qx, Qy, Qz, y, e, counts, val_mask, det_mask, 0.1, Q)
+    args = (Qx, Qy, Qz, data, norm, data, norm, val_mask, det_mask, 0.1, Q)
 
     ellipsoid = PeakEllipsoid()
 
     params = ellipsoid.fit(*args)
+    # print(params)
 
     assert params is not None
 
@@ -239,15 +238,15 @@ def test_ellipsoid():
 
     c, S, *best_fit = ellipsoid.best_fit
 
-    norm_params = Qx, Qy, Qz, y, e, counts, val_mask, det_mask, c, S
+    # norm_params = Qx, Qy, Qz, y, e, counts, val_mask, det_mask, c, S
 
-    Sp = ellipsoid.optimize_signal_to_noise(*norm_params)
+    # Sp = ellipsoid.optimize_signal_to_noise(*norm_params)
 
-    norm_params = Qx, Qy, Qz, y, e, counts, val_mask, det_mask, c, Sp
+    # norm_params = Qx, Qy, Qz, y, e, counts, val_mask, det_mask, c, Sp
 
-    I, sigma = ellipsoid.integrate(*norm_params)
+    # I, sigma = ellipsoid.integrate(*norm_params)
 
-    print(S, Sp)
+    print(S, S)
 
 
 def test_ellipsoid_methods():
@@ -282,5 +281,5 @@ def test_ellipsoid_methods():
     print(np.allclose(d_inv_S[2], (inv_S1 - inv_S0) / delta))
 
 
-test_ellipsoid_methods()
-# test_ellipsoid()
+# test_ellipsoid_methods()
+test_ellipsoid()
