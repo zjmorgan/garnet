@@ -175,6 +175,13 @@ class BaseDataModel:
         self.raw_file_path = os.path.join(raw_path, raw_file)
 
         files = self.get_file_name_list(plan["IPTS"], plan["Runs"])
+
+        if not os.path.exists(files[0]):
+            raw_path = raw_path.replace("nexus", "data")
+            raw_file = raw_file.replace(".nxs.h5", "_event.nxs")
+            self.raw_file_path = os.path.join(raw_path, raw_file)
+            files = self.get_file_name_list(plan["IPTS"], plan["Runs"])
+
         if instrument != "DEMAND":
             if not self.elastic:
                 LoadEventNexus(
