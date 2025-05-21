@@ -70,7 +70,11 @@ class Normalization(SubPlan):
                 self.run += 1
 
                 data.load_data(
-                    "data", self.plan["IPTS"], run, self.plan.get("Grouping")
+                    "data",
+                    self.plan["IPTS"],
+                    run,
+                    self.plan.get("Grouping"),
+                    self.plan.get("TimeCut"),
                 )
 
                 data.load_generate_normalization(
