@@ -199,7 +199,8 @@ class Normalization(SubPlan):
         if len(ws) > 0:
             ws = "_" + ws
 
-        return self.append_name(file).replace(".nxs", ws + ".nxs")
+        fname = self.append_name(file)
+        return fname.replace("_p0", "").replace(".nxs", ws + ".nxs")
 
     def append_name(self, file):
         """
