@@ -2921,7 +2921,7 @@ class PeakEllipsoid:
 
         return c, inv_S, y1, y2, y3
 
-    def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=True):
+    def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=False):
         y = gd / gn
         e = np.sqrt(gd) / gn
 

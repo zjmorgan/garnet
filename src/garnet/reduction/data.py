@@ -1232,11 +1232,11 @@ class LaueData(BaseDataModel):
                 FilterByTofMax=16600,
             )
 
-        FilterBadPulses(
-            InputWorkspace=event_name,
-            LowerCutOff=20,
-            OutputWorkspace=event_name,
-        )
+        # FilterBadPulses(
+        #     InputWorkspace=event_name,
+        #     LowerCutOff=20,
+        #     OutputWorkspace=event_name,
+        # )
 
         MaskDetectorsIf(
             InputWorkspace=event_name,
