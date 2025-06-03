@@ -150,7 +150,7 @@ class Integration(SubPlan):
         for run in runs:
             self.run += 1
 
-            print("{}: {:}/{:}".format(self.proc, self.run, len(runs)))
+            self.status = "{}: {:}/{:}".format(self.proc, self.run, len(runs))
 
             data.load_data(
                 "data", self.plan["IPTS"], run, self.plan.get("Grouping")
@@ -555,6 +555,8 @@ class Integration(SubPlan):
             print("Exception fitting data: {}".format(e))
             return key, None
 
+        print(self.status + "2/2 {:}/{:}".format(key, self.total))
+
         value = None
 
         if params is not None:
@@ -672,7 +674,11 @@ class Integration(SubPlan):
 
         peak_dict = {}
 
+        self.total = n_peak
+
         for i in range(n_peak):
+            print(self.status + "1/2 {:}/{:}".format(i, self.total))
+
             d_spacing = peak.get_d_spacing(i)
             Q = 2 * np.pi / d_spacing
 
@@ -771,7 +777,7 @@ class Integration(SubPlan):
 
                 peak.add_diagonstic_info(i, info)
 
-                print("({} {} {}) / ({} {} {})".format(*hkl, *peak.get_hkl(i)))
+                # print("({} {} {}) / ({} {} {})".format(*hkl, *peak.get_hkl(i)))
 
     def bin_axes(self, R, two_theta, az_phi):
         two_theta = np.deg2rad(two_theta)

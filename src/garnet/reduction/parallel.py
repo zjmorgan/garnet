@@ -16,6 +16,10 @@ np.seterr(all="ignore", invalid="ignore")
 config["Q.convention"] = "Crystallography"
 config.setLogLevel(2, quiet=False)
 
+import warnings
+
+warnings.filterwarnings("ignore")
+
 
 class ParallelTasks:
     def __init__(self, function, combine=None):
