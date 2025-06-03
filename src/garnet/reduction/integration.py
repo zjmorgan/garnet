@@ -555,7 +555,7 @@ class Integration(SubPlan):
             print("Exception fitting data: {}".format(e))
             return key, None
 
-        print(self.status + "2/2 {:}/{:}".format(key, self.total))
+        print(self.status + " 2/2 {:}/{:}".format(key, self.total))
 
         value = None
 
@@ -677,7 +677,7 @@ class Integration(SubPlan):
         self.total = n_peak
 
         for i in range(n_peak):
-            print(self.status + "1/2 {:}/{:}".format(i, self.total))
+            print(self.status + " 1/2 {:}/{:}".format(i, self.total))
 
             d_spacing = peak.get_d_spacing(i)
             Q = 2 * np.pi / d_spacing
