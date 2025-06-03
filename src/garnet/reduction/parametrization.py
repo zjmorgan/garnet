@@ -96,7 +96,17 @@ class Parametrization(SubPlan):
                     "data", run, self.total
                 )
 
+                status = "{}: {:}/{:}".format(self.proc, self.run, len(runs))
+
+                ind = 0
+
                 for index, workspace in zip(indices, workspaces):
+                    ind += 1
+
+                    progress = "{:}/{:}".format(ind, len(indices))
+
+                    print(status + " " + progress)
+
                     data.apply_mask(workspace, self.plan.get("MaskFile"))
 
                     data.crop_for_normalization(workspace)

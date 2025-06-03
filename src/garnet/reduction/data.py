@@ -1234,7 +1234,7 @@ class LaueData(BaseDataModel):
 
         FilterBadPulses(
             InputWorkspace=event_name,
-            LowerCutOff=70,
+            LowerCutOff=20,
             OutputWorkspace=event_name,
         )
 

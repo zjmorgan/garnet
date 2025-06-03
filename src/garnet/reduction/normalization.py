@@ -69,6 +69,8 @@ class Normalization(SubPlan):
             for run in runs:
                 self.run += 1
 
+                print("{}: {:}/{:}".format(self.proc, self.run, len(runs)))
+
                 data.load_data(
                     "data",
                     self.plan["IPTS"],
