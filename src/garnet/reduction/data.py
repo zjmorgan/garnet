@@ -1230,6 +1230,12 @@ class LaueData(BaseDataModel):
                 FilterByTofMax=16600,
             )
 
+        if type(runs) is list and mtd[event_name].isGroup():
+            for run, ws in zip(runs, mtd[event_name].getNames()):
+                mtd[ws].run()["run_number"] = run
+        else:
+            mtd[event_name].run()["run_number"] = runs[0]
+
         # FilterBadPulses(
         #     InputWorkspace=event_name,
         #     LowerCutOff=20,
