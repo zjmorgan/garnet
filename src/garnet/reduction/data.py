@@ -151,8 +151,8 @@ class BaseDataModel:
         IPTS = plan["IPTS"]
 
         if plan.get("RawFile") is not None:
-            self.raw_file_path = "{}" + plan["RawFile"]
-            self.custom_path, IPTS = True, ""
+            self.raw_file_path = plan["RawFile"]
+            self.custom_path = True
 
         raw_path = os.path.dirname(self.raw_file_path)
         raw_file = os.path.basename(self.raw_file_path)
@@ -249,7 +249,10 @@ class BaseDataModel:
             runs = [runs]
 
         filename = self.raw_file_path
-        return [filename.format(IPTS, run) for run in runs]
+        if not self.custom_path:
+            return [filename.format(IPTS, run) for run in runs]
+        else:
+            return [filename.format(run) for run in runs]
 
     def file_names(self, IPTS, runs):
         """
