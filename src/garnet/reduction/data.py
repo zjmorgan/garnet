@@ -147,8 +147,11 @@ class BaseDataModel:
         self.elastic = None
         self.time_offset = None
 
+        IPTS = plan["IPTS"]
+
         if plan.get("RawFile") is not None:
-            self.raw_file_path = plan["RawFile"]
+            self.raw_file_path = "{}" + plan["RawFile"]
+            IPTS = ""
 
         raw_path = os.path.dirname(self.raw_file_path)
         raw_file = os.path.basename(self.raw_file_path)
@@ -165,13 +168,13 @@ class BaseDataModel:
 
         self.raw_file_path = os.path.join(raw_path, raw_file)
 
-        files = self.get_file_name_list(plan["IPTS"], plan["Runs"])
+        files = self.get_file_name_list(IPTS, plan["Runs"])
 
         if not os.path.exists(files[0]):
             raw_path = raw_path.replace("nexus", "data")
             raw_file = raw_file.replace(".nxs.h5", "_event.nxs")
             self.raw_file_path = os.path.join(raw_path, raw_file)
-            files = self.get_file_name_list(plan["IPTS"], plan["Runs"])
+            files = self.get_file_name_list(IPTS, plan["Runs"])
 
         if instrument != "DEMAND":
             if not self.elastic:
