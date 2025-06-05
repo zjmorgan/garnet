@@ -148,16 +148,7 @@ class BaseDataModel:
         self.time_offset = None
 
         if plan.get("RawFile") is not None:
-            facility = self.instrument_config["Facility"]
-            name = self.instrument_config["Name"]
-            iptspath = "IPTS-{}"
-            rawfile = plan["RawFile"]
-
-            raw_file_path = os.path.join(
-                "/", facility, name, iptspath, rawfile
-            )
-
-            self.raw_file_path = raw_file_path
+            self.raw_file_path = plan["RawFile"]
 
         raw_path = os.path.dirname(self.raw_file_path)
         raw_file = os.path.basename(self.raw_file_path)
