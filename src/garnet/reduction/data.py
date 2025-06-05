@@ -82,6 +82,7 @@ class BaseDataModel:
     def __init__(self, instrument_config):
         self.elastic = None
         self.grouping = None
+        self.custom_path = False
 
         self.instrument_config = instrument_config
         self.instrument = self.instrument_config["FancyName"]
@@ -151,7 +152,7 @@ class BaseDataModel:
 
         if plan.get("RawFile") is not None:
             self.raw_file_path = "{}" + plan["RawFile"]
-            IPTS = ""
+            self.custom_path, IPTS = True, ""
 
         raw_path = os.path.dirname(self.raw_file_path)
         raw_file = os.path.basename(self.raw_file_path)
@@ -177,7 +178,7 @@ class BaseDataModel:
             files = self.get_file_name_list(IPTS, plan["Runs"])
 
         if instrument != "DEMAND":
-            if not self.elastic:
+            if not self.elastic and not self.custom_path:
                 LoadEventNexus(
                     Filename=files[0],
                     OutputWorkspace=self.instrument,
