@@ -1236,11 +1236,11 @@ class LaueData(BaseDataModel):
         #     OutputWorkspace=event_name,
         # )
 
-        MaskDetectorsIf(
-            InputWorkspace=event_name,
-            Operator="LessEqual",
-            OutputWorkspace=event_name,
-        )
+        # MaskDetectorsIf(
+        #     InputWorkspace=event_name,
+        #     Operator="LessEqual",
+        #     OutputWorkspace=event_name,
+        # )
 
         if self.elastic == True and self.time_offset is not None:
             CopyInstrumentParameters(
