@@ -1234,7 +1234,7 @@ class LaueData(BaseDataModel):
             for run, ws in zip(runs, mtd[event_name].getNames()):
                 mtd[ws].run()["run_number"] = run
         else:
-            mtd[event_name].run()["run_number"] = run
+            mtd[event_name].run()["run_number"] = runs
 
         # FilterBadPulses(
         #     InputWorkspace=event_name,
