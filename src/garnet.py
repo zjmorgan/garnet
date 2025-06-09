@@ -1199,7 +1199,10 @@ class FormView(QWidget):
     def run_command(self, command):
         self.output.appendPlainText("Running shell command...\n")
         script, *args = command.split(" ")
-        self.process.start(script, args)
+        if self.process.state() == QProcess.NotRunning:
+            self.process.start(script, args)
+        else:
+            print("Process already running!")
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()
@@ -1626,8 +1629,7 @@ class FormPresenter:
 
     def run_command(self, arg):
         filename = self.view.get_config()
-        if not filename or filename == "":
-            self.save_config()
+        self.save_config()
         filename = self.view.get_config()
         proc = self.view.get_processes()
         if proc is not None and filename is not None:
