@@ -1999,6 +1999,9 @@ class FormPresenter:
             self.view.set_param_limits_2(extents[1])
             self.view.set_param_limits_3(extents[2])
             self.view.set_param_limits_4(log_extents)
+            self.update_param_step_1()
+            self.update_param_step_2()
+            self.update_param_step_3()
 
     def save_param(self):
         log = self.view.get_log_name()
@@ -2030,6 +2033,9 @@ class FormPresenter:
             self.view.set_norm_limits_1(extents[0])
             self.view.set_norm_limits_2(extents[1])
             self.view.set_norm_limits_3(extents[2])
+            self.update_norm_step_1()
+            self.update_norm_step_2()
+            self.update_norm_step_3()
 
     def save_norm(self):
         symmetry = self.view.get_symmetry_option()
