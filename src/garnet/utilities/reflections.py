@@ -1603,15 +1603,15 @@ class Peaks:
 
         SaveReflections(
             InputWorkspace=peaks + "_lean",
-            Filename=filename + ".int",
+            Filename=filename + "_jana.int",
             Format="Jana",
         )
 
-        # SaveHKLCW(
-        #     Workspace=peaks+'_lean',
-        #     OutputFile=filename + ".hkl",
-        #     Header=False,
-        # )
+        SaveReflections(
+            InputWorkspace=peaks + "_lean",
+            Filename=filename + "_fullprof.int",
+            Format="FullProf",
+        )
 
     def reset_satellite(self):
         mod_mnp = []
