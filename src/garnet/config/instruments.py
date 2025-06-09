@@ -17,6 +17,7 @@ beamlines = {
         "RawFile": "nexus/SNAP_{}.nxs.h5",
         "BankPixels": [256, 256],
         "DeltaTheta": 0.0375,
+        "Processes": 8,
     },
     "CORELLI": {
         "Facility": "SNS",
@@ -40,6 +41,7 @@ beamlines = {
         "RawFile": "nexus/CORELLI_{}.nxs.h5",
         "BankPixels": [16, 256],
         "DeltaTheta": 0.16,
+        "Processes": 16,
     },
     "TOPAZ": {
         "Facility": "SNS",
@@ -63,6 +65,7 @@ beamlines = {
         "RawFile": "nexus/TOPAZ_{}.nxs.h5",
         "BankPixels": [256, 256],
         "DeltaTheta": 0.044,
+        "Processes": 8,
     },
     "MANDI": {
         "Facility": "SNS",
@@ -91,6 +94,7 @@ beamlines = {
         "RawFile": "nexus/MANDI_{}.nxs.h5",
         "BankPixels": [256, 256],
         "DeltaTheta": 0.0420,
+        "Processes": 8,
     },
     "WAND²": {
         "Facility": "HFIR",
@@ -115,6 +119,7 @@ beamlines = {
         "RawFile": "nexus/HB2C_{}.nxs.h5",
         "BankPixels": [480, 512],
         "DeltaTheta": 0.15625,
+        "Processes": 4,
     },
     "DEMAND": {
         "Facility": "HFIR",
@@ -138,5 +143,6 @@ beamlines = {
         "RawFile": "shared/autoreduce/HB3A_exp{:04}_scan{:04}.nxs",
         "BankPixels": [512, 512],
         "DeltaTheta": 0.0158,
+        "Processes": 4,
     },
 }

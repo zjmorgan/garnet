@@ -113,13 +113,8 @@ class BaseDataModel:
                 gon_ind += 1
 
         wl = instrument_config["Wavelength"]
-        self.wavelength_band = (
-            wl if type(wl) is list else [0.98 * wl, 1.02 * wl]
-        )
-        self.wavelength = np.mean(wl) if type(wl) is list else wl
 
-        self.k_min = 2 * np.pi / np.max(self.wavelength_band)
-        self.k_max = 2 * np.pi / np.min(self.wavelength_band)
+        self.update_wavelength(wl)
 
         self.ref_inst = self.instrument_config["InstrumentName"]
 
@@ -128,6 +123,15 @@ class BaseDataModel:
         CreateSingleValuedWorkspace(
             OutputWorkspace="unity", DataValue=1, ErrorValue=1
         )
+
+    def update_wavelength(self, wl):
+        self.wavelength_band = (
+            wl if type(wl) is list else [0.98 * wl, 1.02 * wl]
+        )
+        self.wavelength = np.mean(wl) if type(wl) is list else wl
+
+        self.k_min = 2 * np.pi / np.max(self.wavelength_band)
+        self.k_max = 2 * np.pi / np.min(self.wavelength_band)
 
     def workspace_exists(self, ws):
         return ws if mtd.doesExist(ws) else None
@@ -144,6 +148,10 @@ class BaseDataModel:
         """
 
         instrument = plan["Instrument"]
+
+        wl = plan.get("Wavelength")
+        if wl is not None:
+            self.update_wavelength(wl)
 
         self.elastic = None
         self.time_offset = None

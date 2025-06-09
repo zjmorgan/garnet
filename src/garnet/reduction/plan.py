@@ -296,7 +296,7 @@ class ReductionPlan:
         else:
             self.plan["Runs"] = [int(runs)]
 
-    def save_plan(self, filename):
+    def save_plan(self, filename, set_output=True):
         """
         Save a data reduction plan.
 
@@ -308,7 +308,8 @@ class ReductionPlan:
         """
 
         if self.plan is not None:
-            self.set_output(filename)
+            if set_output:
+                self.set_output(filename)
             runs = self.plan["Runs"]
             if type(runs) is list:
                 self.plan["Runs"] = self.runs_list_to_string(runs)
@@ -457,8 +458,8 @@ class ReductionPlan:
         self.plan["Normalization"] = self.template_normalization()
         self.plan["Parametrization"] = self.template_parametrization()
 
-        self.plan.pop("OutputPath")
-        self.plan.pop("OutputName")
+        self.plan.pop("OutputPath", None)
+        self.plan.pop("OutputName", None)
 
     def template_integration(self, instrument):
         """
@@ -492,6 +493,7 @@ class ReductionPlan:
         params["MinD"] = min_d
         params["SatMinD"] = min_d
         params["Radius"] = 0.2
+        params["ProfileFit"] = True
 
         return params
 
@@ -537,6 +539,9 @@ class ReductionPlan:
 
         params = {}
         params["LogName"] = "temperature"
+        params["LogExtents"] = [5, 100]
+        params["LogBins"] = 21
+        params["MillerIndex"] = None
         params["Projections"] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
         params["Extents"] = [[-10, 10], [-10, 10], [-10, 10]]
         params["Bins"] = [201, 201, 201]

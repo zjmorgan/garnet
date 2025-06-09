@@ -2758,6 +2758,17 @@ class PeakEllipsoid:
         c1 = self.params["c1"].value
         c2 = self.params["c2"].value
 
+        c0_err = self.params["c0"].stderr
+        c1_err = self.params["c1"].stderr
+        c2_err = self.params["c2"].stderr
+
+        if c0_err is None:
+            c0_err = c0
+        if c1_err is None:
+            c1_err = c1
+        if c2_err is None:
+            c2_err = c2
+
         r0 = self.params["r0"].value
         r1 = self.params["r1"].value
         r2 = self.params["r2"].value
@@ -2765,6 +2776,8 @@ class PeakEllipsoid:
         u0 = self.params["u0"].value
         u1 = self.params["u1"].value
         u2 = self.params["u2"].value
+
+        c_err = c0_err, c1_err, c2_err
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2925,7 +2938,7 @@ class PeakEllipsoid:
         self.intensity.append(I)
         self.sigma.append(s)
 
-        return c, inv_S, y1, y2, y3
+        return c, c_err, inv_S, y1, y2, y3
 
     def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=False):
         y = gd / gn
@@ -3243,7 +3256,7 @@ class PeakEllipsoid:
             print("Invalid weight estimate")
             return None
 
-        c, inv_S, vals1d, vals2d, vals3d = weights
+        c, c_err, inv_S, vals1d, vals2d, vals3d = weights
 
         if not np.linalg.det(inv_S) > 0:
             print("Improper optimal covariance")
@@ -3254,6 +3267,7 @@ class PeakEllipsoid:
         V, W = np.linalg.eigh(S)
 
         c0, c1, c2 = c
+
         c0 += xmod
         c = c0, c1, c2
 
@@ -3262,6 +3276,8 @@ class PeakEllipsoid:
         v0, v1, v2 = W.T
 
         fitting = (x0 + xmod, x1, x2, *vals3d)
+
+        self.peak_pos = c, c_err
 
         self.best_fit = c, S, *fitting
 
