@@ -1610,7 +1610,7 @@ class Peaks:
         SaveReflections(
             InputWorkspace=peaks + "_lean",
             Filename=filename + "_fullprof.int",
-            Format="FullProf",
+            Format="Fullprof",
         )
 
     def reset_satellite(self):
