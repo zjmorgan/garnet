@@ -1,8 +1,12 @@
 import os
 import sys
+import traceback
 
-from PyQt5.QtWidgets import (
+os.environ["QT_API"] = "pyqt5"
+
+from qtpy.QtWidgets import (
     QApplication,
+    QMainWindow,
     QWidget,
     QLabel,
     QLineEdit,
@@ -16,10 +20,13 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QPlainTextEdit,
     QSizePolicy,
+    QMessageBox,
 )
 
-from qtpy.QtGui import QDoubleValidator, QIntValidator, QFont
-from qtpy.QtCore import Qt, QProcess, QRegExp
+from qtpy.QtGui import QDoubleValidator, QIntValidator, QFont, QIcon
+from qtpy.QtCore import Qt, QProcess
+
+from garnet._version import __version__
 
 from garnet.config.instruments import beamlines
 from garnet.reduction.plan import ReductionPlan
@@ -69,12 +76,14 @@ class FormView(QWidget):
 
         self.load_button = QPushButton("Load Config", self)
         self.save_button = QPushButton("Save Config", self)
+        self.stop_button = QPushButton("Stop Process", self)
 
         load_save_layout.addWidget(name_label)
         load_save_layout.addWidget(self.output_line)
         load_save_layout.addWidget(self.load_button)
         load_save_layout.addWidget(self.save_button)
         load_save_layout.addWidget(self.cpu_line)
+        load_save_layout.addWidget(self.stop_button)
 
         layout.addLayout(load_save_layout)
 
@@ -96,6 +105,13 @@ class FormView(QWidget):
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stderr)
         self.process.finished.connect(self.process_finished)
+
+        self.stop_button.clicked.connect(self.stop_process)
+
+    def stop_process(self):
+        self.process.terminate()
+        if not self.process.waitForFinished(3000):
+            self.process.kill()
 
     def int_plan(self):
         tab = QWidget()
@@ -2382,12 +2398,54 @@ class FormModel:
         )
 
 
-if __name__ == "__main__":
+class Garnet(QMainWindow):
+    __instance = None
+
+    def __new__(cls):
+        if Garnet.__instance is None:
+            Garnet.__instance = QMainWindow.__new__(cls)
+        return Garnet.__instance
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        icon = os.path.join(os.path.dirname(__file__), "icons/garnet.png")
+        self.setWindowIcon(QIcon(icon))
+        self.setWindowTitle("garnet {}".format(__version__))
+
+        main_window = QWidget(self)
+        self.setCentralWidget(main_window)
+
+        layout = QVBoxLayout(main_window)
+
+        view = FormView()
+        model = FormModel()
+        self.form = FormPresenter(view, model)
+        layout.addWidget(view)
+
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    error_message = "".join(
+        traceback.format_exception(exc_type, exc_value, exc_traceback)
+    )
+
+    msg_box = QMessageBox()
+    msg_box.setWindowTitle("Application Error")
+    msg_box.setText("An unexpected error occurred. Please see details below:")
+    msg_box.setDetailedText(error_message)
+    msg_box.setIcon(QMessageBox.Critical)
+    msg_box.exec_()
+
+
+def gui():
+    sys.excepthook = handle_exception
     app = QApplication(sys.argv)
     if theme:
         qdarktheme.setup_theme("light")
-    view = FormView()
-    model = FormModel()
-    form = FormPresenter(view, model)
-    view.show()
+    window = Garnet()
+    window.show()
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    gui()
