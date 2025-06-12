@@ -1536,7 +1536,7 @@ class Peaks:
             intens = self.scale * peak_data / peak_norm
             sig_int = self.scale * peak_err / peak_norm
             sig_ext = np.sqrt(np.nansum((I - intens) ** 2 * w) / np.nansum(w))
-            if sig_int > 0 and sig_ext > 0:
+            if sig_int > 0 and sig_ext > 0 and intens > 0:
                 Q.append(2 * np.pi / d)
                 F2.append(intens)
                 y.append(sig_int / sig_ext)
