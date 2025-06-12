@@ -1534,15 +1534,15 @@ class Peaks:
             peak_data = np.nansum((data - b) * vol * N)
             peak_err = np.sqrt(np.nansum((data + b_err**2) * vol * N))
             intens = self.scale * peak_data / peak_norm
-            sig_int = self.scale * peak_err / peak_norm
-            sig_ext = np.sqrt(np.nansum((I - intens) ** 2 * w) / np.nansum(w))
+            sig_ext = self.scale * peak_err / peak_norm
+            sig_int = np.sqrt(np.nansum((I - intens) ** 2 * w) / np.nansum(w))
             if sig_int > 0 and sig_ext > 0 and intens > 0:
                 Q.append(2 * np.pi / d)
                 F2.append(intens)
                 y.append(sig_int / sig_ext)
             peak.setIntensity(intens)
-            peak.setSigmaIntensity(sig_int)
-            peak.setBinCount(sig_ext)
+            peak.setSigmaIntensity(sig_ext)
+            peak.setBinCount(sig_int)
             peak.setWavelength(wl)
             peak.setAbsorptionWeightedPathLength(wpl * 1e-8)
             peaks_lean.addPeak(peak)
