@@ -1,0 +1,31 @@
+\documentclass{standalone}
+\usepackage{tikz}
+\usetikzlibrary{shapes,calc,arrows,scopes}
+\usepackage[sfdefault,black]{merriweather} %% Option 'black' gives heavier bold face 
+\usepackage[T1]{fontenc}
+
+\begin{document}
+	\begin{tikzpicture}[scale=0.25]
+		
+	\definecolor{garnet}{RGB}{139,0,0}
+	\definecolor{sand}{RGB}{236,217,176}
+			
+	\begin{scope}[local bounding box=scope1]
+
+	\fill[color=garnet,rounded corners=2pt] 
+	(0,0.5) -- (1.5,0) -- (2.5,-0.1) -- (3, 1.1) -- (2.0,3.2) -- (0.5,2.8) -- (-0.2,1.7) -- cycle;
+
+	\draw[ultra thick, red!0!white, round cap-round cap] (0.3,0.9) -- ++(0.0,1.);,
+	\draw[ultra thick, red!0!white, round cap-round cap] (0.6,0.8) -- ++(0.0,1.3);,
+	\draw[ultra thick, red!0!white, round cap-round cap] (0.9,0.7) -- ++(0.0,1.6);
+
+	\draw[ultra thick, red!0!white, round cap-round cap, rounded corners=1.5pt]  (2.1,2.2) -- (1.9,2.7) -- (1.2,2.5) -- (1.2,0.6) -- (2.4,0.4) -- (2.3,1.4) -- (1.8,1.5);
+
+	\fill[color=sand,rounded corners=1pt,yshift=0.0cm] (-0.3,-0.3) -- (3.3,-0.3) -- (3.,-0.1) -- (2,0.0) -- (0.8,0.5) -- cycle;
+	\end{scope}
+	
+		\begin{scope}[shift={($(scope1.east)+(4.5cm,0)$)}]
+			\node[font=\LARGE] at (0,0) {garnet};
+		\end{scope}	
+	\end{tikzpicture}
+\end{document}
