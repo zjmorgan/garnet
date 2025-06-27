@@ -25,6 +25,11 @@ from mantid.simpleapi import (
 
 from mantid.kernel import V3D
 from mantid.dataobjects import PeakShapeEllipsoid, NoShape
+from mantid.geometry import (
+    CrystalStructure,
+    ReflectionGenerator,
+    ReflectionConditionFilter,
+)
 
 from mantid import config
 
@@ -49,7 +54,7 @@ class PeaksModel:
     def __init__(self):
         self.edge_pixels = 0
 
-    def find_peaks(self, md, peaks, max_d, density=1000, max_peaks=50):
+    def find_peaks(self, md, peaks, max_d, density=500, max_peaks=1000):
         """
         Harvest strong peak locations from Q-sample into a peaks table.
 
@@ -70,12 +75,43 @@ class PeaksModel:
 
         FindPeaksMD(
             InputWorkspace=md,
-            PeakDistanceThreshold=2 * np.pi / max_d,
+            PeakDistanceThreshold=2 * np.pi / max_d * 0.8,
             MaxPeaks=max_peaks,
             PeakFindingStrategy="VolumeNormalization",
             DensityThresholdFactor=density,
             EdgePixels=self.edge_pixels,
             OutputWorkspace=peaks,
+        )
+
+    def remove_aluminum_contamination(self, peaks, d_min, d_max, delta=0.1):
+        aluminum = CrystalStructure(
+            "4.05 4.05 4.05", "F m -3 m", "Al 0 0 0 1.0 0.005"
+        )
+
+        generator = ReflectionGenerator(aluminum)
+
+        hkls = generator.getHKLsUsingFilter(
+            d_min, d_max, ReflectionConditionFilter.StructureFactor
+        )
+
+        ds = list(generator.getDValues(hkls))
+
+        for peak in mtd[peaks]:
+            d_spacing = peak.getDSpacing()
+            Q_mod = 2 * np.pi / d_spacing
+            for d in ds:
+                Q = 2 * np.pi / d
+                if Q - delta < Q_mod < Q + delta:
+                    peak.setRunNumber(-1)
+
+        FilterPeaks(
+            InputWorkspace=peaks,
+            OutputWorkspace=peaks,
+            FilterVariable="RunNumber",
+            FilterValue="-1",
+            Operator="!=",
+            Criterion="!=",
+            BankName="None",
         )
 
     def centroid_peaks(self, md, peaks, peak_radius):
@@ -149,7 +185,7 @@ class PeaksModel:
             BackgroundOuterRadius=background_outer_radius,
             UseOnePercentBackgroundCorrection=True,
             Ellipsoid=True if method == "ellipsoid" else False,
-            FixQAxis=True,
+            FixQAxis=False,
             FixMajorAxisLength=False,
             UseCentroid=False,
             MaxIterations=5,
@@ -161,50 +197,50 @@ class PeaksModel:
             OutputWorkspace=peaks,
         )
 
-        radius = []
+        # radius = []
 
-        for peak in mtd[peaks]:
-            shape = peak.getPeakShape()
+        # for peak in mtd[peaks]:
+        #     shape = peak.getPeakShape()
 
-            shape_dict = eval(shape.toJSON())
+        #     shape_dict = eval(shape.toJSON())
 
-            if "radius0" in shape_dict.keys():
-                r0 = shape_dict["radius0"]
-                r1 = shape_dict["radius1"]
-                r2 = shape_dict["radius2"]
+        #     if "radius0" in shape_dict.keys():
+        #         r0 = shape_dict["radius0"]
+        #         r1 = shape_dict["radius1"]
+        #         r2 = shape_dict["radius2"]
 
-                radius.append(np.cbrt(r0 * r1 * r2))
-            else:
-                r = shape_dict["radius"]
-                radius.append(r)
+        #         radius.append(np.cbrt(r0 * r1 * r2))
+        #     else:
+        #         r = shape_dict["radius"]
+        #         radius.append(r)
 
-        peak_radius = np.nanmedian(radius)
-        background_inner_radius = peak_radius * background_inner_fact
-        background_outer_radius = peak_radius * background_outer_fact
+        # peak_radius = np.nanmedian(radius)
+        # background_inner_radius = peak_radius * background_inner_fact
+        # background_outer_radius = peak_radius * background_outer_fact
 
         if method == "sphere" and centroid:
             self.centroid_peaks(md, peaks, peak_radius)
 
-        if method == "ellipsoid":
-            IntegratePeaksMD(
-                InputWorkspace=md,
-                PeaksWorkspace=peaks,
-                PeakRadius=peak_radius,
-                BackgroundInnerRadius=background_inner_radius,
-                BackgroundOuterRadius=background_outer_radius,
-                UseOnePercentBackgroundCorrection=True,
-                Ellipsoid=True,
-                FixQAxis=True,
-                FixMajorAxisLength=False,
-                UseCentroid=centroid,
-                MaxIterations=5,
-                ReplaceIntensity=True,
-                IntegrateIfOnEdge=True,
-                AdaptiveQBackground=adaptive,
-                AdaptiveQMultiplier=radius_scale,
-                MaskEdgeTubes=False,
-                OutputWorkspace=peaks,
-            )
+        # if method == "ellipsoid":
+        #     IntegratePeaksMD(
+        #         InputWorkspace=md,
+        #         PeaksWorkspace=peaks,
+        #         PeakRadius=peak_radius,
+        #         BackgroundInnerRadius=background_inner_radius,
+        #         BackgroundOuterRadius=background_outer_radius,
+        #         UseOnePercentBackgroundCorrection=True,
+        #         Ellipsoid=True,
+        #         FixQAxis=True,
+        #         FixMajorAxisLength=False,
+        #         UseCentroid=centroid,
+        #         MaxIterations=5,
+        #         ReplaceIntensity=True,
+        #         IntegrateIfOnEdge=True,
+        #         AdaptiveQBackground=adaptive,
+        #         AdaptiveQMultiplier=radius_scale,
+        #         MaskEdgeTubes=False,
+        #         OutputWorkspace=peaks,
+        #     )
 
         for peak in mtd[peaks]:
             Q0, Q1, Q2 = peak.getQSampleFrame()
@@ -474,6 +510,9 @@ class PeaksModel:
 
         return x, y, theta
 
+    def get_number_peaks(self):
+        return self.peaks.getNumberPeaks()
+
     def extract_peaks_roi(self, md, peaks, r_cut, n_bins=21):
         signals = []
         weights = []
@@ -561,7 +600,7 @@ class PeaksModel:
                         SetUB(Workspace=ws, UB=ol.getUB())
                 ol = mtd[ws].getExperimentInfo(i).sample().getOrientedLattice()
 
-            return max([ol.a(), ol.b(), ol.c()])
+            return 1 / min([ol.astar(), ol.bstar(), ol.cstar()])
 
     def get_UB(self, ws):
         """

@@ -28,7 +28,7 @@ os.environ["TBB_THREAD_ENABLED"] = "0"
 
 from garnet.plots.peaks import PeakPlot, PeakProfilePlot, PeakCentroidPlot
 from garnet.config.instruments import beamlines
-from garnet.reduction.ub import UBModel, Optimization, lattice_group
+from garnet.reduction.ub import UBModel, Optimization, Reorient, lattice_group
 from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
 from garnet.reduction.data import DataModel
 from garnet.reduction.plan import SubPlan
@@ -178,11 +178,32 @@ class Integration(SubPlan):
 
             data.load_clear_UB(self.plan["UBFile"], "data", run)
 
-            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
-
             lamda_min, lamda_max = data.wavelength_band
 
             d_min = self.params["MinD"]
+
+            if self.params.get("Recalibrate"):
+                ub = UBModel("data")
+
+                const = ub.get_lattice_parameters()
+
+                d_max = ub.get_max_d_spacing()
+
+                data.convert_to_Q_sample("data", "md", lorentz_corr=True)
+
+                peaks.find_peaks("md", "peaks", d_max)
+
+                peaks.remove_aluminum_contamination("peaks", d_min, d_max)
+
+                ub = UBModel("peaks")
+                ub.determine_UB_with_lattice_parameters(*const)
+                ub.index_peaks()
+
+                Reorient("peaks", self.params["Cell"])
+
+                ub.copy_UB("data")
+
+            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
             peaks.predict_peaks(
                 "data",
@@ -194,10 +215,6 @@ class Integration(SubPlan):
             )
 
             self.peaks, self.data = peaks, data
-
-            # md_file = self.get_diagnostic_file("run#{}_data".format(run))
-
-            # data.save_histograms(md_file, "md", sample_logs=True)
 
             if self.params["ProfileFit"]:
                 r_cut = self.params["Radius"]

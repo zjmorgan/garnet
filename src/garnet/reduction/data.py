@@ -1234,8 +1234,8 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=event_name,
                 NumberOfBins=1,
                 FilterByTimeStop=time_cut,
-                FilterByTofMin=500,
-                FilterByTofMax=16600,
+                FilterByTofMin=None,
+                FilterByTofMax=None,
             )
 
         if type(runs) is list and mtd[event_name].isGroup():

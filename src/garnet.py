@@ -428,9 +428,9 @@ class FormView(QWidget):
         step_label = QLabel("Step")
         bins_label = QLabel("Bins")
 
-        h_label = QLabel("h")
-        k_label = QLabel("k")
-        l_label = QLabel("l")
+        self.p1_label = QLabel("h")
+        self.p2_label = QLabel("k")
+        self.p3_label = QLabel("l")
 
         notation = QDoubleValidator.StandardNotation
 
@@ -517,9 +517,9 @@ class FormView(QWidget):
         bin_layout.addWidget(max_label, 0, 2, Qt.AlignCenter)
         bin_layout.addWidget(bins_label, 0, 3, Qt.AlignCenter)
         bin_layout.addWidget(step_label, 0, 4, Qt.AlignCenter)
-        bin_layout.addWidget(h_label, 0, 5, Qt.AlignCenter)
-        bin_layout.addWidget(k_label, 0, 6, Qt.AlignCenter)
-        bin_layout.addWidget(l_label, 0, 7, Qt.AlignCenter)
+        bin_layout.addWidget(self.p1_label, 0, 5, Qt.AlignCenter)
+        bin_layout.addWidget(self.p2_label, 0, 6, Qt.AlignCenter)
+        bin_layout.addWidget(self.p3_label, 0, 7, Qt.AlignCenter)
 
         bin_layout.addWidget(dim_1_label, 1, 0)
         bin_layout.addWidget(self.param_min_1_line, 1, 1)
@@ -678,8 +678,14 @@ class FormView(QWidget):
         if check:
             self.set_miller_index([0, 0, 1])
             self.set_param_projections([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+            self.p1_label.setText("Δ|Q|")  # x₁	x₂
+            self.p2_label.setText("ΔQ₁")
+            self.p3_label.setText("ΔQ₂")
         else:
             self.set_miller_index([""] * 3)
+            self.p1_label.setText("h")
+            self.p2_label.setText("k")
+            self.p3_label.setText("l")
 
     def get_param_bins_1(self):
         param = self.param_bins_1_line

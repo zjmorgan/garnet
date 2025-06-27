@@ -1679,13 +1679,13 @@ class Peaks:
         self.merge_intensities(name, fit_dict)
 
         for peak in mtd[peaks]:
-            I = peak.getIntensity()
-            Q = 2 * np.pi / peak.getDSpacing()
+            # I = peak.getIntensity()
+            # Q = 2 * np.pi / peak.getDSpacing()
             sig = peak.getSigmaIntensity()
             # diff = peak.getBinCount()
-            A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
-            sig_est = np.dot(A, self.x) * sig
-            sig = np.max([sig, sig_est])
+            # A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
+            # sig_est = np.dot(A, self.x) * sig
+            # sig = np.max([sig, sig_est])
             # I if diff >= 2 * sig and diff > 0 else sig
             peak.setSigmaIntensity(sig)
 

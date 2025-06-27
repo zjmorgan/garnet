@@ -2,10 +2,6 @@ import os
 import sys
 import traceback
 
-import faulthandler
-
-faulthandler.enable()
-
 import multiprocess as multiprocessing
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -14,11 +10,13 @@ from mantid import config
 
 np.seterr(all="ignore", invalid="ignore")
 config["Q.convention"] = "Crystallography"
-config.setLogLevel(2, quiet=False)
+# config.setLogLevel(4, quiet=False)
 
 import warnings
+import faulthandler
 
 warnings.filterwarnings("ignore")
+faulthandler.enable()
 
 
 class ParallelTasks:
