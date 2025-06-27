@@ -1253,7 +1253,7 @@ class Peaks:
         if mtd[self.peaks].getNumberPeaks() > 1 and self.scale is None:
             I_max = max(mtd[self.peaks].column("Intens"))
             if I_max > 0:
-                scale = 1e4 / I_max
+                scale = 1e5 / I_max
             self.scale = scale
 
         # _, indices = np.unique(mtd[self.peaks].column(0), return_inverse=True)
