@@ -664,8 +664,6 @@ class PrunePeaks:
 
         self.filename = filename
 
-        self.remove_non_integrated()
-
         self.models = ["type I gaussian", "type I lorentzian", "type II"]
 
         self.spherical_extinction()
@@ -686,23 +684,6 @@ class PrunePeaks:
         x = np.linspace(lamda.min(), lamda.max(), 1000)
 
         self.kde = scipy.interpolate.make_interp_spline(x, kde(x), k=1)
-
-        self.extinction_prune()
-        self.workspaces, self.parameters = self.save_extinction()
-
-    def remove_non_integrated(self):
-        for peak in mtd[self.peaks]:
-            shape = eval(peak.getPeakShape().toJSON())
-
-            if shape["shape"] == "none":
-                peak.setSigmaIntensity(peak.getIntensity())
-
-            elif (
-                shape["radius0"] == 0
-                or shape["radius1"] == 0
-                or shape["radius2"] == 0
-            ):
-                peak.setSigmaIntensity(peak.getIntensity())
 
     def spherical_extinction(self):
         f1 = {}
@@ -742,14 +723,14 @@ class PrunePeaks:
         self.f2 = f2
 
     def extinction_xs(self, g, F2, two_theta, lamda, Tbar, V):
-        a = 1e-4  # Ang
+        a = 1e-5  # Ang
 
         xs = a**2 / V**2 * lamda**3 * g / np.sin(two_theta) * Tbar * F2
 
         return xs
 
     def extinction_xp(self, r2, F2, lamda, V):
-        a = 1e-4  # Ang
+        a = 1e-5  # Ang
 
         xp = a**2 / V**2 * lamda**2 * r2 * F2
 
@@ -1218,6 +1199,22 @@ class Peaks:
         self.max_order = 0
         self.modUB = np.zeros((3, 3))
         self.modHKL = np.zeros((3, 3))
+
+        self.remove_non_integrated()
+
+    def remove_non_integrated(self):
+        for peak in mtd[self.peaks]:
+            shape = eval(peak.getPeakShape().toJSON())
+
+            if shape["shape"] == "none":
+                peak.setSigmaIntensity(peak.getIntensity())
+
+            elif (
+                shape["radius0"] == 0
+                or shape["radius1"] == 0
+                or shape["radius2"] == 0
+            ):
+                peak.setSigmaIntensity(peak.getIntensity())
 
     def refine_UB(self, peaks):
         opt = Optimization(peaks)
