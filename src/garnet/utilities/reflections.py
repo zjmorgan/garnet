@@ -1200,22 +1200,6 @@ class Peaks:
         self.modUB = np.zeros((3, 3))
         self.modHKL = np.zeros((3, 3))
 
-        self.remove_non_integrated()
-
-    def remove_non_integrated(self):
-        for peak in mtd[self.peaks]:
-            shape = eval(peak.getPeakShape().toJSON())
-
-            if shape["shape"] == "none":
-                peak.setSigmaIntensity(peak.getIntensity())
-
-            elif (
-                shape["radius0"] == 0
-                or shape["radius1"] == 0
-                or shape["radius2"] == 0
-            ):
-                peak.setSigmaIntensity(peak.getIntensity())
-
     def refine_UB(self, peaks):
         opt = Optimization(peaks)
 
@@ -1329,6 +1313,20 @@ class Peaks:
             if contamination.any():
                 peak.setSigmaIntensity(peak.getIntensity())
 
+    def remove_non_integrated(self):
+        for peak in mtd[self.peaks]:
+            shape = eval(peak.getPeakShape().toJSON())
+
+            if shape["shape"] == "none":
+                peak.setSigmaIntensity(peak.getIntensity())
+
+            elif (
+                shape["radius0"] == 0
+                or shape["radius1"] == 0
+                or shape["radius2"] == 0
+            ):
+                peak.setSigmaIntensity(peak.getIntensity())
+
     def load_spectrum(self, filename, instrument):
         LoadIsawSpectrum(
             SpectraFile=filename,
@@ -1345,6 +1343,7 @@ class Peaks:
             LoadIsawUB(Filename=ub_file, InputWorkspace=self.peaks)
 
         self.remove_off_centered()
+        self.remove_non_integrated()
 
         run_info = mtd[self.peaks].run()
         run_keys = run_info.keys()
