@@ -685,6 +685,9 @@ class PrunePeaks:
 
         self.kde = scipy.interpolate.make_interp_spline(x, kde(x), k=1)
 
+        self.extinction_prune()
+        self.workspaces, self.parameters = self.save_extinction()
+
     def spherical_extinction(self):
         f1 = {}
         f2 = {}
