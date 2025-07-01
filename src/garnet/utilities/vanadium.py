@@ -69,6 +69,7 @@ class Vanadium:
         self.sample_shape = sample_shape
         self.diameter = diameter
         self.height = height
+        self.beam_diameter = beam_diameter
         self.k_min, self.k_max = k_limits
 
         self.mask_options = mask_options or {}
@@ -209,7 +210,11 @@ class Vanadium:
             )
 
     def subtract_background(self):
-        Minus(LHSWorkspace="van", RHSWorkspace="bkg", OutputWorkspace="van")
+        Minus(
+            LHSWorkspace="vanadium",
+            RHSWorkspace="background",
+            OutputWorkspace="vanadium",
+        )
 
     def set_sample_geometry(self, x=0):
         if self.sample_shape == "sphere":
@@ -239,11 +244,11 @@ class Vanadium:
             "UnitCellVolume": float(a**3),
         }
 
-        SetSample(InputWorkspace="van", Geometry=shape, Material=material)
+        SetSample(InputWorkspace="vanadium", Geometry=shape, Material=material)
 
         if self.beam_diameter is not None:
             beam = {"Shape": "Circle", "Radius": self.beam_diameter * 0.05}
-            SetBeam(InputWorkspace="van", Geometry=beam)
+            SetBeam(InputWorkspace="vanadium", Geometry=beam)
 
     def apply_absorption_correction(self):
         ConvertUnits(
@@ -260,13 +265,17 @@ class Vanadium:
         )
 
         MonteCarloAbsorption(
-            InputWorkspace="van",
+            InputWorkspace="vanadium",
             ResimulateTracksForDifferentWavelengths=False,
             SimulateScatteringPointIn="SampleOnly",
             OutputWorkspace="corr",
         )
 
-        Divide(LHSWorkspace="van", RHSWorkspace="corr", OutputWorkspace="van")
+        Divide(
+            LHSWorkspace="vanadium",
+            RHSWorkspace="corr",
+            OutputWorkspace="vanadium",
+        )
 
         GroupDetectors(
             InputWorkspace="spectra",
@@ -290,36 +299,28 @@ class Vanadium:
         )
 
         ConvertUnits(
-            InputWorkspace="van",
-            OutputWorkspace="van",
+            InputWorkspace="vanadium",
+            OutputWorkspace="vanadium",
             Target="Momentum",
         )
 
         Rebin(
-            InputWorkspace="van",
-            OutputWorkspace="van",
+            InputWorkspace="vanadium",
+            OutputWorkspace="vanadium",
             Params=[self.k_min, self.k_max, self.k_max],
             PreserveEvents=True,
         )
 
     def process_data(self):
         Rebin(
-            InputWorkspace="van",
-            OutputWorkspace="sa",
+            InputWorkspace="vanadium",
+            OutputWorkspace="solid_angle",
             Params=[self.k_min, self.k_max, self.k_max],
             PreserveEvents=False,
         )
 
         GroupDetectors(
-            InputWorkspace="incident",
-            CopyGroupingFromWorkspace="group",
-            Behaviour="Sum",
-            PreserveEvents=False,
-            OutputWorkspace="incident",
-        )
-
-        GroupDetectors(
-            InputWorkspace="van",
+            InputWorkspace="vanadium",
             CopyGroupingFromWorkspace="group",
             Behaviour="Sum",
             PreserveEvents=True,
