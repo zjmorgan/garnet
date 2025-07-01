@@ -30,7 +30,8 @@ from mantid.simpleapi import (
     ExtractMask,
     SetSample,
     SetBeam,
-    MonteCarloAbsorption,
+    SphericalAbsorption,
+    CylinderAbsorption,
     SolidAngle,
     CopyInstrumentParameters,
     mtd,
@@ -250,26 +251,94 @@ class Vanadium:
             beam = {"Shape": "Circle", "Radius": self.beam_diameter * 0.05}
             SetBeam(InputWorkspace="vanadium", Geometry=beam)
 
+        mat = mtd["vanadium"].sample().getMaterial()
+
+        sigma_a = mat.absorbXSection()
+        sigma_s = mat.totalScatterXSection()
+
+        self.sigma_a = sigma_a
+        self.sigma_s = sigma_s
+
+        M = mat.relativeMolecularMass()
+        n = mat.numberDensityEffective  # A^-3
+        N = mat.totalAtoms
+
+        self.n = n
+
+        V = np.abs(
+            mtd["vanadium"].sample().getShape().volume() * 100**3
+        )  # cm^3
+
+        rho = (n / N) / 0.6022 * M
+        m = rho * V
+        r = np.cbrt(0.75 / np.pi * V)
+
+        mu_s = n * sigma_s
+        mu_a = n * sigma_a
+
+        mu = mat.numberDensityEffective * (
+            mat.totalScatterXSection() + mat.absorbXSection(1.8)
+        )
+
+        print("V\n")
+        print("absoption cross section: {:.4f} barn\n".format(sigma_a))
+        print("scattering cross section: {:.4f} barn\n".format(sigma_s))
+
+        print("linear absorption coefficient: {:.4f} 1/cm\n".format(mu_a))
+        print("linear scattering coefficient: {:.4f} 1/cm\n".format(mu_s))
+        print("absorption parameter: {:.4f} \n".format(mu * r))
+
+        print("total atoms: {:.4f}\n".format(N))
+        print("molar mass: {:.4f} g/mol\n".format(M))
+        print("number density: {:.4f} 1/A^3\n".format(n))
+
+        print("mass density: {:.4f} g/cm^3\n".format(rho))
+        print("volume: {:.4f} cm^3\n".format(V))
+        print("mass: {:.4f} g\n".format(m))
+
     def apply_absorption_correction(self):
         ConvertUnits(
-            InputWorkspace="van",
-            OutputWorkspace="van",
+            InputWorkspace="vanadium",
+            OutputWorkspace="vanadium",
             Target="Wavelength",
         )
 
         Rebin(
-            InputWorkspace="van",
-            OutputWorkspace="van",
+            InputWorkspace="vanadium",
+            OutputWorkspace="vanadium",
             Params=[self.lamda_min, self.lamda_step, self.lamda_max],
             PreserveEvents=True,
         )
 
-        MonteCarloAbsorption(
-            InputWorkspace="vanadium",
-            ResimulateTracksForDifferentWavelengths=False,
-            SimulateScatteringPointIn="SampleOnly",
-            OutputWorkspace="corr",
-        )
+        # MonteCarloAbsorption(
+        #     InputWorkspace="vanadium",
+        #     ResimulateTracksForDifferentWavelengths=False,
+        #     SimulateScatteringPointIn="SampleOnly",
+        #     OutputWorkspace="corr",
+        # )
+
+        if self.sample_shape == "cylinder":
+            CylinderAbsorption(
+                InputWorkspace="vanadium",
+                OutputWorkspace="corr",
+                AttenuationXSection=self.sigma_a,
+                ScatteringXSection=self.sigma_s,
+                SampleNumberDensity=self.n,
+                NumberOfWavelengthPoints=5,
+                CylinderSampleHeight=self.height * 0.1,
+                CylinderSampleRadius=self.diameter * 0.05,
+                NumberOfSlices=8,
+                NumberOfAnnuli=8,
+            )
+        else:
+            SphericalAbsorption(
+                InputWorkspace="vanadium",
+                OutputWorkspace="corr",
+                AttenuationXSection=self.sigma_a,
+                ScatteringXSection=self.sigma_s,
+                SampleNumberDensity=self.n,
+                SphericalSampleRadius=self.diameter * 0.05,
+            )
 
         Divide(
             LHSWorkspace="vanadium",
@@ -353,7 +422,9 @@ class Vanadium:
         )
 
         MaskDetectorsIf(
-            InputWorkspace="sa", Operator="LessEqual", OutputWorkspace="sa"
+            InputWorkspace="solid_angle",
+            Operator="LessEqual",
+            OutputWorkspace="solid_angle",
         )
 
     def finalize_and_save(self):
@@ -378,20 +449,20 @@ class Vanadium:
 
 
 params = {
-    "instrument": "TOPAZ",
-    "van_ipts": 31856,
-    "van_nos": [53072],
-    "bkg_ipts": 31856,
-    "bkg_nos": [53076],
-    "output_folder": "2025A_CG_3-3BN",
-    "detector_calibration": "/SNS/TOPAZ/IPTS-31856/shared/calibration/TOPAZ_2025A_3-3BN_CG.DetCal",
+    "instrument": "MANDI",
+    "van_ipts": 8776,
+    "van_nos": [11935],
+    "bkg_ipts": 8776,
+    "bkg_nos": [11936],
+    "output_folder": "2025A_3mm_sphere_2A",
+    "detector_calibration": "/SNS/MANDI/shared/calibration/2025A/MANDI_2025A.DetCal",
     "tube_calibration": None,
     "instrument_definition": None,
     "sample_shape": "sphere",
-    "diameter": 4,  # mm
+    "diameter": 3,  # mm
     "height": None,  # mm
-    "beam_diameter": None,  # mm
-    "k_limits": [1.8, 18],
+    "beam_diameter": 1,  # mm
+    "k_limits": [2.1, 6.28],
     "mask_options": {
         "pixels": [[0, 18], [237, 255]],
         "tubes": [[0, 18], [237, 255]],
