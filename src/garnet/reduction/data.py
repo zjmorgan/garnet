@@ -1011,6 +1011,7 @@ class MonochromaticData(BaseDataModel):
                 MinValues=Q_min_vals,
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
+                SplitInto=2,
             )
 
     def load_generate_normalization(self, filename, histo_name=None):
@@ -1481,6 +1482,7 @@ class LaueData(BaseDataModel):
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
                 PreprocDetectorsWS="detectors",
+                SplitInto=2,
             )
 
             RecalculateTrajectoriesExtents(
@@ -1519,6 +1521,7 @@ class LaueData(BaseDataModel):
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
                 PreprocDetectorsWS="detectors",
+                SplitInto=2,
             )
 
     def load_generate_normalization(self, vanadium_file, flux_file):

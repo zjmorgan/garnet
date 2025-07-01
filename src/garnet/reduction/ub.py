@@ -183,7 +183,7 @@ class UBModel:
             beta=beta,
             gamma=gamma,
             Tolerance=tol,
-            FixParameters=True,
+            FixParameters=False,
             NumInitial=50,
             Iterations=3,
         )
@@ -1224,7 +1224,7 @@ class FindUB:
                 best_result = x
                 best_index = n_index
 
-        UB = self.get_UB(x)
+        UB = self.get_UB(best_result)
 
         SetUB(Workspace=self.peaks, UB=UB)
 

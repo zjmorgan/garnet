@@ -195,6 +195,10 @@ class Integration(SubPlan):
 
                 peaks.remove_aluminum_contamination("peaks", d_min, d_max)
 
+                peaks.integrate_peaks("md", "peaks", self.params["Radius"])
+
+                peaks.remove_weak_peaks("peaks")
+
                 ub = UBModel("peaks")
                 ub.determine_UB_with_lattice_parameters(*const)
                 ub.index_peaks()
@@ -202,6 +206,13 @@ class Integration(SubPlan):
                 Reorient("peaks", self.params["Cell"])
 
                 ub.copy_UB("data")
+
+                ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
+                ub_file = os.path.splitext(ub_file)[0] + ".mat"
+
+                ub.save_UB(ub_file)
+
+                data.load_clear_UB(ub_file, "data", run)
 
             data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
@@ -223,17 +234,18 @@ class Integration(SubPlan):
 
                 self.estimate_peak_centroid("peaks", r_cut, d_min, est_file)
 
-                ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
+                if not self.params.get("Recalibrate"):
+                    ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
 
-                opt = Optimization("peaks")
-                opt.optimize_lattice("Fixed")
+                    opt = Optimization("peaks")
+                    opt.optimize_lattice("Fixed")
 
-                ub_file = os.path.splitext(ub_file)[0] + ".mat"
+                    ub_file = os.path.splitext(ub_file)[0] + ".mat"
 
-                ub = UBModel("peaks")
-                ub.save_UB(ub_file)
+                    ub = UBModel("peaks")
+                    ub.save_UB(ub_file)
 
-                data.load_clear_UB(ub_file, "data", run)
+                    data.load_clear_UB(ub_file, "data", run)
 
                 peaks.predict_peaks(
                     "data",
@@ -3109,6 +3121,10 @@ class PeakEllipsoid:
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
+        self.params["c0"].set(vary=False)
+        self.params["c1"].set(vary=False)
+        self.params["c2"].set(vary=False)
+
         out = Minimizer(
             self.residual,
             self.params,
@@ -3119,12 +3135,37 @@ class PeakEllipsoid:
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            max_nfev=200,
+            max_nfev=100,
             col_deriv=True,
         )
 
         if report_fit:
             print(fit_report(result))
+
+        self.params = result.params
+
+        self.params["c0"].set(vary=True)
+        self.params["c1"].set(vary=True)
+        self.params["c2"].set(vary=True)
+
+        out = Minimizer(
+            self.residual,
+            self.params,
+            fcn_args=(args_1d, args_2d, args_3d),
+            # nan_policy="omit",
+        )
+
+        result = out.minimize(
+            method="leastsq",
+            Dfun=self.jacobian,
+            max_nfev=100,
+            col_deriv=True,
+        )
+
+        if report_fit:
+            print(fit_report(result))
+
+        self.params = result.params
 
         y = d / n
         e = np.sqrt(d) / n
@@ -3156,8 +3197,6 @@ class PeakEllipsoid:
         y3d, e3d = self.normalize(x0, x1, x2, d, n, mode="3d")
 
         args_3d = [x0, x1, x2, y3d, e3d]
-
-        self.params = result.params
 
         self.params["c0"].set(vary=False)
         self.params["c1"].set(vary=False)

@@ -144,7 +144,7 @@ class PeaksModel:
         radius_scale=0,
         background_inner_fact=np.cbrt(2),
         background_outer_fact=np.cbrt(3),
-        method="sphere",
+        method="ellipsoid",
         centroid=True,
     ):
         """
@@ -1114,7 +1114,7 @@ class PeaksModel:
         if mtd.doesExist(peaks):
             DeleteWorkspace(Workspace=peaks)
 
-    def remove_weak_peaks(self, peaks, sig_noise=3):
+    def remove_weak_peaks(self, peaks, sig_noise=None):
         """
         Filter out weak peaks based on signal-to-noise ratio.
 
@@ -1126,6 +1126,12 @@ class PeaksModel:
             Minimum signal-to-noise ratio. The default is 3.
 
         """
+
+        if sig_noise is None:
+            intens_sig = np.array(mtd[peaks].column("Intens/SigInt"))
+            med = np.nanmedian(intens_sig)
+            mad = np.nanmedian(np.abs(intens_sig - med))
+            sig_noise = np.max([med - 1.4826 * mad, 3])
 
         FilterPeaks(
             InputWorkspace=peaks,
