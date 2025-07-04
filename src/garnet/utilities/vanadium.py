@@ -347,7 +347,7 @@ class Vanadium:
         )
 
         GroupDetectors(
-            InputWorkspace="spectra",
+            InputWorkspace="vanadium",
             CopyGroupingFromWorkspace="group",
             Behaviour="Sum",
             PreserveEvents=False,

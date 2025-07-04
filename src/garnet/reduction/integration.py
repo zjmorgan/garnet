@@ -182,28 +182,35 @@ class Integration(SubPlan):
 
             d_min = self.params["MinD"]
 
+            centering = self.params["Centering"]
+
+            cell = self.params["Cell"]
+
             if self.params.get("Recalibrate"):
                 ub = UBModel("data")
 
                 const = ub.get_lattice_parameters()
 
-                d_max = ub.get_max_d_spacing()
+                min_d, max_d = ub.get_primitive_unit_cell_length_range(
+                    *const, centering
+                )
+
+                const = ub.convert_conventional_to_primitive(*const, centering)
 
                 data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
-                peaks.find_peaks("md", "peaks", d_max)
-
-                peaks.remove_aluminum_contamination("peaks", d_min, d_max)
+                peaks.find_peaks("md", "peaks", max_d)
 
                 peaks.integrate_peaks("md", "peaks", self.params["Radius"])
 
-                peaks.remove_weak_peaks("peaks")
+                peaks.remove_weak_peaks("peaks", 10)
 
                 ub = UBModel("peaks")
                 ub.determine_UB_with_lattice_parameters(*const)
                 ub.index_peaks()
+                ub.transform_primitive_to_conventional(centering)
 
-                Reorient("peaks", self.params["Cell"])
+                Reorient("peaks", cell)
 
                 ub.copy_UB("data")
 
@@ -214,13 +221,21 @@ class Integration(SubPlan):
 
                 data.load_clear_UB(ub_file, "data", run)
 
+            # pk_file = self.get_diagnostic_file("run#{}_peaks".format(run))
+
+            # peaks.save_peaks(pk_file, "peaks")
+
+            # md_file = self.get_diagnostic_file("run#{}_data".format(run))
+
+            # data.save_histograms(md_file, "md")
+
             data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
             peaks.predict_peaks(
                 "data",
                 "peaks",
-                self.params["Centering"],
-                self.params["MinD"],
+                centering,
+                d_min,
                 lamda_min,
                 lamda_max,
             )
@@ -230,11 +245,13 @@ class Integration(SubPlan):
             if self.params["ProfileFit"]:
                 r_cut = self.params["Radius"]
 
-                est_file = self.get_plot_file("centroid#{}".format(run))
-
-                self.estimate_peak_centroid("peaks", r_cut, d_min, est_file)
-
                 if not self.params.get("Recalibrate"):
+                    est_file = self.get_plot_file("centroid#{}".format(run))
+
+                    self.estimate_peak_centroid(
+                        "peaks", r_cut, d_min, est_file
+                    )
+
                     ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
 
                     opt = Optimization("peaks")
@@ -250,7 +267,7 @@ class Integration(SubPlan):
                 peaks.predict_peaks(
                     "data",
                     "peaks",
-                    self.params["Centering"],
+                    centering,
                     d_min,
                     lamda_min,
                     lamda_max,
@@ -299,7 +316,7 @@ class Integration(SubPlan):
 
         if mtd.doesExist("combine"):
             opt = Optimization("combine")
-            opt.optimize_lattice(self.params["Cell"])
+            opt.optimize_lattice(cell)
 
             ub_file = os.path.splitext(result_file)[0] + ".mat"
 
@@ -3456,8 +3473,8 @@ class PeakEllipsoid:
         intens *= d3x
         sig *= d3x
 
-        intens /= vol_fract
-        sig /= vol_fract
+        # intens /= vol_fract
+        # sig /= vol_fract
 
         self.intensity.append(intens)
         self.sigma.append(sig)

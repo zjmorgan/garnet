@@ -66,6 +66,8 @@ from mantid.simpleapi import (
     mtd,
 )
 
+from mantid.dataobjects import EventWorkspace
+
 from mantid import config
 
 config["Q.convention"] = "Crystallography"
@@ -1444,11 +1446,12 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=ws,
             )
 
-            CompressEvents(
-                InputWorkspace=ws,
-                OutputWorkspace=ws,
-                Tolerance=0.001,
-            )
+            if type(mtd[ws]) is EventWorkspace:
+                CompressEvents(
+                    InputWorkspace=ws,
+                    OutputWorkspace=ws,
+                    Tolerance=1e-3,
+                )
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
         """
@@ -1540,6 +1543,9 @@ class LaueData(BaseDataModel):
         if not mtd.doesExist("sa"):
             LoadNexus(Filename=vanadium_file, OutputWorkspace="sa")
 
+            if self.grouping is not None:
+                self.group_pixels("sa")
+
             RemoveLogs(Workspace="sa")
 
             MaskDetectorsIf(
@@ -1565,7 +1571,7 @@ class LaueData(BaseDataModel):
 
     def crop_for_normalization(self, event_name):
         """
-        Convert units to momentum and crop to wavelength band.
+        Convert units to momentum and crop to momentum band.
 
         event_name : str
             Name of raw event data.

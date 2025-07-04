@@ -21,7 +21,7 @@ from mantid.simpleapi import (
     mtd,
 )
 
-from mantid.geometry import PointGroupFactory
+from mantid.geometry import PointGroupFactory, UnitCell
 
 import json
 
@@ -41,6 +41,22 @@ lattice_group = {
     "Rhombohedral": "-3m",
     "Hexagonal": "6/mmm",
     "Cubic": "m-3m",
+}
+
+centering_matrices = {
+    "P": np.eye(3),
+    "A": np.array([[1, 0, 0], [0, 0.5, 0.5], [0, 0.5, -0.5]]),
+    "B": np.array([[0.5, 0, 0.5], [0, 1, 0], [0.5, 0, -0.5]]),
+    "C": np.array([[0.5, 0.5, 0], [0.5, -0.5, 0], [0, 0, 1]]),
+    "I": np.array([[-0.5, 0.5, 0.5], [0.5, -0.5, 0.5], [0.5, 0.5, -0.5]]),
+    "F": np.array([[0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]]),
+    "R": np.array(
+        [
+            [2 / 3, -1 / 3, -1 / 3],
+            [1 / 3, 1 / 3, -2 / 3],
+            [1 / 3, 2 / 3, 1 / 3],
+        ]
+    ),
 }
 
 
@@ -138,7 +154,7 @@ class UBModel:
             Filename=filename.replace("*", str(run_number)),
         )
 
-    def determine_UB_with_niggli_cell(self, min_d, max_d, tol=0.1):
+    def determine_UB_with_primitive_cell(self, min_d, max_d, tol=0.15):
         """
         Determine UB with primitive lattice using min/max lattice constant.
 
@@ -149,16 +165,27 @@ class UBModel:
         max_d : float
             Maximum lattice parameter in angstroms.
         tol : float, optional
-            Indexing tolerance. The default is 0.1.
+            Indexing tolerance. The default is 0.15.
 
         """
 
         FindUBUsingFFT(
-            PeaksWorkspace=self.peaks, MinD=min_d, MaxD=max_d, Tolerance=tol
+            PeaksWorkspace=self.peaks,
+            MinD=min_d,
+            MaxD=max_d,
+            Tolerance=tol,
+            DegreesPerStep=1,
         )
 
     def determine_UB_with_lattice_parameters(
-        self, a, b, c, alpha, beta, gamma, tol=0.25
+        self,
+        a,
+        b,
+        c,
+        alpha,
+        beta,
+        gamma,
+        tol=0.2,
     ):
         """
         Determine UB with prior known lattice parameters.
@@ -183,10 +210,62 @@ class UBModel:
             beta=beta,
             gamma=gamma,
             Tolerance=tol,
-            FixParameters=False,
+            FixParameters=True,
             NumInitial=50,
             Iterations=3,
         )
+
+    def convert_conventional_to_primitive(
+        self,
+        a,
+        b,
+        c,
+        alpha,
+        beta,
+        gamma,
+        centering,
+    ):
+        uc = UnitCell(a, b, c, alpha, beta, gamma)
+
+        G = uc.getG()
+
+        P = centering_matrices[centering]
+
+        Gp = P.T @ G @ P
+
+        uc.recalculateFromGstar(np.linalg.inv(Gp))
+
+        return uc.a(), uc.b(), uc.c(), uc.alpha(), uc.beta(), uc.gamma()
+
+    def transform_primitive_to_conventional(self, centering):
+        P = centering_matrices[centering]
+
+        self.transform_lattice(np.linalg.inv(P.T))
+
+    def get_primitive_unit_cell_length_range(
+        self,
+        a,
+        b,
+        c,
+        alpha,
+        beta,
+        gamma,
+        centering,
+    ):
+        const = self.convert_conventional_to_primitive(
+            a,
+            b,
+            c,
+            alpha,
+            beta,
+            gamma,
+            centering,
+        )
+
+        d_min = 0.95 * np.min(const[:3])
+        d_max = 1.05 * np.max(const[:3])
+
+        return d_min, d_max
 
     def refine_UB_without_constraints(self, tol=0.1, sat_tol=None):
         """
@@ -355,7 +434,10 @@ class UBModel:
         hkl_trans = ",".join(["{},{},{}".format(*row) for row in transform])
 
         TransformHKL(
-            PeaksWorkspace=self.peaks, Tolerance=tol, HKLTransform=hkl_trans
+            PeaksWorkspace=self.peaks,
+            Tolerance=tol,
+            HKLTransform=hkl_trans,
+            FindError=False,
         )
 
     def generate_lattice_transforms(self, cell):

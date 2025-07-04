@@ -54,7 +54,7 @@ class PeaksModel:
     def __init__(self):
         self.edge_pixels = 0
 
-    def find_peaks(self, md, peaks, max_d, density=500, max_peaks=1000):
+    def find_peaks(self, md, peaks, max_d, density=100, max_peaks=1000):
         """
         Harvest strong peak locations from Q-sample into a peaks table.
 
@@ -75,7 +75,7 @@ class PeaksModel:
 
         FindPeaksMD(
             InputWorkspace=md,
-            PeakDistanceThreshold=2 * np.pi / max_d * 0.8,
+            PeakDistanceThreshold=2 * np.pi / max_d * 0.5,
             MaxPeaks=max_peaks,
             PeakFindingStrategy="VolumeNormalization",
             DensityThresholdFactor=density,
@@ -185,9 +185,9 @@ class PeaksModel:
             BackgroundOuterRadius=background_outer_radius,
             UseOnePercentBackgroundCorrection=True,
             Ellipsoid=True if method == "ellipsoid" else False,
-            FixQAxis=False,
-            FixMajorAxisLength=False,
-            UseCentroid=False,
+            FixQAxis=True,
+            FixMajorAxisLength=True,
+            UseCentroid=centroid,
             MaxIterations=5,
             ReplaceIntensity=True,
             IntegrateIfOnEdge=True,
@@ -1114,7 +1114,7 @@ class PeaksModel:
         if mtd.doesExist(peaks):
             DeleteWorkspace(Workspace=peaks)
 
-    def remove_weak_peaks(self, peaks, sig_noise=None):
+    def remove_weak_peaks(self, peaks, sig_noise=3):
         """
         Filter out weak peaks based on signal-to-noise ratio.
 
