@@ -3245,6 +3245,7 @@ class PeakEllipsoid:
             method="leastsq",
             Dfun=self.jacobian,
             max_nfev=30,
+            col_deriv=True,
         )
 
         return self.extract_result(result, args_1d, args_2d, args_3d)
