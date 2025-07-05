@@ -685,12 +685,14 @@ class Integration(SubPlan):
         return ~filtered_mask
 
     def interpolate(self, x0, x1, x2, d, n):
+        detection_mask = self.detection_mask(n)
+
+        d += (n > 1) * 1.0
+
         gd = scipy.ndimage.gaussian_filter(d.copy(), sigma=1)
         gn = scipy.ndimage.gaussian_filter(n.copy(), sigma=1)
 
         data_mask = np.isfinite(gn) & (gn > 0)
-
-        detection_mask = self.detection_mask(n)
 
         gd[~data_mask] = np.nan
         gn[~data_mask] = np.nan
@@ -706,7 +708,7 @@ class Integration(SubPlan):
         peaks_ws : str
             Peaks table.
         r_cut : list or float
-            Cutoff radius parameters(s).
+            Cutoff radius parameter(s).
 
         """
 
@@ -757,20 +759,42 @@ class Integration(SubPlan):
                 *bin_params
             )
 
+            points = [
+                [h - 0.5, k, l],
+                [h + 0.5, k, l],
+                [h, k - 0.5, l],
+                [h, k + 0.5, l],
+                [h, k, l - 0.5],
+                [h, k, l + 0.5],
+            ]
+
+            Q0_box, Q1_box, Q2_box = [], [], []
+            for point in points:
+                Qp_0, Qp_1, Qp_2 = 2 * np.pi * np.dot(UB, point)
+                Q0_box.append(Qp_0)
+                Q1_box.append(Qp_1)
+                Q2_box.append(Qp_2)
+
+            Q0 = np.min(Q0_box), np.max(Q0_box)
+            Q1 = np.min(Q1_box), np.max(Q1_box)
+            Q2 = np.min(Q2_box), np.max(Q2_box)
+
+            data.slice_roi("md", [Q0, Q1, Q2])
+
             if norm:
-                data.normalize_to_hkl("md", transform, extents, bins)
+                data.normalize_to_hkl("md_slice", transform, extents, bins)
 
-                d, _, Q0, Q1, Q2 = data.extract_bin_info("md_data")
-                n, _, Q0, Q1, Q2 = data.extract_bin_info("md_norm")
+                d, _, Q0, Q1, Q2 = data.extract_bin_info("md_slice_data")
+                n, _, Q0, Q1, Q2 = data.extract_bin_info("md_slice_norm")
 
-                data.clear_norm("md")
+                data.clear_norm("md_slice")
 
             else:
                 d, _, Q0, Q1, Q2 = data.bin_in_Q(
-                    "md", extents, bins, projections
+                    "md_slice", extents, bins, projections
                 )
 
-                n = 1.0 * (data.extract_counts("md_bin") > 0)
+                n = 1.0 * (data.extract_counts("md_slice_bin") > 0)
 
             interp = self.interpolate(Q0, Q1, Q2, d, n)
 

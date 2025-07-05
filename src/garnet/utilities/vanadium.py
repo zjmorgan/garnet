@@ -12,6 +12,7 @@ from mantid.simpleapi import (
     ApplyCalibration,
     CompressEvents,
     NormaliseByCurrent,
+    NormaliseSpectra,
     SortEvents,
     IntegrateFlux,
     Rebin,
@@ -32,8 +33,10 @@ from mantid.simpleapi import (
     SetBeam,
     SphericalAbsorption,
     CylinderAbsorption,
-    SolidAngle,
+    SmoothNeighbours,
+    SmoothData,
     CopyInstrumentParameters,
+    ClearMaskFlag,
     mtd,
 )
 
@@ -57,30 +60,44 @@ class Vanadium:
         beam_diameter=None,
         k_limits=[1.8, 18],
         mask_options=None,
+        grouping=[4, 4],
     ):
         self.instrument = instrument
+
         self.van_ipts = van_ipts
         self.van_nos = van_nos
+
         self.bkg_ipts = bkg_ipts
         self.bkg_nos = bkg_nos
+
         self.output_folder = output_folder
+
         self.detector_calibration = detector_calibration
         self.tube_calibration = tube_calibration
         self.instrument_definition = instrument_definition
+
         self.sample_shape = sample_shape
         self.diameter = diameter
         self.height = height
+
         self.beam_diameter = beam_diameter
-        self.k_min, self.k_max = k_limits
 
         self.mask_options = mask_options or {}
+        self.x_bins, self.y_bins = grouping
+
         self.file_folder = "/SNS/{}/IPTS-{}/nexus/"
         self.file_name = "{}_{}.nxs.h5"
         self.vanadium_folder = "/SNS/{}/shared/Vanadium"
 
+        self.n_bins = 1000
+        self.n_smooth = 20
+
+        self.k_min, self.k_max = k_limits
+        self.k_step = (self.k_max - self.k_min) / self.n_bins
+
         self.lamda_min = 2 * np.pi / self.k_max
         self.lamda_max = 2 * np.pi / self.k_min
-        self.lamda_step = (self.lamda_max - self.lamda_min) / 500
+        self.lamda_step = (self.lamda_max - self.lamda_min) / self.n_bins
 
     def load_instrument(self):
         LoadEmptyInstrument(
@@ -135,6 +152,8 @@ class Vanadium:
 
         ExtractMask(InputWorkspace=self.instrument, OutputWorkspace="mask")
 
+        ClearMaskFlag(Workspace=self.instrument)
+
     def apply_calibration(self):
         if self.tube_calibration is not None:
             LoadNexus(
@@ -170,6 +189,18 @@ class Vanadium:
         )
 
         Load(Filename=files_to_load, NumberOfBins=1, OutputWorkspace=workspace)
+
+        CopyInstrumentParameters(
+            InputWorkspace=self.instrument,
+            OutputWorkspace=workspace,
+        )
+
+        SmoothNeighbours(
+            InputWorkspace=workspace,
+            OutputWorkspace=workspace,
+            SumPixelsX=self.x_bins,
+            SumPixelsY=self.y_bins,
+        )
 
         MaskDetectors(Workspace=workspace, MaskedWorkspace="mask")
 
@@ -310,13 +341,6 @@ class Vanadium:
             PreserveEvents=True,
         )
 
-        # MonteCarloAbsorption(
-        #     InputWorkspace="vanadium",
-        #     ResimulateTracksForDifferentWavelengths=False,
-        #     SimulateScatteringPointIn="SampleOnly",
-        #     OutputWorkspace="corr",
-        # )
-
         if self.sample_shape == "cylinder":
             CylinderAbsorption(
                 InputWorkspace="vanadium",
@@ -354,11 +378,17 @@ class Vanadium:
             OutputWorkspace="spectra",
         )
 
+        SmoothData(
+            InputWorkspace="spectra",
+            OutputWorkspace="spectra",
+            NPoints=self.n_smooth,
+        )
+
         Rebin(
             InputWorkspace="spectra",
             OutputWorkspace="norm",
             Params=[self.lamda_min, self.lamda_max, self.lamda_max],
-            PreserveEvents=True,
+            PreserveEvents=False,
         )
 
         Divide(
@@ -396,30 +426,40 @@ class Vanadium:
             OutputWorkspace="flux",
         )
 
+        MaskDetectorsIf(
+            InputWorkspace="flux",
+            Operator="LessEqual",
+            OutputWorkspace="flux",
+        )
+
         RemoveMaskedSpectra(
             InputWorkspace="flux",
             MaskedWorkspace="flux",
             OutputWorkspace="flux",
         )
 
+        SortEvents(InputWorkspace="flux", SortBy="X Value")
+
         Rebin(
             InputWorkspace="flux",
             OutputWorkspace="flux",
-            Params=[self.k_min, self.k_max, self.k_max],
+            Params=[self.k_min, self.k_step, self.k_max],
             PreserveEvents=True,
         )
 
-        flux = mtd["flux"]
-        for i in range(flux.getNumberHistograms()):
-            el = flux.getSpectrum(i)
-            if flux.readY(i)[0] > 0:
-                el.divide(flux.readY(i)[0], flux.readE(i)[0])
-
-        SortEvents(InputWorkspace="flux", SortBy="X Value")
+        SmoothData(
+            InputWorkspace="flux",
+            OutputWorkspace="flux",
+            NPoints=self.n_smooth,
+        )
 
         IntegrateFlux(
-            InputWorkspace="flux", NPoints=500, OutputWorkspace="flux"
+            InputWorkspace="flux",
+            NPoints=self.n_bins * 10,
+            OutputWorkspace="flux",
         )
+
+        NormaliseSpectra(InputWorkspace="flux", OutputWorkspace="flux")
 
         MaskDetectorsIf(
             InputWorkspace="solid_angle",
@@ -459,7 +499,7 @@ params = {
     "tube_calibration": None,
     "instrument_definition": None,
     "sample_shape": "sphere",
-    "diameter": 3,  # mm
+    "diameter": 1,  # mm
     "height": None,  # mm
     "beam_diameter": 1,  # mm
     "k_limits": [2.1, 6.28],
@@ -470,6 +510,7 @@ params = {
         "bank/tube": None,
         "bank/tube/pixel": None,
     },
+    "grouping": [4, 4],
 }
 
 norm = Vanadium(**params)

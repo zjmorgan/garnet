@@ -791,6 +791,20 @@ class BaseDataModel:
 
             return y, e, x0, x1, x2
 
+    def slice_roi(self, md, extents):
+        extents = np.array(extents).flatten().tolist()
+
+        SliceMD(
+            InputWorkspace=md,
+            AxisAligned=False,
+            BasisVector0="Q_sample_x,Angstrom^-1,1,0,0",
+            BasisVector1="Q_sample_y,Angstrom^-1,0,1,0",
+            BasisVector2="Q_sample_z,Angstrom^-1,0,0,1",
+            OutputExtents=extents,
+            OutputBins="1,1,1",
+            OutputWorkspace=md + "_slice",
+        )
+
     def log_split_info(self, ws, log_name, log_limits, log_bins):
         """
         Generate split information for filtering events by log values.
@@ -1543,8 +1557,8 @@ class LaueData(BaseDataModel):
         if not mtd.doesExist("sa"):
             LoadNexus(Filename=vanadium_file, OutputWorkspace="sa")
 
-            if self.grouping is not None:
-                self.group_pixels("sa")
+            # if self.grouping is not None:
+            #     self.group_pixels("sa")
 
             RemoveLogs(Workspace="sa")
 
@@ -1622,8 +1636,8 @@ class LaueData(BaseDataModel):
                     OutputWorkspace="bkg",
                 )
 
-                if self.grouping is not None:
-                    self.group_pixels("bkg")
+                # if self.grouping is not None:
+                #     self.group_pixels("bkg")
 
                 Rebin(
                     InputWorkspace="bkg",
