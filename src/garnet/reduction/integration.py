@@ -3138,29 +3138,6 @@ class PeakEllipsoid:
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
-        self.params["c0"].set(vary=False)
-        self.params["c1"].set(vary=False)
-        self.params["c2"].set(vary=False)
-
-        out = Minimizer(
-            self.residual,
-            self.params,
-            fcn_args=(args_1d, args_2d, args_3d),
-            # nan_policy="omit",
-        )
-
-        result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
-            max_nfev=100,
-            col_deriv=True,
-        )
-
-        if report_fit:
-            print(fit_report(result))
-
-        self.params = result.params
-
         self.params["c0"].set(vary=True)
         self.params["c1"].set(vary=True)
         self.params["c2"].set(vary=True)
@@ -3175,7 +3152,7 @@ class PeakEllipsoid:
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            max_nfev=100,
+            max_nfev=200,
             col_deriv=True,
         )
 
