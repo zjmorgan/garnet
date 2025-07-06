@@ -1083,7 +1083,7 @@ class PeakProfile:
         y_bar = np.nanmean(y)
         y_hat_bar = np.nanmean(y_hat)
 
-        w = 1 / (e**2 + 1e-16)
+        w = 1 / (e**2 + (0.05 * y) ** 2 + 1e-16)
         w[np.isinf(w)] = np.nan
         y[np.isinf(y)] = np.nan
 
@@ -1463,7 +1463,7 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def data_norm(self, d, n):
+    def data_norm(self, d, n, rel_err=0.05, abs_err=1):
         mask = (n > 0) & np.isfinite(n)
 
         d[~mask] = np.nan
@@ -1472,7 +1472,7 @@ class PeakEllipsoid:
         # c_bkg = np.nanmean(c)
 
         y_int = d / n
-        e_int = np.sqrt(d) / n
+        e_int = np.sqrt(d + (rel_err * d) ** 2 + abs_err**2) / n
 
         return y_int, e_int
 
