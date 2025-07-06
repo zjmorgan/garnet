@@ -1537,8 +1537,8 @@ class Peaks:
             peak_err = np.sqrt(np.nansum((data + b_err**2)))
             peak_vol = np.nanmean(N * vol)
 
-            wl = np.nansum(lamda * peak_norm) / peak_norm
-            wpl = np.nansum(Tbar * peak_norm) / peak_norm
+            wl = np.nansum(lamda * norm) / peak_norm
+            wpl = np.nansum(Tbar * norm) / peak_norm
 
             intens = self.scale * peak_data / peak_norm * peak_vol
             sig_ext = self.scale * peak_err / peak_norm * peak_vol
