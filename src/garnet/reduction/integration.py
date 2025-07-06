@@ -645,9 +645,17 @@ class Integration(SubPlan):
                     self.peak_plot.save_plot(peak_file)
                 except Exception as e:
                     print("Exception saving figure: {}".format(e))
+                    directory = os.path.dirname(peak_file)
+                    if os.path.isdir(directory) and not os.listdir(directory):
+                        os.rmdir(directory)
                     return key, None
 
             value = I, sigma, shape, [*ellipsoid.info, *shape[:3]], hkl
+
+        else:
+            directory = os.path.dirname(peak_file)
+            if os.path.isdir(directory) and not os.listdir(directory):
+                os.rmdir(directory)
 
         return key, value
 
