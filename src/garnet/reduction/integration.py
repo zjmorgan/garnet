@@ -689,8 +689,8 @@ class Integration(SubPlan):
 
         # d += (n > 0) * 1.0
 
-        gd = scipy.ndimage.gaussian_filter(d.copy(), sigma=1)
-        gn = scipy.ndimage.gaussian_filter(n.copy(), sigma=1)
+        gd = scipy.ndimage.gaussian_filter(d.copy(), sigma=2)
+        gn = scipy.ndimage.gaussian_filter(n.copy(), sigma=2)
 
         data_mask = np.isfinite(gn) & (gn > 0)
 
