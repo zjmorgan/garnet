@@ -89,6 +89,16 @@ class SubPlan:
                 delete_directory(output)
             os.mkdir(output)
 
+    def cleanup(self):
+        output = self.get_output_path()
+        for dirpath, dirnames, filenames in os.walk(output, topdown=False):
+            if not dirnames and not filenames:
+                try:
+                    os.rmdir(dirpath)
+                    print(f"Removed empty directory: {dirpath}")
+                except OSError as e:
+                    print(f"Could not remove {dirpath}: {e}")
+
     def get_output_file(self, ext=".nxs"):
         """
         Output file.
