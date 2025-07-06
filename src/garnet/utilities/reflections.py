@@ -1532,16 +1532,17 @@ class Peaks:
             items = fit_dict[key]
             N, vol, data, norm, b, b_err, lamda, Tbar, I, sigma = items
 
-            peak_norm = np.nansum(norm)
+            w = norm / (N * vol)
+
+            peak_norm = np.nansum(w)
             peak_data = np.nansum((data - b))
             peak_err = np.sqrt(np.nansum((data + b_err**2)))
-            peak_vol = np.nansum(N * vol)
 
-            wl = np.nansum(lamda * norm) / peak_norm
-            wpl = np.nansum(Tbar * norm) / peak_norm
+            wl = np.nansum(lamda * w) / peak_norm
+            wpl = np.nansum(Tbar * w) / peak_norm
 
-            intens = self.scale * peak_data / peak_norm * peak_vol
-            sig_ext = self.scale * peak_err / peak_norm * peak_vol
+            intens = self.scale * peak_data / peak_norm
+            sig_ext = self.scale * peak_err / peak_norm
             sig_int = np.sqrt(np.nanmean((I - intens) ** 2))
 
             if sig_int > 0 and sig_ext > 0 and intens > 0:
