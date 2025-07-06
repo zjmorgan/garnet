@@ -129,7 +129,7 @@ class Integration(SubPlan):
             ub = UBModel("combine")
             ub.save_UB(ub_file)
 
-        self.clean_up()
+        self.cleanup()
 
     def laue_integrate(self):
         output_file = self.get_output_file()
