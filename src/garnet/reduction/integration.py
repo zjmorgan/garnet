@@ -2890,9 +2890,9 @@ class PeakEllipsoid:
             + C2 * (x2[0, 0, :] - c2)
         )
 
-        y1d_0_fit[~(np.isfinite(y1d_0) & (y1d_0 > 0))] = np.nan
-        y1d_1_fit[~(np.isfinite(y1d_1) & (y1d_1 > 0))] = np.nan
-        y1d_2_fit[~(np.isfinite(y1d_2) & (y1d_2 > 0))] = np.nan
+        y1d_0_fit[~(np.isfinite(y1d_0) & (e1d_0 > 0))] = np.nan
+        y1d_1_fit[~(np.isfinite(y1d_1) & (e1d_1 > 0))] = np.nan
+        y1d_2_fit[~(np.isfinite(y1d_2) & (e1d_2 > 0))] = np.nan
 
         y1 = [
             (y1d_0_fit, y1d_0, e1d_0),
@@ -2959,9 +2959,9 @@ class PeakEllipsoid:
             + C21 * (x1[:, :, 0] - c1)
         )
 
-        y2d_0_fit[~(np.isfinite(y2d_0) & (y2d_0 > 0))] = np.nan
-        y2d_1_fit[~(np.isfinite(y2d_1) & (y2d_1 > 0))] = np.nan
-        y2d_2_fit[~(np.isfinite(y2d_2) & (y2d_2 > 0))] = np.nan
+        y2d_0_fit[~(np.isfinite(y2d_0) & (e2d_0 > 0))] = np.nan
+        y2d_1_fit[~(np.isfinite(y2d_1) & (e2d_1 > 0))] = np.nan
+        y2d_2_fit[~(np.isfinite(y2d_2) & (e2d_2 > 0))] = np.nan
 
         y2 = [
             (y2d_0_fit, y2d_0, e2d_0),
@@ -2995,7 +2995,7 @@ class PeakEllipsoid:
             + B
         )
 
-        y3d_fit[~(np.isfinite(y3d) & (y3d > 0))] = np.nan
+        y3d_fit[~(np.isfinite(y3d) & (e3d >= 0))] = np.nan
 
         y3 = (y3d_fit, y3d, e3d)
 
