@@ -1,4 +1,7 @@
 import os
+import sys
+
+import yaml
 
 import numpy as np
 
@@ -44,46 +47,45 @@ from mantid.simpleapi import (
 class Vanadium:
     def __init__(
         self,
-        instrument="TOPAZ",
-        van_ipts=31856,
-        van_nos=None,
-        bkg_ipts=31856,
-        bkg_nos=None,
-        output_folder="",
-        calibration_folder="",
-        detector_calibration=None,
-        tube_calibration=None,
-        instrument_definition=None,
-        sample_shape="sphere",
-        diameter=4,
-        height=None,
-        beam_diameter=None,
-        k_limits=[1.8, 18],
-        mask_options=None,
-        grouping=[4, 4],
+        Instrument="TOPAZ",
+        VanadiumIPTS=31856,
+        VanadiumRuns=None,
+        NoSampleIPTS=31856,
+        NoSampleRuns=None,
+        OutputFolder="",
+        DetectorCalibration=None,
+        TubeCalibration=None,
+        InstrumentDefinition=None,
+        SampleShape="sphere",
+        Diameter=4,
+        Height=None,
+        BeamDiameter=None,
+        MomentumLimits=[1.8, 18],
+        MaskOptions=None,
+        Grouping=[4, 4],
     ):
-        self.instrument = instrument
+        self.instrument = Instrument
 
-        self.van_ipts = van_ipts
-        self.van_nos = van_nos
+        self.van_ipts = VanadiumIPTS
+        self.van_nos = VanadiumRuns
 
-        self.bkg_ipts = bkg_ipts
-        self.bkg_nos = bkg_nos
+        self.bkg_ipts = NoSampleIPTS
+        self.bkg_nos = NoSampleRuns
 
-        self.output_folder = output_folder
+        self.output_folder = OutputFolder
 
-        self.detector_calibration = detector_calibration
-        self.tube_calibration = tube_calibration
-        self.instrument_definition = instrument_definition
+        self.detector_calibration = DetectorCalibration
+        self.tube_calibration = TubeCalibration
+        self.instrument_definition = InstrumentDefinition
 
-        self.sample_shape = sample_shape
-        self.diameter = diameter
-        self.height = height
+        self.sample_shape = SampleShape
+        self.diameter = Diameter
+        self.height = Height
 
-        self.beam_diameter = beam_diameter
+        self.beam_diameter = BeamDiameter
 
-        self.mask_options = mask_options or {}
-        self.x_bins, self.y_bins = grouping
+        self.mask_options = MaskOptions or {}
+        self.x_bins, self.y_bins = Grouping
 
         self.file_folder = "/SNS/{}/IPTS-{}/nexus/"
         self.file_name = "{}_{}.nxs.h5"
@@ -92,7 +94,7 @@ class Vanadium:
         self.n_bins = 1000
         self.n_smooth = 20
 
-        self.k_min, self.k_max = k_limits
+        self.k_min, self.k_max = MomentumLimits
         self.k_step = (self.k_max - self.k_min) / self.n_bins
 
         self.lamda_min = 2 * np.pi / self.k_max
@@ -120,29 +122,29 @@ class Vanadium:
         )
 
     def apply_masks(self):
-        if self.mask_options.get("banks") is not None:
-            MaskBTP(Workspace=self.instrument, Bank=self.mask_options["banks"])
+        if self.mask_options.get("Banks") is not None:
+            MaskBTP(Workspace=self.instrument, Bank=self.mask_options["Banks"])
 
-        if self.mask_options.get("pixels") is not None:
+        if self.mask_options.get("Pixels") is not None:
             MaskBTP(
                 Workspace=self.instrument,
-                Pixel=self._join(self.mask_options["pixels"]),
+                Pixel=self._join(self.mask_options["Pixels"]),
             )
 
-        if self.mask_options.get("tubes") is not None:
+        if self.mask_options.get("Tubes") is not None:
             MaskBTP(
                 Workspace=self.instrument,
-                Tube=self._join(self.mask_options["tubes"]),
+                Tube=self._join(self.mask_options["Tubes"]),
             )
 
-        if self.mask_options.get("bank/tube") is not None:
-            for bank, tube in self.mask_options["bank/tube"]:
+        if self.mask_options.get("BankTube") is not None:
+            for bank, tube in self.mask_options["BankTube"]:
                 MaskBTP(
                     Workspace=self.instrument, Bank=str(bank), Tube=str(tube)
                 )
 
-        if self.mask_options.get("bank/tube/pixel") is not None:
-            for bank, tube, pixel in self.mask_options["bank/tube/pixel"]:
+        if self.mask_options.get("BankTubePixel") is not None:
+            for bank, tube, pixel in self.mask_options["BankTubePixel"]:
                 MaskBTP(
                     Workspace=self.instrument,
                     Bank=str(bank),
@@ -488,30 +490,11 @@ class Vanadium:
         self.finalize_and_save()
 
 
-params = {
-    "instrument": "MANDI",
-    "van_ipts": 8776,
-    "van_nos": [11935],
-    "bkg_ipts": 8776,
-    "bkg_nos": [11936],
-    "output_folder": "2025A_3mm_sphere_2A",
-    "detector_calibration": "/SNS/MANDI/shared/calibration/2025A/MANDI_2025A.DetCal",
-    "tube_calibration": None,
-    "instrument_definition": None,
-    "sample_shape": "sphere",
-    "diameter": 1,  # mm
-    "height": None,  # mm
-    "beam_diameter": 1,  # mm
-    "k_limits": [2.1, 6.28],
-    "mask_options": {
-        "pixels": [[0, 18], [237, 255]],
-        "tubes": [[0, 18], [237, 255]],
-        "banks": None,
-        "bank/tube": None,
-        "bank/tube/pixel": None,
-    },
-    "grouping": [4, 4],
-}
+if __name__ == "__main__":
+    config_file = sys.argv[1]
 
-norm = Vanadium(**params)
-norm.run()
+    with open(config_file, "r") as f:
+        params = yaml.safe_load(f)
+
+    norm = Vanadium(**params)
+    norm.run()
