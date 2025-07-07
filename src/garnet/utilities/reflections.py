@@ -32,6 +32,8 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 
+np.random.seed(13)
+
 import scipy.optimize
 import scipy.interpolate
 
@@ -1343,6 +1345,57 @@ class Peaks:
     def load_peaks(self):
         LoadNexus(Filename=self.filename, OutputWorkspace=self.peaks)
 
+        shape_dict = {}
+
+        s = np.array(
+            [
+                [sx, sy, sz]
+                for sx in [-1, 1]
+                for sy in [-1, 1]
+                for sz in [-1, 1]
+            ]
+        )
+
+        for peak in mtd[self.peaks]:
+            c = np.array(peak.getQSampleFrame())
+
+            shape = peak.getPeakShape()
+
+            if shape.shapeName() == "ellipsoid":
+                ellipsoid = eval(shape.toJSON())
+
+                v0 = [float(val) for val in ellipsoid["direction0"].split(" ")]
+                v1 = [float(val) for val in ellipsoid["direction1"].split(" ")]
+                v2 = [float(val) for val in ellipsoid["direction2"].split(" ")]
+
+                r0 = ellipsoid["radius0"]
+                r1 = ellipsoid["radius1"]
+                r2 = ellipsoid["radius2"]
+
+            else:
+                r0 = r1 = r2 = 1e-6
+                v0, v1, v2 = np.eye(3).tolist()
+
+            run = peak.getRunNumber()
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
+            key = (run, h, k, l, m, n, p)
+
+            r = np.array([r0, r1, r2])
+
+            U = np.column_stack([v0, v1, v2])
+            V_inv = np.diag(1 / r)
+            S_inv = np.dot(np.dot(U, V_inv), U.T)
+
+            local_corners = s * r
+            global_corners = c + local_corners @ U.T
+            min_corner = np.min(global_corners, axis=0)
+            max_corner = np.max(global_corners, axis=0)
+
+            shape_dict[key] = c, S_inv, min_corner, max_corner
+
+        self.shape_dict = shape_dict
+
         ub_file = self.filename.replace(".nxs", ".mat")
 
         if os.path.exists(ub_file):
@@ -1455,6 +1508,22 @@ class Peaks:
 
         self.rescale_intensities()
 
+    def monte_carlo_integration(self, c, S_inv, mins, maxs, n_samples=10000):
+        V_box = np.prod(maxs - mins)
+
+        samples = np.random.uniform(mins, maxs, size=(n_samples, 3))
+
+        diff = samples[:, np.newaxis, :] - c[np.newaxis, :, :]
+        d2 = np.einsum("...ni,nij,...nj->...n", diff, S_inv, diff)
+        mask = d2 <= 1.0
+
+        overlap = np.sum(mask, axis=1)
+        overlap[overlap == 0] = 1
+
+        veff = np.sum(mask / overlap[:, None], axis=0) * V_box / n_samples
+
+        return veff
+
     def merge_intensities(self, name=None, fit_dict=None):
         if name is not None:
             peaks = name
@@ -1482,6 +1551,8 @@ class Peaks:
         mod_HKL = ol.getModHKL().copy()
 
         fit_dict = {}
+        ellipsoid_dict = {}
+
         for peak in mtd[peaks]:
             h, k, l = [int(val) for val in peak.getIntHKL()]
             m, n, p = [int(val) for val in peak.getIntMNP()]
@@ -1513,10 +1584,32 @@ class Peaks:
             items[9].append(sigma)
             fit_dict[key] = items
 
+            key = (run, h, k, l, m, n, p)
+
+            c, S_inv, min_bounds, max_bounds = self.shape_dict[key]
+
+            key = (h, k, l, m, n, p)
+
+            items = ellipsoid_dict.get(key)
+            if items is None:
+                items = [], [], [], []
+            items[0].append(c)
+            items[1].append(S_inv)
+            items[2].append(min_bounds)
+            items[3].append(max_bounds)
+            ellipsoid_dict[key] = items
+
         for key in fit_dict.keys():
             items = fit_dict.get(key)
             items = [np.array(item) for item in items]
             fit_dict[key] = items
+
+        for key in ellipsoid_dict.keys():
+            items = ellipsoid_dict.get(key)
+            mins = np.min(items[2], axis=0)
+            maxs = np.max(items[3], axis=0)
+            items = np.array(items[0]), np.array(items[1]), mins, maxs
+            ellipsoid_dict[key] = items
 
         F2, Q, y = [], [], []
 
@@ -1532,6 +1625,9 @@ class Peaks:
             items = fit_dict[key]
             N, vol, data, norm, b, b_err, lamda, Tbar, I, sigma = items
 
+            # w = self.monte_carlo_integration(*ellipsoid_dict[key])
+            # w_sum = np.nanmean(w)
+
             peak_norm = np.nansum(norm)
             peak_data = np.nansum(data - b)
             peak_err = np.sqrt(np.nansum(data + b_err**2))
@@ -1542,6 +1638,10 @@ class Peaks:
 
             intens = self.scale * peak_data / peak_norm * peak_vol
             sig_ext = self.scale * peak_err / peak_norm * peak_vol
+
+            # intens = self.scale * np.nansum((data - b) / norm  * N * vol * w) / w_sum
+            # sig_ext = self.scale * np.sqrt(np.nansum((data + b_err**2) / norm**2 * N * vol * w) / w_sum)
+
             sig_int = np.sqrt(np.nanmean((I - intens) ** 2))
 
             if sig_int > 0 and sig_ext > 0 and intens > 0:
@@ -1687,16 +1787,15 @@ class Peaks:
 
         self.merge_intensities(name, fit_dict)
 
-        for peak in mtd[peaks]:
-            I = peak.getIntensity()
-            Q = 2 * np.pi / peak.getDSpacing()
-            sig = peak.getSigmaIntensity()
-            # diff = peak.getBinCount()
-            A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
-            sig_est = np.dot(A, self.x) * sig
-            sig = np.max([sig, sig_est])
-            # I if diff >= 2 * sig and diff > 0 else sig
-            peak.setSigmaIntensity(sig)
+        # for peak in mtd[peaks]:
+        # I = peak.getIntensity()
+        # Q = 2 * np.pi / peak.getDSpacing()
+        # sig = peak.getSigmaIntensity()
+        # diff = peak.getBinCount()
+        # A = [np.log(I) ** 2, Q**2, np.log(I) * Q, np.log(I), Q, 1]
+        # sig_est = np.dot(A, self.x) * sig
+        # I if diff >= 2 * sig and diff > 0 else sig
+        # peak.setSigmaIntensity(sig)
 
         _, indices = np.unique(
             mtd[peaks].column("BankName"), return_inverse=True
