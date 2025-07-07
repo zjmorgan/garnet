@@ -1429,15 +1429,22 @@ class Peaks:
 
             N = run_info.getLogData("peaks_voxels").value
             vol = run_info.getLogData("peaks_vol").value
-            data = run_info.getLogData("peaks_data").value
-            norm = run_info.getLogData("peaks_norm").value
-
-            b = run_info.getLogData("peaks_bkg").value
-            b_err = run_info.getLogData("peaks_bkg_err").value
+            pk_data = run_info.getLogData("peaks_pk_data").value
+            pk_norm = run_info.getLogData("peaks_pk_norm").value
+            bkg_data = run_info.getLogData("peaks_bkg_data").value
+            bkg_norm = run_info.getLogData("peaks_bkg_norm").value
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
-                info_dict[key] = N[i], vol[i], data[i], norm[i], b[i], b_err[i]
+                vals = (
+                    N[i],
+                    vol[i],
+                    pk_data[i],
+                    pk_norm[i],
+                    bkg_data[i],
+                    bkg_norm[i],
+                )
+                info_dict[key] = vals
 
         self.info_dict = info_dict
 
@@ -1623,24 +1630,32 @@ class Peaks:
             d = peak.getDSpacing()
 
             items = fit_dict[key]
-            N, vol, data, norm, b, b_err, lamda, Tbar, I, sigma = items
+            (
+                N,
+                d3x,
+                pk_data,
+                pk_norm,
+                bkg_data,
+                bkg_norm,
+                lamda,
+                Tbar,
+                I,
+                sigma,
+            ) = items
 
-            # w = self.monte_carlo_integration(*ellipsoid_dict[key])
-            # w_sum = np.nanmean(w)
+            norm = np.nansum(pk_norm)
+            data = np.nansum(pk_data)
 
-            peak_norm = np.nansum(norm)
-            peak_data = np.nansum(data - b)
-            peak_err = np.sqrt(np.nansum(data + b_err**2))
-            peak_vol = np.nanmean(N * vol)
+            vol = np.nansum(N * d3x)
 
-            wl = np.nansum(lamda * norm) / peak_norm
-            wpl = np.nansum(Tbar * norm) / peak_norm
+            b = np.nansum(bkg_data) / np.nansum(bkg_norm)
+            b_err = np.sqrt(np.nansum(bkg_data)) / np.nansum(bkg_norm)
 
-            intens = self.scale * peak_data / peak_norm * peak_vol
-            sig_ext = self.scale * peak_err / peak_norm * peak_vol
+            wl = np.nansum(lamda * pk_norm) / norm
+            wpl = np.nansum(Tbar * pk_norm) / norm
 
-            # intens = self.scale * np.nansum((data - b) / norm  * N * vol * w) / w_sum
-            # sig_ext = self.scale * np.sqrt(np.nansum((data + b_err**2) / norm**2 * N * vol * w) / w_sum)
+            intens = self.scale * (data / norm - b) * vol
+            sig_ext = self.scale * np.sqrt(data / norm**2 + b_err**2) * vol
 
             sig_int = np.sqrt(np.nanmean((I - intens) ** 2))
 

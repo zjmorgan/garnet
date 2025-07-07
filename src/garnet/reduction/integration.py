@@ -176,7 +176,7 @@ class Integration(SubPlan):
 
             data.group_pixels("data")
 
-            # data.load_background(self.plan.get("BackgroundFile"), "data")
+            data.load_background(self.plan.get("BackgroundFile"), "data")
 
             data.load_clear_UB(self.plan["UBFile"], "data", run)
 
@@ -244,59 +244,45 @@ class Integration(SubPlan):
 
             self.peaks, self.data = peaks, data
 
-            if self.params["ProfileFit"]:
-                r_cut = self.params["Radius"]
+            r_cut = self.params["Radius"]
 
-                if not self.params.get("Recalibrate"):
-                    est_file = self.get_plot_file("centroid#{}".format(run))
+            if not self.params.get("Recalibrate"):
+                est_file = self.get_plot_file("centroid#{}".format(run))
 
-                    self.estimate_peak_centroid(
-                        "peaks", r_cut, d_min, est_file
-                    )
+                self.estimate_peak_centroid("peaks", r_cut, d_min, est_file)
 
-                    ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
+                ub_file = self.get_diagnostic_file("run#{}_ub".format(run))
 
-                    opt = Optimization("peaks")
-                    opt.optimize_lattice("Fixed")
+                opt = Optimization("peaks")
+                opt.optimize_lattice("Fixed")
 
-                    ub_file = os.path.splitext(ub_file)[0] + ".mat"
+                ub_file = os.path.splitext(ub_file)[0] + ".mat"
 
-                    ub = UBModel("peaks")
-                    ub.save_UB(ub_file)
+                ub = UBModel("peaks")
+                ub.save_UB(ub_file)
 
-                    data.load_clear_UB(ub_file, "data", run)
+                data.load_clear_UB(ub_file, "data", run)
 
-                peaks.predict_peaks(
-                    "data",
-                    "peaks",
-                    centering,
-                    d_min,
-                    lamda_min,
-                    lamda_max,
-                )
+            peaks.predict_peaks(
+                "data",
+                "peaks",
+                centering,
+                d_min,
+                lamda_min,
+                lamda_max,
+            )
 
-                self.predict_add_satellite_peaks(lamda_min, lamda_max)
+            self.predict_add_satellite_peaks(lamda_min, lamda_max)
 
-                est_file = self.get_plot_file("profile#{}".format(run))
+            est_file = self.get_plot_file("profile#{}".format(run))
 
-                params = self.estimate_peak_size("peaks", r_cut, est_file)
+            params = self.estimate_peak_size("peaks", r_cut, est_file)
 
-                peak_dict = self.extract_peak_info("peaks", params, True)
+            peak_dict = self.extract_peak_info("peaks", params, True)
 
-                results = self.integrate_peaks(peak_dict)
+            results = self.integrate_peaks(peak_dict)
 
-                self.update_peak_info("peaks", results)
-
-            else:
-                self.predict_add_satellite_peaks(lamda_min, lamda_max)
-
-                peaks.integrate_peaks(
-                    "md",
-                    "peaks",
-                    self.params["Radius"],
-                    method="ellipsoid",
-                    centroid=True,
-                )
+            self.update_peak_info("peaks", results)
 
             data.delete_workspace("data")
 
@@ -3467,7 +3453,7 @@ class PeakEllipsoid:
         if not sig > 0:
             sig = float("inf")
 
-        return intens, sig, b, b_err, vox, pk_cnts, pk_norm
+        return intens, sig, b, b_err, vox, pk_cnts, pk_norm, bkg_cnts, bkg_norm
 
     def integrate(self, x0, x1, x2, d, n, val_mask, det_mask, c, S):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
@@ -3481,7 +3467,7 @@ class PeakEllipsoid:
 
         result = self.extract_intensity(d, n, pk, bkg)
 
-        intens, sig, b, b_err, N, data, norm = result
+        intens, sig, b, b_err, N, pk_data, pk_norm, bkg_data, bkg_norm = result
 
         intens *= d3x
         sig *= d3x
@@ -3501,7 +3487,9 @@ class PeakEllipsoid:
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
-        self.info += [intens_raw, sig_raw, N, data, norm]
+        self.info += [intens_raw, sig_raw]
+
+        self.info += [N, pk_data, pk_norm, bkg_data, bkg_norm]
 
         if not np.isfinite(sig):
             sig = float("inf")
