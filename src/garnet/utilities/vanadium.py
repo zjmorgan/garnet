@@ -254,14 +254,14 @@ class Vanadium:
         if self.sample_shape == "sphere":
             shape = {
                 "Shape": "Sphere",
-                "Radius": self.diameter * 0.05,
+                "Radius": self.diameter * 0.0005,
                 "Center": [0.0, 0.0, 0.0],
             }
         else:
             shape = {
                 "Shape": "Cylinder",
-                "Height": self.height * 0.1,
-                "Radius": self.diameter * 0.05,
+                "Height": self.height * 0.001,
+                "Radius": self.diameter * 0.0005,
                 "Axis": [0.0, 0.0, 1.0],
                 "Center": [0.0, 0.0, 0.0],
             }
@@ -347,9 +347,6 @@ class Vanadium:
             CylinderAbsorption(
                 InputWorkspace="vanadium",
                 OutputWorkspace="corr",
-                AttenuationXSection=self.sigma_a,
-                ScatteringXSection=self.sigma_s,
-                SampleNumberDensity=self.n,
                 NumberOfWavelengthPoints=5,
                 CylinderSampleHeight=self.height * 0.1,
                 CylinderSampleRadius=self.diameter * 0.05,
@@ -360,9 +357,6 @@ class Vanadium:
             SphericalAbsorption(
                 InputWorkspace="vanadium",
                 OutputWorkspace="corr",
-                AttenuationXSection=self.sigma_a,
-                ScatteringXSection=self.sigma_s,
-                SampleNumberDensity=self.n,
                 SphericalSampleRadius=self.diameter * 0.05,
             )
 

@@ -142,6 +142,7 @@ class Parametrization(SubPlan):
                         projections,
                         extents,
                         self.params["Bins"],
+                        "-1",
                     )
 
                     data.combine_splits(
