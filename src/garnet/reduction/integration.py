@@ -573,6 +573,12 @@ class Integration(SubPlan):
         d1 = x1[0, 1, 0] - x1[0, 0, 0]
         d2 = x2[0, 0, 1] - x2[0, 0, 0]
 
+        d2_0 = d1 * d2
+        d2_1 = d0 * d2
+        d2_2 = d0 * d2
+
+        d3 = d0 * d1 * d2
+
         y1d_0 = np.nansum(d, axis=(1, 2)) / np.nansum(n, axis=(1, 2))
         e1d_0 = np.sqrt(np.nansum(d, axis=(1, 2))) / np.nansum(n, axis=(1, 2))
         y1d_0_fit = y1d_0.copy()
@@ -591,15 +597,19 @@ class Integration(SubPlan):
             (y1d_2_fit, y1d_2, e1d_2),
         ]
 
-        I1d_0 = np.nansum(y1d_0[2:-2] - np.nanmedian(y1d_0[0::8])) * d0
-        I1d_1 = np.nansum(y1d_1[2:-2] - np.nanmedian(y1d_1[0::8])) * d1
-        I1d_2 = np.nansum(y1d_2[2:-2] - np.nanmedian(y1d_2[0::8])) * d2
+        b1d_0 = np.nanmedian(y1d_0[0::8])
+        b1d_1 = np.nanmedian(y1d_1[0::8])
+        b1d_2 = np.nanmedian(y1d_2[0::8])
+
+        I1d_0 = np.nansum(y1d_0[2:-2] - b1d_0) * d0
+        I1d_1 = np.nansum(y1d_1[2:-2] - b1d_1) * d1
+        I1d_2 = np.nansum(y1d_2[2:-2] - b1d_2) * d2
 
         I1d = [I1d_0, I1d_1, I1d_2]
 
-        s1d_0 = np.nansum(e1d_0[2:-2] ** 2 + np.nanmedian(y1d_0[0::8])) * d0
-        s1d_1 = np.nansum(e1d_1[2:-2] ** 2 + np.nanmedian(y1d_1[0::8])) * d1
-        s1d_2 = np.nansum(e1d_2[2:-2] ** 2 + np.nanmedian(y1d_2[0::8])) * d2
+        s1d_0 = np.sqrt(np.nansum(e1d_0[2:-2] ** 2 + b1d_0)) * d0
+        s1d_1 = np.sqrt(np.nansum(e1d_1[2:-2] ** 2 + b1d_1)) * d1
+        s1d_2 = np.sqrt(np.nansum(e1d_2[2:-2] ** 2 + b1d_2)) * d2
 
         s1d = [s1d_0, s1d_1, s1d_2]
 
@@ -621,39 +631,19 @@ class Integration(SubPlan):
             (y2d_2_fit, y2d_2, e2d_2),
         ]
 
-        I2d_0 = (
-            np.nansum(y2d_0[2:-2, 2:-2] - np.nanmedian(y2d_0[0::8, 0::8]))
-            * d1
-            * d2
-        )
-        I2d_1 = (
-            np.nansum(y2d_1[2:-2, 2:-2] - np.nanmedian(y2d_1[0::8, 0::8]))
-            * d0
-            * d2
-        )
-        I2d_2 = (
-            np.nansum(y2d_2[2:-2, 2:-2] - np.nanmedian(y2d_2[0::8, 0::8]))
-            * d0
-            * d1
-        )
+        b2d_0 = np.nanmedian(y2d_0[0::8])
+        b2d_1 = np.nanmedian(y2d_1[0::8])
+        b2d_2 = np.nanmedian(y2d_2[0::8])
+
+        I2d_0 = np.nansum(y2d_0[2:-2, 2:-2] - b2d_0) * d2_0
+        I2d_1 = np.nansum(y2d_1[2:-2, 2:-2] - b2d_1) * d2_1
+        I2d_2 = np.nansum(y2d_2[2:-2, 2:-2] - b2d_2) * d2_2
 
         I2d = [I2d_0, I2d_1, I2d_2]
 
-        s2d_0 = (
-            np.nansum(e2d_0[2:-2, 2:-2] ** 2 + np.nanmedian(y2d_0[0::8, 0::8]))
-            * d1
-            * d2
-        )
-        s2d_1 = (
-            np.nansum(e2d_1[2:-2, 2:-2] ** 2 + np.nanmedian(y2d_1[0::8, 0::8]))
-            * d0
-            * d2
-        )
-        s2d_2 = (
-            np.nansum(e2d_2[2:-2, 2:-2] ** 2 + np.nanmedian(y2d_2[0::8, 0::8]))
-            * d0
-            * d1
-        )
+        s2d_0 = np.sqrt(np.nansum(e2d_0[2:-2, 2:-2] ** 2 + b2d_0)) * d2_0
+        s2d_1 = np.sqrt(np.nansum(e2d_1[2:-2, 2:-2] ** 2 + b2d_1)) * d2_1
+        s2d_2 = np.sqrt(np.nansum(e2d_2[2:-2, 2:-2] ** 2 + b2d_2)) * d2_2
 
         s2d = [s2d_0, s2d_1, s2d_2]
 
@@ -661,23 +651,10 @@ class Integration(SubPlan):
         e3d = np.sqrt(d) / n
         y3d_fit = y3d.copy()
 
-        I3d = (
-            np.nansum(
-                y3d[2:-2, 2:-2, 2:-2] - np.nanmedian(y3d[0::8, 0::8, 0::8])
-            )
-            * d0
-            * d1
-            * d2
-        )
-        s3d = (
-            np.nansum(
-                e3d[2:-2, 2:-2, 2:-2] ** 2
-                + np.nanmedian(y3d[0::8, 0::8, 0::8])
-            )
-            * d0
-            * d1
-            * d2
-        )
+        b3d = np.nanmedian(y3d[0::8, 0::8, 0::8])
+
+        I3d = np.nansum(y3d[2:-2, 2:-2, 2:-2] - b3d) * d3
+        s3d = np.sqrt(np.nansum(e3d[2:-2, 2:-2, 2:-2] ** 2 + b3d)) * d3
 
         best_prof = (
             (x0[:, 0, 0], *y1d[0]),
@@ -693,69 +670,49 @@ class Integration(SubPlan):
 
         best_fit = (x0, x1, x2, y3d_fit, y3d, e3d)
 
-        pk_data = np.nansum(d[0::8, 0::8, 0::8])
-        pk_norm = np.nansum(n[0::8, 0::8, 0::8])
+        bkg_data = np.nansum(d[0::8, 0::8, 0::8])
+        bkg_norm = np.nansum(n[0::8, 0::8, 0::8])
 
-        bkg_data = np.nansum(d[2:-2, 2:-2, 2:-2])
-        bkg_norm = np.nansum(n[2:-2, 2:-2, 2:-2])
+        pk_data = np.nansum(d[2:-2, 2:-2, 2:-2])
+        pk_norm = np.nansum(n[2:-2, 2:-2, 2:-2])
 
         b = bkg_data / bkg_norm
         b_err = np.sqrt(bkg_data) / np.nansum(bkg_norm)
 
         N = 125
 
-        intens = np.nansum(bkg_data / bkg_norm - b) * d0 * d1 * d2 * N
-        sig = (
-            np.sqrt(np.nansum(bkg_data / bkg_norm**2 + b_err**2))
-            * d0
-            * d1
-            * d2
-            * N
-        )
+        intens = np.nansum(pk_data / pk_norm - b) * d3 * N
+        sig = np.sqrt(np.nansum(pk_data / pk_norm**2 + b_err**2)) * d3 * N
 
         params = (intens, sig, b, b_err)
 
         data_norm_fit = ((x0, x1, x2), (d0, d1, d2), y3d), params
 
-        info = [d0 * d1 * d2, b, b_err]
+        info = [d3, b, b_err]
 
-        intens_raw = (pk_data - bkg_data / N) * d0 * d1 * d2
-        sig_raw = np.sqrt(pk_data + bkg_data / N) * d0 * d1 * d2
+        intens_raw = (pk_data - bkg_data / N) * d3
+        sig_raw = np.sqrt(pk_data + bkg_data / N) * d3
 
         info += [intens_raw, sig_raw]
 
         info += [N, pk_data, pk_norm, bkg_data, bkg_norm]
 
-        intensity = [I1d, I2d, I3d]
-        sigma = [s1d, s2d, s3d]
+        intensity = [I1d, I2d, I3d, intens]
+        sigma = [s1d, s2d, s3d, sig]
         redchi2 = [[0, 0, 0], [0, 0, 0], 0]
 
-        S = (
-            np.diag(
-                [
-                    x0[-1, 0, 0] - x0[0, 0, 0],
-                    x1[0, -1, 0] - x1[0, 0, 0],
-                    x2[0, 0, -1] - x2[0, 0, 0],
-                ]
-            )
-            ** 2
-            / np.cbrt(3) ** 2
-            / 4
-        )
+        r0 = (x0[-1, 0, 0] - x0[0, 0, 0]) / 2 / np.cbrt(3)
+        r1 = (x1[0, -1, 0] - x1[0, 0, 0]) / 2 / np.cbrt(3)
+        r2 = (x2[0, 0, -1] - x2[0, 0, 0]) / 2 / np.cbrt(3)
 
-        c = (
-            np.array(
-                [
-                    x0[-1, 0, 0] + x0[0, 0, 0],
-                    x1[0, -1, 0] + x1[0, 0, 0],
-                    x2[0, 0, -1] + x2[0, 0, 0],
-                ]
-            )
-            / 2
-        )
+        S = np.diag([r0, r1, r2]) ** 2
 
-        c0, c1, c2 = c
-        r0, r1, r2 = np.sqrt(np.diag(S))
+        c0 = (x0[-1, 0, 0] + x0[0, 0, 0]) / 2
+        c1 = (x1[0, -1, 0] + x1[0, 0, 0]) / 2
+        c2 = (x2[0, 0, -1] + x2[0, 0, 0]) / 2
+
+        c = np.array([c0, c1, c2])
+
         v0, v1, v2 = np.eye(3)
 
         sphere = c0, c1, c2, r0, r1, r2, v0, v1, v2
