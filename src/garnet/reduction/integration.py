@@ -193,11 +193,9 @@ class Integration(SubPlan):
 
                 const = ub.get_lattice_parameters()
 
-                min_d, max_d = ub.get_primitive_unit_cell_length_range(
-                    *const, centering
-                )
+                min_d, max_d = ub.get_primitive_cell_length_range(centering)
 
-                const = ub.convert_conventional_to_primitive(*const, centering)
+                const = ub.convert_conventional_to_primitive(centering)
 
                 data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
@@ -278,7 +276,9 @@ class Integration(SubPlan):
 
             params = self.estimate_peak_size("peaks", r_cut, est_file)
 
-            peak_dict = self.extract_peak_info("peaks", params, True)
+            fit = self.params["ProfileFit"]
+
+            peak_dict = self.extract_peak_info("peaks", params, True, fit)
 
             results = self.integrate_peaks(peak_dict)
 
@@ -568,6 +568,214 @@ class Integration(SubPlan):
 
         return params
 
+    def quick_fit(self, x0, x1, x2, d, n):
+        d0 = x0[1, 0, 0] - x0[0, 0, 0]
+        d1 = x1[0, 1, 0] - x1[0, 0, 0]
+        d2 = x2[0, 0, 1] - x2[0, 0, 0]
+
+        y1d_0 = np.nansum(d, axis=(1, 2)) / np.nansum(n, axis=(1, 2))
+        e1d_0 = np.sqrt(np.nansum(d, axis=(1, 2))) / np.nansum(n, axis=(1, 2))
+        y1d_0_fit = y1d_0.copy()
+
+        y1d_1 = np.nansum(d, axis=(0, 2)) / np.nansum(n, axis=(0, 2))
+        e1d_1 = np.sqrt(np.nansum(d, axis=(0, 2))) / np.nansum(n, axis=(0, 2))
+        y1d_1_fit = y1d_1.copy()
+
+        y1d_2 = np.nansum(d, axis=(0, 1)) / np.nansum(n, axis=(0, 1))
+        e1d_2 = np.sqrt(np.nansum(d, axis=(0, 1))) / np.nansum(n, axis=(0, 1))
+        y1d_2_fit = y1d_2.copy()
+
+        y1d = [
+            (y1d_0_fit, y1d_0, e1d_0),
+            (y1d_1_fit, y1d_1, e1d_1),
+            (y1d_2_fit, y1d_2, e1d_2),
+        ]
+
+        I1d_0 = np.nansum(y1d_0[2:-2] - np.nanmedian(y1d_0[0::8])) * d0
+        I1d_1 = np.nansum(y1d_1[2:-2] - np.nanmedian(y1d_1[0::8])) * d1
+        I1d_2 = np.nansum(y1d_2[2:-2] - np.nanmedian(y1d_2[0::8])) * d2
+
+        I1d = [I1d_0, I1d_1, I1d_2]
+
+        s1d_0 = np.nansum(e1d_0[2:-2] ** 2 + np.nanmedian(y1d_0[0::8])) * d0
+        s1d_1 = np.nansum(e1d_1[2:-2] ** 2 + np.nanmedian(y1d_1[0::8])) * d1
+        s1d_2 = np.nansum(e1d_2[2:-2] ** 2 + np.nanmedian(y1d_2[0::8])) * d2
+
+        s1d = [s1d_0, s1d_1, s1d_2]
+
+        y2d_0 = np.nansum(d, axis=0) / np.nansum(n, axis=0)
+        e2d_0 = np.sqrt(np.nansum(d, axis=0)) / np.nansum(n, axis=0)
+        y2d_0_fit = y2d_0.copy()
+
+        y2d_1 = np.nansum(d, axis=1) / np.nansum(n, axis=1)
+        e2d_1 = np.sqrt(np.nansum(d, axis=1)) / np.nansum(n, axis=1)
+        y2d_1_fit = y2d_1.copy()
+
+        y2d_2 = np.nansum(d, axis=2) / np.nansum(n, axis=2)
+        e2d_2 = np.sqrt(np.nansum(d, axis=2)) / np.nansum(n, axis=2)
+        y2d_2_fit = y2d_2.copy()
+
+        y2d = [
+            (y2d_0_fit, y2d_0, e2d_0),
+            (y2d_1_fit, y2d_1, e2d_1),
+            (y2d_2_fit, y2d_2, e2d_2),
+        ]
+
+        I2d_0 = (
+            np.nansum(y2d_0[2:-2, 2:-2] - np.nanmedian(y2d_0[0::8, 0::8]))
+            * d1
+            * d2
+        )
+        I2d_1 = (
+            np.nansum(y2d_1[2:-2, 2:-2] - np.nanmedian(y2d_1[0::8, 0::8]))
+            * d0
+            * d2
+        )
+        I2d_2 = (
+            np.nansum(y2d_2[2:-2, 2:-2] - np.nanmedian(y2d_2[0::8, 0::8]))
+            * d0
+            * d1
+        )
+
+        I2d = [I2d_0, I2d_1, I2d_2]
+
+        s2d_0 = (
+            np.nansum(e2d_0[2:-2, 2:-2] ** 2 + np.nanmedian(y2d_0[0::8, 0::8]))
+            * d1
+            * d2
+        )
+        s2d_1 = (
+            np.nansum(e2d_1[2:-2, 2:-2] ** 2 + np.nanmedian(y2d_1[0::8, 0::8]))
+            * d0
+            * d2
+        )
+        s2d_2 = (
+            np.nansum(e2d_2[2:-2, 2:-2] ** 2 + np.nanmedian(y2d_2[0::8, 0::8]))
+            * d0
+            * d1
+        )
+
+        s2d = [s2d_0, s2d_1, s2d_2]
+
+        y3d = d / n
+        e3d = np.sqrt(d) / n
+        y3d_fit = y3d.copy()
+
+        I3d = (
+            np.nansum(
+                y3d[2:-2, 2:-2, 2:-2] - np.nanmedian(y3d[0::8, 0::8, 0::8])
+            )
+            * d0
+            * d1
+            * d2
+        )
+        s3d = (
+            np.nansum(
+                e3d[2:-2, 2:-2, 2:-2] ** 2
+                + np.nanmedian(y3d[0::8, 0::8, 0::8])
+            )
+            * d0
+            * d1
+            * d2
+        )
+
+        best_prof = (
+            (x0[:, 0, 0], *y1d[0]),
+            (x1[0, :, 0], *y1d[1]),
+            (x2[0, 0, :], *y1d[2]),
+        )
+
+        best_proj = (
+            (x1[0, :, :], x2[0, :, :], *y2d[0]),
+            (x0[:, 0, :], x2[:, 0, :], *y2d[1]),
+            (x0[:, :, 0], x1[:, :, 0], *y2d[2]),
+        )
+
+        best_fit = (x0, x1, x2, y3d_fit, y3d, e3d)
+
+        pk_data = np.nansum(d[0::8, 0::8, 0::8])
+        pk_norm = np.nansum(n[0::8, 0::8, 0::8])
+
+        bkg_data = np.nansum(d[2:-2, 2:-2, 2:-2])
+        bkg_norm = np.nansum(n[2:-2, 2:-2, 2:-2])
+
+        b = bkg_data / bkg_norm
+        b_err = np.sqrt(bkg_data) / np.nansum(bkg_norm)
+
+        N = 125
+
+        intens = np.nansum(bkg_data / bkg_norm - b) * d0 * d1 * d2 * N
+        sig = (
+            np.sqrt(np.nansum(bkg_data / bkg_norm**2 + b_err**2))
+            * d0
+            * d1
+            * d2
+            * N
+        )
+
+        params = (intens, sig, b, b_err)
+
+        data_norm_fit = ((x0, x1, x2), (d0, d1, d2), y3d), params
+
+        info = [d0 * d1 * d2, b, b_err]
+
+        intens_raw = (pk_data - bkg_data / N) * d0 * d1 * d2
+        sig_raw = np.sqrt(pk_data + bkg_data / N) * d0 * d1 * d2
+
+        info += [intens_raw, sig_raw]
+
+        info += [N, pk_data, pk_norm, bkg_data, bkg_norm]
+
+        intensity = [I1d, I2d, I3d]
+        sigma = [s1d, s2d, s3d]
+        redchi2 = [[0, 0, 0], [0, 0, 0], 0]
+
+        S = (
+            np.diag(
+                [
+                    x0[-1, 0, 0] - x0[0, 0, 0],
+                    x1[0, -1, 0] - x1[0, 0, 0],
+                    x2[0, 0, -1] - x2[0, 0, 0],
+                ]
+            )
+            ** 2
+            / np.cbrt(3) ** 2
+            / 4
+        )
+
+        c = (
+            np.array(
+                [
+                    x0[-1, 0, 0] + x0[0, 0, 0],
+                    x1[0, -1, 0] + x1[0, 0, 0],
+                    x2[0, 0, -1] + x2[0, 0, 0],
+                ]
+            )
+            / 2
+        )
+
+        c0, c1, c2 = c
+        r0, r1, r2 = np.sqrt(np.diag(S))
+        v0, v1, v2 = np.eye(3)
+
+        sphere = c0, c1, c2, r0, r1, r2, v0, v1, v2
+
+        return (
+            c,
+            S,
+            sphere,
+            info,
+            best_prof,
+            best_proj,
+            best_fit,
+            data_norm_fit,
+            redchi2,
+            intensity,
+            sigma,
+            intens,
+            sig,
+        )
+
     def fit_peaks(self, key_value):
         key, value = key_value
 
@@ -581,17 +789,36 @@ class Integration(SubPlan):
 
         ellipsoid = PeakEllipsoid()
 
-        params = None
-        try:
-            args = (Q0, Q1, Q2, d, n, gd, gn, val_mask, det_mask, dQ, Q)
-            params = ellipsoid.fit(*args)
-        except Exception as e:
-            print("Exception fitting data: {}".format(e))
-            return key, None
+        params, value = None, None
+        if all(interp):
+            try:
+                args = (Q0, Q1, Q2, d, n, gd, gn, val_mask, det_mask, dQ, Q)
+                params = ellipsoid.fit(*args)
+            except Exception as e:
+                print("Exception fitting data: {}".format(e))
+                return key, value
+        else:
+            result = self.quick_fit(Q0, Q1, Q2, d, n)
+
+            (
+                c,
+                S,
+                sphere,
+                info,
+                best_prof,
+                best_proj,
+                best_fit,
+                data_norm_fit,
+                redchi2,
+                intensity,
+                sigma,
+                intens,
+                sig,
+            ) = result
+
+            shape = self.revert_ellipsoid_parameters(sphere, projections)
 
         print(self.status + " 2/2 {:}/{:}".format(key, self.total))
-
-        value = None
 
         if params is not None:
             c, S, *best_fit = ellipsoid.best_fit
@@ -601,41 +828,45 @@ class Integration(SubPlan):
             norm_params = Q0, Q1, Q2, d, n, val_mask, det_mask, c, S
 
             try:
-                I, sigma = ellipsoid.integrate(*norm_params)
+                intens, sig = ellipsoid.integrate(*norm_params)
             except Exception as e:
                 print("Exception extracting intensity: {}".format(e))
+                return key, value
+
+            info = ellipsoid.info
+            best_prof = ellipsoid.best_prof
+            best_proj = ellipsoid.best_proj
+            data_norm_fit = ellipsoid.data_norm_fit
+            redchi2 = ellipsoid.redchi2
+            intensity = ellipsoid.intensity
+            sigma = ellipsoid.sigma
+
+        if self.make_plot:
+            self.peak_plot.add_ellipsoid_fit(best_fit)
+
+            self.peak_plot.add_profile_fit(best_prof)
+
+            self.peak_plot.add_projection_fit(best_proj)
+
+            self.peak_plot.add_ellipsoid(c, S)
+
+            self.peak_plot.update_envelope(c, S)
+
+            self.peak_plot.add_peak_info(
+                hkl, d_spacing, wavelength, angles, goniometer
+            )
+
+            self.peak_plot.add_peak_stats(redchi2, intensity, sigma)
+
+            self.peak_plot.add_data_norm_fit(*data_norm_fit)
+
+            try:
+                self.peak_plot.save_plot(peak_file)
+            except Exception as e:
+                print("Exception saving figure: {}".format(e))
                 return key, None
 
-            if self.make_plot:
-                self.peak_plot.add_ellipsoid_fit(best_fit)
-
-                self.peak_plot.add_profile_fit(ellipsoid.best_prof)
-
-                self.peak_plot.add_projection_fit(ellipsoid.best_proj)
-
-                self.peak_plot.add_ellipsoid(c, S)
-
-                self.peak_plot.update_envelope(c, S)
-
-                self.peak_plot.add_peak_info(
-                    hkl, d_spacing, wavelength, angles, goniometer
-                )
-
-                self.peak_plot.add_peak_stats(
-                    ellipsoid.redchi2,
-                    ellipsoid.intensity,
-                    ellipsoid.sigma,
-                )
-
-                self.peak_plot.add_data_norm_fit(*ellipsoid.data_norm_fit)
-
-                try:
-                    self.peak_plot.save_plot(peak_file)
-                except Exception as e:
-                    print("Exception saving figure: {}".format(e))
-                    return key, None
-
-            value = I, sigma, shape, [*ellipsoid.info, *shape[:3]], hkl
+            value = intens, sig, shape, [*info, *shape[:3]], hkl
 
         return key, value
 
@@ -691,7 +922,7 @@ class Integration(SubPlan):
 
         return gd, gn, data_mask, detection_mask
 
-    def extract_peak_info(self, peaks_ws, r_cut, norm=False):
+    def extract_peak_info(self, peaks_ws, r_cut, norm=False, fit=True):
         """
         Obtain peak information for envelope determination.
 
@@ -743,54 +974,31 @@ class Integration(SubPlan):
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut
+            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, fit
 
-            # ---
+            bin_extent = self.bin_extent(*bin_params)
 
-            bins, extents, projections, transform = self.bin_extent(
-                *bin_params
-            )
-
-            points = [
-                [h - 0.5, k, l],
-                [h + 0.5, k, l],
-                [h, k - 0.5, l],
-                [h, k + 0.5, l],
-                [h, k, l - 0.5],
-                [h, k, l + 0.5],
-            ]
-
-            Q0_box, Q1_box, Q2_box = [], [], []
-            for point in points:
-                Qp_0, Qp_1, Qp_2 = 2 * np.pi * np.dot(UB, point)
-                Q0_box.append(Qp_0)
-                Q1_box.append(Qp_1)
-                Q2_box.append(Qp_2)
-
-            Q0 = np.min(Q0_box), np.max(Q0_box)
-            Q1 = np.min(Q1_box), np.max(Q1_box)
-            Q2 = np.min(Q2_box), np.max(Q2_box)
-
-            data.slice_roi("md", [Q0, Q1, Q2])
+            bins, extents, projections, transform = bin_extent
 
             if norm:
-                data.normalize_to_hkl("md_slice", transform, extents, bins)
+                data.normalize_to_hkl("md", transform, extents, bins)
 
-                d, _, Q0, Q1, Q2 = data.extract_bin_info("md_slice_data")
-                n, _, Q0, Q1, Q2 = data.extract_bin_info("md_slice_norm")
+                d, _, Q0, Q1, Q2 = data.extract_bin_info("md_data")
+                n, _, Q0, Q1, Q2 = data.extract_bin_info("md_norm")
 
-                data.clear_norm("md_slice")
+                data.clear_norm("md")
 
             else:
                 d, _, Q0, Q1, Q2 = data.bin_in_Q(
-                    "md_slice", extents, bins, projections
+                    "md", extents, bins, projections
                 )
 
-                n = 1.0 * (data.extract_counts("md_slice_bin") > 0)
+                n = 1.0 * (data.extract_counts("md_bin") > 0)
 
-            interp = self.interpolate(Q0, Q1, Q2, d, n)
-
-            # d, n, data_mask, detection_mask = interp
+            if fit:
+                interp = self.interpolate(Q0, Q1, Q2, d, n)
+            else:
+                interp = [None] * 4
 
             data_info = (Q0, Q1, Q2, d, n, *interp, dQ, Q, kappa, projections)
 
@@ -838,8 +1046,6 @@ class Integration(SubPlan):
                 peak.set_peak_shape(i, *shape)
 
                 peak.add_diagonstic_info(i, info)
-
-                # print("({} {} {}) / ({} {} {})".format(*hkl, *peak.get_hkl(i)))
 
     def bin_axes(self, R, two_theta, az_phi):
         two_theta = np.deg2rad(two_theta)
@@ -889,7 +1095,7 @@ class Integration(SubPlan):
 
         return np.einsum("ij,j...->i...", W, [Q0, Q1, Q2])
 
-    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut):
+    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut, fit):
         n, u, v = self.bin_axes(R, two_theta, az_phi)
 
         projections = [n, u, v]
@@ -903,9 +1109,9 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        n_bins = 15
+        n_bins = 15 if fit else 9
 
-        if type(r_cut) is float:
+        if type(r_cut) is float or fit:
             dQ_cut = 3 * [r_cut]
         else:
             (r0, r1, r2), (dr0, dr1, dr2) = r_cut
@@ -946,15 +1152,19 @@ class Integration(SubPlan):
             [[Q0 - dQ0, Q0 + dQ0], [Q1 - dQ1, Q1 + dQ1], [Q2 - dQ2, Q2 + dQ2]]
         )
 
-        min_adjusted = np.floor(extents[:, 0] / bin_sizes) * bin_sizes
-        max_adjusted = np.ceil(extents[:, 1] / bin_sizes) * bin_sizes
+        if fit:
+            min_adjusted = np.floor(extents[:, 0] / bin_sizes) * bin_sizes
+            max_adjusted = np.ceil(extents[:, 1] / bin_sizes) * bin_sizes
 
-        bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
+            bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
-        bins[bins < 10] = 10
-        bins[bins > 30] = 30
+            bins[bins < 10] = 10
+            bins[bins > 30] = 30
 
-        extents = np.vstack((min_adjusted, max_adjusted)).T
+            extents = np.vstack((min_adjusted, max_adjusted)).T
+
+        else:
+            bins = np.array([n_bins, n_bins, n_bins])
 
         return bins, extents, projections, transform
 

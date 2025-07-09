@@ -231,30 +231,17 @@ class UBModel:
 
         return uc.a(), uc.b(), uc.c(), uc.alpha(), uc.beta(), uc.gamma()
 
-    def transform_primitive_to_conventional(self, centering):
+    def calculate_transform_extents(self, centering):
         P = centering_matrices[centering]
 
-        self.transform_lattice(np.linalg.inv(P.T))
+        return np.linalg.inv(P).T
 
-    def get_primitive_unit_cell_length_range(
-        self,
-        a,
-        b,
-        c,
-        alpha,
-        beta,
-        gamma,
-        centering,
-    ):
-        const = self.convert_conventional_to_primitive(
-            a,
-            b,
-            c,
-            alpha,
-            beta,
-            gamma,
-            centering,
-        )
+    def transform_primitive_to_conventional(self, centering):
+        self.transform_lattice(self.calculate_transform_extents(centering))
+
+    def get_primitive_cell_length_range(self, centering):
+        const = self.get_lattice_parameters()
+        const = self.convert_conventional_to_primitive(*const)
 
         d_min = 0.95 * np.min(const[:3])
         d_max = 1.05 * np.max(const[:3])
