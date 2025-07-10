@@ -426,7 +426,7 @@ class Vanadium:
         InterpolatingRebin(
             InputWorkspace="spectra",
             OutputWorkspace="spectra",
-            Params=[self.lamda_min, self.lamda_step * 10, self.lamda_max],
+            Params=[self.lamda_min, self.lamda_step / 10, self.lamda_max],
         )
 
         ConvertUnits(
@@ -484,7 +484,7 @@ class Vanadium:
         InterpolatingRebin(
             InputWorkspace="flux",
             OutputWorkspace="flux",
-            Params=[self.k_min, self.k_step * 10, self.k_max],
+            Params=[self.k_min, self.k_step / 10, self.k_max],
         )
 
         IntegrateFlux(
