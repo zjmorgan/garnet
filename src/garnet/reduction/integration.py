@@ -758,6 +758,26 @@ class Integration(SubPlan):
 
         peak_file, hkl, d_spacing, wavelength, angles, goniometer = peak_info
 
+        result = self.quick_fit(Q0, Q1, Q2, d, n)
+
+        (
+            c,
+            S,
+            sphere,
+            info,
+            best_prof,
+            best_proj,
+            best_fit,
+            data_norm_fit,
+            redchi2,
+            intensity,
+            sigma,
+            intens,
+            sig,
+        ) = result
+
+        shape = self.revert_ellipsoid_parameters(sphere, projections)
+
         ellipsoid = PeakEllipsoid()
 
         params, value = None, None
@@ -768,26 +788,6 @@ class Integration(SubPlan):
             except Exception as e:
                 print("Exception fitting data: {}".format(e))
                 return key, value
-        else:
-            result = self.quick_fit(Q0, Q1, Q2, d, n)
-
-            (
-                c,
-                S,
-                sphere,
-                info,
-                best_prof,
-                best_proj,
-                best_fit,
-                data_norm_fit,
-                redchi2,
-                intensity,
-                sigma,
-                intens,
-                sig,
-            ) = result
-
-            shape = self.revert_ellipsoid_parameters(sphere, projections)
 
         print(self.status + " 2/2 {:}/{:}".format(key, self.total))
 
