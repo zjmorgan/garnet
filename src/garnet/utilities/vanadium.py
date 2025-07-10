@@ -423,10 +423,15 @@ class Vanadium:
             OutputWorkspace="spectra",
         )
 
+        X = mtd["spectra"].getXDimension()
+        lamda_min = X.getMinimum() + X.getBinWidth()
+        lamda_max = X.getMaximum() - X.getBinWidth()
+        lamda_step = self.lamda_step / 10
+
         InterpolatingRebin(
             InputWorkspace="spectra",
             OutputWorkspace="spectra",
-            Params=[self.lamda_min, self.lamda_step / 10, self.lamda_max],
+            Params=[lamda_min, lamda_step, lamda_max],
         )
 
         ConvertUnits(
@@ -481,15 +486,20 @@ class Vanadium:
 
         WienerSmooth(InputWorkspace="flux", OutputWorkspace="flux")
 
+        X = mtd["flux"].getXDimension()
+        k_min = X.getMinimum() + X.getBinWidth()
+        k_max = X.getMaximum() - X.getBinWidth()
+        k_step = self.k_step / 10
+
         InterpolatingRebin(
             InputWorkspace="flux",
             OutputWorkspace="flux",
-            Params=[self.k_min, self.k_step / 10, self.k_max],
+            Params=[k_min, k_step, k_max],
         )
 
         IntegrateFlux(
             InputWorkspace="flux",
-            NPoints=self.n_bins,
+            NPoints=self.n_bins * 10,
             OutputWorkspace="flux",
         )
 
