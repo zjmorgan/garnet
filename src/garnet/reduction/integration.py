@@ -1082,7 +1082,7 @@ class Integration(SubPlan):
 
         n_bins = 15 if fit else 9
 
-        if type(r_cut) is float or fit:
+        if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
         else:
             (r0, r1, r2), (dr0, dr1, dr2) = r_cut
