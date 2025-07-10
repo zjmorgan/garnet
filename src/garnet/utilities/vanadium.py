@@ -5,6 +5,10 @@ import yaml
 
 import numpy as np
 
+import scipy.sparse
+import scipy.special
+import scipy.optimize
+
 from mantid.simpleapi import (
     Load,
     LoadNexus,
@@ -37,11 +41,71 @@ from mantid.simpleapi import (
     SphericalAbsorption,
     CylinderAbsorption,
     SmoothNeighbours,
-    SmoothData,
     CopyInstrumentParameters,
     ClearMaskFlag,
     mtd,
 )
+
+
+class WhittakerHenderson:
+    def _build_difference_operator(self, n, d):
+        """Build sparse d-th order difference operator D."""
+        diagonals = [
+            (-1) ** i * scipy.special.comb(d, i, exact=True) * np.ones(n - d)
+            for i in range(d + 1)
+        ]
+        offsets = np.arange(d + 1)
+        return scipy.sparse.diags(diagonals, offsets, shape=(n - d, n))
+
+    def _build_system_matrix(self, n, lamda, d):
+        """Build system matrix A = I + λ DᵗD."""
+        D = self._build_difference_operator(n, d)
+        I = scipy.sparse.diags([1.0], [0], shape=(n, n))
+        return I + lamda * (D.T @ D)
+
+    def smooth(self, y, lamda, d=2):
+        """Apply Whittaker–Henderson smoothing."""
+        y = np.asarray(y)
+        A = self._build_system_matrix(len(y), lamda, d)
+        return scipy.sparse.linalg.spsolve(A, y)
+
+    def smoother_matrix(self, n, lamda, d=2):
+        """Return dense smoother matrix S = (I + λ DᵗD)⁻¹."""
+        A = self._build_system_matrix(n, lamda, d)
+        return scipy.sparse.linalg.inv(A).toarray()
+
+    def loocv(self, y, lamda, d=2):
+        """Leave-one-out cross-validation score and smoothed fit."""
+        y = np.asarray(y)
+        n = len(y)
+        S = self.smoother_matrix(n, lamda, d)
+        y_hat = S @ y
+        S_diag = np.diag(S)
+        residuals = (y - y_hat) / (1 - S_diag)
+        s_cv = np.sqrt(np.mean(residuals**2))
+        return s_cv, y_hat
+
+    def optimize(self, data, d=2, bounds=(2, 10), verbose=False):
+        data = np.asarray(data)
+        n_rows = data.shape[0]
+
+        lamdas = np.logspace(*bounds, 25)
+
+        loocv_scores = []
+        for lamda in lamdas:
+            scores = []
+            for i in range(n_rows):
+                try:
+                    s_cv, _ = self.loocv(data[i], lamda, d)
+                    scores.append(s_cv)
+                except Exception:
+                    pass
+            loocv_scores.append(np.mean(scores) if scores else np.inf)
+
+        best_idx = int(np.argmin(loocv_scores))
+        best_lamda = lamdas[best_idx]
+
+        return best_lamda
 
 
 class Vanadium:
@@ -91,8 +155,7 @@ class Vanadium:
         self.file_name = "{}_{}.nxs.h5"
         self.vanadium_folder = "/SNS/{}/shared/Vanadium"
 
-        self.n_bins = 1000
-        self.n_smooth = 20
+        self.n_bins = 10000
 
         self.k_min, self.k_max = MomentumLimits
         self.k_step = (self.k_max - self.k_min) / self.n_bins
@@ -155,6 +218,15 @@ class Vanadium:
         ExtractMask(InputWorkspace=self.instrument, OutputWorkspace="mask")
 
         ClearMaskFlag(Workspace=self.instrument)
+
+        SmoothNeighbours(
+            InputWorkspace="mask",
+            OutputWorkspace="pixels",
+            SumPixelsX=self.x_bins,
+            SumPixelsY=self.y_bins,
+        )
+
+        MaskDetectors(Workspace="pixels", MaskedWorkspace="mask")
 
     def apply_calibration(self):
         if self.tube_calibration is not None:
@@ -250,27 +322,36 @@ class Vanadium:
             OutputWorkspace="vanadium",
         )
 
+        Divide(
+            LHSWorkspace="background",
+            RHSWorkspace="pixels",
+            OutputWorkspace="background",
+            AllowDifferentNumberSpectra=True,
+            WarnOnZeroDivide=False,
+        )
+
+    def _vanadium_niobium_lattice_constant(self, x):
+        y = 2 * x - 1
+        a = 3.19199921 + 0.13954993 * y - 0.02242883 * y**2
+        return a
+
     def set_sample_geometry(self, x=0):
         if self.sample_shape == "sphere":
             shape = {
                 "Shape": "Sphere",
-                "Radius": self.diameter * 0.0005,
+                "Radius": self.diameter * 0.05,
                 "Center": [0.0, 0.0, 0.0],
             }
         else:
             shape = {
                 "Shape": "Cylinder",
-                "Height": self.height * 0.001,
-                "Radius": self.diameter * 0.0005,
+                "Height": self.height * 0.1,
+                "Radius": self.diameter * 0.05,
                 "Axis": [0.0, 0.0, 1.0],
                 "Center": [0.0, 0.0, 0.0],
             }
 
-        a = (
-            3.19199921
-            + 0.13954993 * (2 * x - 1)
-            - 0.02242883 * (2 * x - 1) ** 2
-        )
+        a = self._vanadium_niobium_lattice_constant(x)
 
         material = {
             "ChemicalFormula": "V{} Nb{}".format(1 - x, x),
@@ -374,10 +455,18 @@ class Vanadium:
             OutputWorkspace="spectra",
         )
 
-        SmoothData(
+        wh = WhittakerHenderson()
+        y = mtd["spectra"].extractY()
+        lamda = wh.optimize(y)
+        for i in range(y.shape[0]):
+            z = wh.smooth(y[i], lamda)
+            mtd["spectra"].setY(i, z)
+
+        Rebin(
             InputWorkspace="spectra",
             OutputWorkspace="spectra",
-            NPoints=self.n_smooth,
+            Params=[self.lamda_min, self.lamda_step, self.lamda_max],
+            PreserveEvents=False,
         )
 
         Rebin(
@@ -440,18 +529,19 @@ class Vanadium:
             InputWorkspace="flux",
             OutputWorkspace="flux",
             Params=[self.k_min, self.k_step, self.k_max],
-            PreserveEvents=True,
+            PreserveEvents=False,
         )
 
-        SmoothData(
-            InputWorkspace="flux",
-            OutputWorkspace="flux",
-            NPoints=self.n_smooth,
-        )
+        wh = WhittakerHenderson()
+        y = mtd["flux"].extractY()
+        lamda = wh.optimize(y)
+        for i in range(y.shape[0]):
+            z = wh.smooth(y[i], lamda)
+            mtd["flux"].setY(i, z)
 
         IntegrateFlux(
             InputWorkspace="flux",
-            NPoints=self.n_bins * 10,
+            NPoints=self.n_bins,
             OutputWorkspace="flux",
         )
 

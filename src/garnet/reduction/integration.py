@@ -569,6 +569,9 @@ class Integration(SubPlan):
         return params
 
     def quick_fit(self, x0, x1, x2, d, n):
+        i0, i1, i2 = np.indices((9, 9, 9))
+        j0, j1 = np.indices((9, 9))
+
         d0 = x0[1, 0, 0] - x0[0, 0, 0]
         d1 = x1[0, 1, 0] - x1[0, 0, 0]
         d2 = x2[0, 0, 1] - x2[0, 0, 0]
@@ -631,19 +634,21 @@ class Integration(SubPlan):
             (y2d_2_fit, y2d_2, e2d_2),
         ]
 
-        b2d_0 = np.nanmedian(y2d_0[0::8])
-        b2d_1 = np.nanmedian(y2d_1[0::8])
-        b2d_2 = np.nanmedian(y2d_2[0::8])
+        shell = (j0 == 0) | (j0 == 8) | (j1 == 0) | (j1 == 8)
 
-        I2d_0 = np.nansum(y2d_0[2:-2, 2:-2] - b2d_0) * d2_0
-        I2d_1 = np.nansum(y2d_1[2:-2, 2:-2] - b2d_1) * d2_1
-        I2d_2 = np.nansum(y2d_2[2:-2, 2:-2] - b2d_2) * d2_2
+        b2d_0 = np.nanmedian(y2d_0[shell])
+        b2d_1 = np.nanmedian(y2d_1[shell])
+        b2d_2 = np.nanmedian(y2d_2[shell])
+
+        I2d_0 = np.nansum(y2d_0[2:-2][2:-2] - b2d_0) * d2_0
+        I2d_1 = np.nansum(y2d_1[2:-2][2:-2] - b2d_1) * d2_1
+        I2d_2 = np.nansum(y2d_2[2:-2][2:-2] - b2d_2) * d2_2
 
         I2d = [I2d_0, I2d_1, I2d_2]
 
-        s2d_0 = np.sqrt(np.nansum(e2d_0[2:-2, 2:-2] ** 2 + b2d_0)) * d2_0
-        s2d_1 = np.sqrt(np.nansum(e2d_1[2:-2, 2:-2] ** 2 + b2d_1)) * d2_1
-        s2d_2 = np.sqrt(np.nansum(e2d_2[2:-2, 2:-2] ** 2 + b2d_2)) * d2_2
+        s2d_0 = np.sqrt(np.nansum(e2d_0[2:-2][2:-2] ** 2 + b2d_0)) * d2_0
+        s2d_1 = np.sqrt(np.nansum(e2d_1[2:-2][2:-2] ** 2 + b2d_1)) * d2_1
+        s2d_2 = np.sqrt(np.nansum(e2d_2[2:-2][2:-2] ** 2 + b2d_2)) * d2_2
 
         s2d = [s2d_0, s2d_1, s2d_2]
 
@@ -651,7 +656,16 @@ class Integration(SubPlan):
         e3d = np.sqrt(d) / n
         y3d_fit = y3d.copy()
 
-        b3d = np.nanmedian(y3d[0::8, 0::8, 0::8])
+        shell = (
+            (i0 == 0)
+            | (i0 == 8)
+            | (i1 == 0)
+            | (i1 == 8)
+            | (i2 == 0)
+            | (i2 == 8)
+        )
+
+        b3d = np.nanmedian(y3d[shell])
 
         I3d = np.nansum(y3d[2:-2, 2:-2, 2:-2] - b3d) * d3
         s3d = np.sqrt(np.nansum(e3d[2:-2, 2:-2, 2:-2] ** 2 + b3d)) * d3
@@ -670,8 +684,8 @@ class Integration(SubPlan):
 
         best_fit = (x0, x1, x2, y3d_fit, y3d, e3d)
 
-        bkg_data = np.nansum(d[0::8, 0::8, 0::8])
-        bkg_norm = np.nansum(n[0::8, 0::8, 0::8])
+        bkg_data = np.nansum(d[0::8][0::8][0::8])
+        bkg_norm = np.nansum(n[0::8][0::8][0::8])
 
         pk_data = np.nansum(d[2:-2, 2:-2, 2:-2])
         pk_norm = np.nansum(n[2:-2, 2:-2, 2:-2])
@@ -679,7 +693,7 @@ class Integration(SubPlan):
         b = bkg_data / bkg_norm
         b_err = np.sqrt(bkg_data) / np.nansum(bkg_norm)
 
-        N = 125
+        M, N = 386, 125
 
         intens = np.nansum(pk_data / pk_norm - b) * d3 * N
         sig = np.sqrt(np.nansum(pk_data / pk_norm**2 + b_err**2)) * d3 * N
@@ -690,8 +704,8 @@ class Integration(SubPlan):
 
         info = [d3, b, b_err]
 
-        intens_raw = (pk_data - bkg_data / N) * d3
-        sig_raw = np.sqrt(pk_data + bkg_data / N) * d3
+        intens_raw = (pk_data - N * bkg_data / M) * d3
+        sig_raw = np.sqrt(pk_data + N * bkg_data / M) * d3
 
         info += [intens_raw, sig_raw]
 
