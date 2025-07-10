@@ -35,77 +35,19 @@ from mantid.simpleapi import (
     MaskDetectors,
     MaskDetectorsIf,
     MaskBTP,
+    ClearMaskFlag,
+    InvertMask,
     ExtractMask,
     SetSample,
     SetBeam,
     SphericalAbsorption,
     CylinderAbsorption,
     SmoothNeighbours,
+    WienerSmooth,
+    InterpolatingRebin,
     CopyInstrumentParameters,
-    ClearMaskFlag,
     mtd,
 )
-
-
-class WhittakerHenderson:
-    def _build_difference_operator(self, n, d):
-        """Build sparse d-th order difference operator D."""
-        diagonals = [
-            (-1) ** i * scipy.special.comb(d, i, exact=True) * np.ones(n - d)
-            for i in range(d + 1)
-        ]
-        offsets = np.arange(d + 1)
-        return scipy.sparse.diags(diagonals, offsets, shape=(n - d, n))
-
-    def _build_system_matrix(self, n, lamda, d):
-        """Build system matrix A = I + λ DᵗD."""
-        D = self._build_difference_operator(n, d)
-        I = scipy.sparse.diags([1.0], [0], shape=(n, n))
-        return I + lamda * (D.T @ D)
-
-    def smooth(self, y, lamda, d=2):
-        """Apply Whittaker–Henderson smoothing."""
-        y = np.asarray(y)
-        A = self._build_system_matrix(len(y), lamda, d)
-        return scipy.sparse.linalg.spsolve(A, y)
-
-    def smoother_matrix(self, n, lamda, d=2):
-        """Return dense smoother matrix S = (I + λ DᵗD)⁻¹."""
-        A = self._build_system_matrix(n, lamda, d)
-        return scipy.sparse.linalg.inv(A).toarray()
-
-    def loocv(self, y, lamda, d=2):
-        """Leave-one-out cross-validation score and smoothed fit."""
-        y = np.asarray(y)
-        n = len(y)
-        S = self.smoother_matrix(n, lamda, d)
-        y_hat = S @ y
-        S_diag = np.diag(S)
-        residuals = (y - y_hat) / (1 - S_diag)
-        s_cv = np.sqrt(np.mean(residuals**2))
-        return s_cv, y_hat
-
-    def optimize(self, data, d=2, bounds=(2, 10), verbose=False):
-        data = np.asarray(data)
-        n_rows = data.shape[0]
-
-        lamdas = np.logspace(*bounds, 25)
-
-        loocv_scores = []
-        for lamda in lamdas:
-            scores = []
-            for i in range(n_rows):
-                try:
-                    s_cv, _ = self.loocv(data[i], lamda, d)
-                    scores.append(s_cv)
-                except Exception:
-                    pass
-            loocv_scores.append(np.mean(scores) if scores else np.inf)
-
-        best_idx = int(np.argmin(loocv_scores))
-        best_lamda = lamdas[best_idx]
-
-        return best_lamda
 
 
 class Vanadium:
@@ -155,7 +97,7 @@ class Vanadium:
         self.file_name = "{}_{}.nxs.h5"
         self.vanadium_folder = "/SNS/{}/shared/Vanadium"
 
-        self.n_bins = 10000
+        self.n_bins = 1000
 
         self.k_min, self.k_max = MomentumLimits
         self.k_step = (self.k_max - self.k_min) / self.n_bins
@@ -215,12 +157,18 @@ class Vanadium:
                     Pixel=str(pixel),
                 )
 
-        ExtractMask(InputWorkspace=self.instrument, OutputWorkspace="mask")
+        ExtractMask(
+            InputWorkspace=self.instrument,
+            UngroupDetectors=True,
+            OutputWorkspace="mask",
+        )
 
         ClearMaskFlag(Workspace=self.instrument)
 
+        InvertMask(InputWorkspace="mask", OutputWorkspace="active")
+
         SmoothNeighbours(
-            InputWorkspace="mask",
+            InputWorkspace="active",
             OutputWorkspace="pixels",
             SumPixelsX=self.x_bins,
             SumPixelsY=self.y_bins,
@@ -326,8 +274,6 @@ class Vanadium:
             LHSWorkspace="background",
             RHSWorkspace="pixels",
             OutputWorkspace="background",
-            AllowDifferentNumberSpectra=True,
-            WarnOnZeroDivide=False,
         )
 
     def _vanadium_niobium_lattice_constant(self, x):
@@ -455,12 +401,7 @@ class Vanadium:
             OutputWorkspace="spectra",
         )
 
-        wh = WhittakerHenderson()
-        y = mtd["spectra"].extractY()
-        lamda = wh.optimize(y)
-        for i in range(y.shape[0]):
-            z = wh.smooth(y[i], lamda)
-            mtd["spectra"].setY(i, z)
+        WienerSmooth(InputWorkspace="spectra", OutputWorkspace="spectra")
 
         Rebin(
             InputWorkspace="spectra",
@@ -480,6 +421,12 @@ class Vanadium:
             LHSWorkspace="spectra",
             RHSWorkspace="norm",
             OutputWorkspace="spectra",
+        )
+
+        InterpolatingRebin(
+            InputWorkspace="spectra",
+            OutputWorkspace="spectra",
+            Params=[self.lamda_min, self.lamda_step * 10, self.lamda_max],
         )
 
         ConvertUnits(
@@ -532,12 +479,13 @@ class Vanadium:
             PreserveEvents=False,
         )
 
-        wh = WhittakerHenderson()
-        y = mtd["flux"].extractY()
-        lamda = wh.optimize(y)
-        for i in range(y.shape[0]):
-            z = wh.smooth(y[i], lamda)
-            mtd["flux"].setY(i, z)
+        WienerSmooth(InputWorkspace="flux", OutputWorkspace="flux")
+
+        InterpolatingRebin(
+            InputWorkspace="flux",
+            OutputWorkspace="flux",
+            Params=[self.k_min, self.k_step * 10, self.k_max],
+        )
 
         IntegrateFlux(
             InputWorkspace="flux",
