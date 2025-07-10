@@ -761,7 +761,7 @@ class Integration(SubPlan):
         ellipsoid = PeakEllipsoid()
 
         params, value = None, None
-        if all(interp):
+        if all([item is not None for item in interp]):
             try:
                 args = (Q0, Q1, Q2, d, n, gd, gn, val_mask, det_mask, dQ, Q)
                 params = ellipsoid.fit(*args)
