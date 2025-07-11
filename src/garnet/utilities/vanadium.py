@@ -118,17 +118,23 @@ class Vanadium:
             OutputWorkspace="group",
         )
 
-    def _join(self, ranges):
-        return ",".join(
-            [
-                "{}-{}".format(*r) if isinstance(r, list) else str(r)
-                for r in ranges
-            ]
-        )
+    def _join(self, items):
+        if isinstance(items, list):
+            return ",".join(
+                [
+                    "{}-{}".format(*r) if isinstance(r, list) else str(r)
+                    for r in items
+                ]
+            )
+        else:
+            return str(items)
 
     def apply_masks(self):
         if self.mask_options.get("Banks") is not None:
-            MaskBTP(Workspace=self.instrument, Bank=self.mask_options["Banks"])
+            MaskBTP(
+                Workspace=self.instrument,
+                Bank=self._join(self.mask_options["Banks"]),
+            )
 
         if self.mask_options.get("Pixels") is not None:
             MaskBTP(
@@ -145,16 +151,18 @@ class Vanadium:
         if self.mask_options.get("BankTube") is not None:
             for bank, tube in self.mask_options["BankTube"]:
                 MaskBTP(
-                    Workspace=self.instrument, Bank=str(bank), Tube=str(tube)
+                    Workspace=self.instrument,
+                    Bank=self._join(bank),
+                    Tube=self._join(tube),
                 )
 
         if self.mask_options.get("BankTubePixel") is not None:
             for bank, tube, pixel in self.mask_options["BankTubePixel"]:
                 MaskBTP(
                     Workspace=self.instrument,
-                    Bank=str(bank),
-                    Tube=str(tube),
-                    Pixel=str(pixel),
+                    Bank=self._join(bank),
+                    Tube=self._join(tube),
+                    Pixel=self._join(pixel),
                 )
 
         ExtractMask(
@@ -199,7 +207,47 @@ class Vanadium:
                     Filename=self.detector_calibration,
                 )
 
+    def _runs_string_to_list(self, runs_str):
+        """
+        Convert runs string to list.
+
+        Parameters
+        ----------
+        runs_str : str
+            Condensed notation for run numbers.
+
+        Returns
+        -------
+        runs : list
+            Integer run numbers.
+
+        """
+
+        if type(runs_str) is not str:
+            runs_str = str(runs_str)
+
+        runs = []
+        ranges = runs_str.split(",")
+
+        for part in ranges:
+            if ":" in part:
+                range_part, *skip_part = part.split(";")
+                start, end = map(int, range_part.split(":"))
+                skip = int(skip_part[0]) if skip_part else 1
+
+                if start > end or skip <= 0:
+                    return None
+
+                runs.extend(range(start, end + 1, skip))
+            else:
+                runs.append(int(part))
+
+        return runs
+
     def load_runs(self, workspace, ipts, run_nos):
+        if not isinstance(run_nos, list):
+            run_nos = self._runs_string_to_list(run_nos)
+
         files_to_load = "+".join(
             [
                 os.path.join(
@@ -426,7 +474,7 @@ class Vanadium:
         X = mtd["spectra"].getXDimension()
         lamda_min = X.getMinimum() + X.getBinWidth()
         lamda_max = X.getMaximum() - X.getBinWidth()
-        lamda_step = self.lamda_step / 10
+        lamda_step = self.lamda_step / 100
 
         InterpolatingRebin(
             InputWorkspace="spectra",
@@ -460,46 +508,46 @@ class Vanadium:
             CopyGroupingFromWorkspace="group",
             Behaviour="Sum",
             PreserveEvents=True,
-            OutputWorkspace="flux",
+            OutputWorkspace="incident",
         )
 
         MaskDetectorsIf(
-            InputWorkspace="flux",
+            InputWorkspace="incident",
             Operator="LessEqual",
-            OutputWorkspace="flux",
+            OutputWorkspace="incident",
         )
 
         RemoveMaskedSpectra(
-            InputWorkspace="flux",
-            MaskedWorkspace="flux",
-            OutputWorkspace="flux",
+            InputWorkspace="incident",
+            MaskedWorkspace="incident",
+            OutputWorkspace="incident",
         )
 
-        SortEvents(InputWorkspace="flux", SortBy="X Value")
+        SortEvents(InputWorkspace="incident", SortBy="X Value")
 
         Rebin(
-            InputWorkspace="flux",
-            OutputWorkspace="flux",
+            InputWorkspace="incident",
+            OutputWorkspace="incident",
             Params=[self.k_min, self.k_step, self.k_max],
             PreserveEvents=False,
         )
 
-        WienerSmooth(InputWorkspace="flux", OutputWorkspace="flux")
+        WienerSmooth(InputWorkspace="incident", OutputWorkspace="incident")
 
-        X = mtd["flux"].getXDimension()
+        X = mtd["incident"].getXDimension()
         k_min = X.getMinimum() + X.getBinWidth()
         k_max = X.getMaximum() - X.getBinWidth()
-        k_step = self.k_step / 10
+        k_step = self.k_step / 100
 
         InterpolatingRebin(
-            InputWorkspace="flux",
-            OutputWorkspace="flux",
+            InputWorkspace="incident",
+            OutputWorkspace="incident",
             Params=[k_min, k_step, k_max],
         )
 
         IntegrateFlux(
-            InputWorkspace="flux",
-            NPoints=self.n_bins * 10,
+            InputWorkspace="incident",
+            NPoints=self.n_bins * 100,
             OutputWorkspace="flux",
         )
 
@@ -514,7 +562,13 @@ class Vanadium:
     def finalize_and_save(self):
         vanadium_folder = self.vanadium_folder.format(self.instrument)
         output_folder = os.path.join(vanadium_folder, self.output_folder)
-        workspaces = ["background", "flux", "spectra", "solid_angle"]
+        workspaces = [
+            "background",
+            "incident",
+            "flux",
+            "spectra",
+            "solid_angle",
+        ]
         for workspace in workspaces:
             filename = os.path.join(output_folder, workspace + ".nxs")
             SaveNexus(InputWorkspace=workspace, Filename=filename)

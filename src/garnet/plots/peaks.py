@@ -929,9 +929,9 @@ class PeakPlot(BasePlot):
         x1_min, x1_max = x1[0, 0, 0] - s1, x1[0, -1, 0] + s1
         x2_min, x2_max = x2[0, 0, 0] - s2, x2[0, 0, -1] + s2
 
-        mask_0 = np.isfinite(y0)
-        mask_1 = np.isfinite(y1)
-        mask_2 = np.isfinite(y2)
+        mask_0 = np.isfinite(y0) & (y0 > 0)
+        mask_1 = np.isfinite(y1) & (y1 > 0)
+        mask_2 = np.isfinite(y2) & (y2 > 0)
 
         y0[~mask_0] = np.nan
         y1[~mask_1] = np.nan
@@ -1026,13 +1026,17 @@ class PeakPlot(BasePlot):
         y1 = np.nansum(y, axis=1)  # / np.nanmean(e > 0, axis=1)
         y2 = np.nansum(y, axis=2)  # / np.nanmean(e > 0, axis=2)
 
+        e0 = np.nansum(e**2, axis=0)
+        e1 = np.nansum(e**2, axis=1)
+        e2 = np.nansum(e**2, axis=2)
+
         y0_fit = np.nansum(y_fit, axis=0)  # / np.nanmean(e > 0, axis=0)
         y1_fit = np.nansum(y_fit, axis=1)  # / np.nanmean(e > 0, axis=1)
         y2_fit = np.nansum(y_fit, axis=2)  # / np.nanmean(e > 0, axis=2)
 
-        mask_0 = np.isfinite(y0)
-        mask_1 = np.isfinite(y1)
-        mask_2 = np.isfinite(y2)
+        mask_0 = np.isfinite(y0) & (e0 > 0)
+        mask_1 = np.isfinite(y1) & (e1 > 0)
+        mask_2 = np.isfinite(y2) & (e2 > 0)
 
         y0[~mask_0] = np.nan
         y1[~mask_1] = np.nan
