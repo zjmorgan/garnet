@@ -1434,48 +1434,7 @@ class Peaks:
             bkg_data = run_info.getLogData("peaks_bkg_data").value
             bkg_norm = run_info.getLogData("peaks_bkg_norm").value
 
-            ol = mtd[self.peaks].sample().getOrientedLattice()
-
-            UB = ol.getUB().copy()
-            mod_UB = ol.getModUB().copy()
-
-            Q = (
-                2
-                * np.pi
-                * (
-                    np.einsum("ij,jk->ik", UB, [h, k, l])
-                    + np.einsum("ij,jk->ik", mod_UB, [m, n, p])
-                )
-            )
-
-            Q = np.linalg.norm(Q, axis=0)
-
             filename = os.path.splitext(self.filename)[0]
-
-            norm = np.log(pk_norm * N * vol)
-
-            norm_Q1, norm_Q3 = np.nanpercentile(norm, [25, 75])
-            norm_IQR = norm_Q3 - norm_Q1
-            norm_min = norm_Q1 - 1.5 * norm_IQR
-            norm_max = norm_Q3 + 1.5 * norm_IQR
-
-            # med = np.nanmedian(norm)
-            # mad = np.nanmedian(np.abs(norm - med))
-
-            # norm_min = med - 1.5 * mad
-            # norm_max = med + 1.5 * mad
-
-            fig, ax = plt.subplots(1, 1, layout="constrained")
-            ax.set_xlabel("$|Q|$ [$\AA^{-1}$]")
-            ax.set_ylabel("Log norm")
-            # ax.set_yscale('log')
-            ax.minorticks_on()
-            ax.plot(Q, norm, ".", color="C0")
-            ax.axhline(norm_max, color="k", linestyle="--", linewidth=1)
-            ax.axhline(norm_min, color="k", linestyle="--", linewidth=1)
-            fig.savefig(filename + "_norm.pdf")
-
-            outlier = (norm > norm_max) | (norm < norm_min)
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
@@ -1486,11 +1445,12 @@ class Peaks:
                     pk_norm[i],
                     bkg_data[i],
                     bkg_norm[i],
-                    outlier[i],
                 )
                 info_dict[key] = vals
 
         self.info_dict = info_dict
+
+        x, y = [], []
 
         for peak in mtd[self.peaks]:
             h, k, l = [int(val) for val in peak.getIntHKL()]
@@ -1498,9 +1458,49 @@ class Peaks:
 
             run = int(peak.getRunNumber())
             key = (run, h, k, l, m, n, p)
-            N, vol, data, norm, b, b_er, outlier = self.info_dict[key]
+            N, vol, pk_data, pk_norm, bkg_data, bkg_norm = self.info_dict[key]
 
-            if outlier:
+            lamda = peak.getWavelength()
+            two_theta = peak.getScattering()
+
+            norm = np.log10(bkg_norm / pk_norm)
+
+            Q = 4 * np.pi / lamda * np.sin(0.5 * two_theta)
+
+            x.append(Q)
+            y.append(norm)
+
+        filename = os.path.splitext(self.filename)[0]
+
+        x, y = np.array(x), np.array(y)
+
+        ratio_Q1, ratio_Q3 = np.nanpercentile(y, [25, 75])
+
+        ratio_IQR = ratio_Q3 - ratio_Q1
+
+        ratio_min = ratio_Q1 - 1.5 * ratio_IQR
+        ratio_max = ratio_Q3 + 1.5 * ratio_IQR
+
+        fig, ax = plt.subplots(1, 1, sharex=True, layout="constrained")
+        ax.set_xlabel("$|Q|$ [$\AA^{-1}$]")
+        ax.plot(x, y, ".")
+        ax.minorticks_on()
+        ax.set_ylabel("Log peak-background norm")
+        ax.axhline(ratio_max, color="k", linestyle="--", linewidth=1)
+        ax.axhline(ratio_min, color="k", linestyle="--", linewidth=1)
+        fig.savefig(filename + "_norm.pdf")
+
+        for peak in mtd[self.peaks]:
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
+
+            run = int(peak.getRunNumber())
+            key = (run, h, k, l, m, n, p)
+            N, vol, pk_data, pk_norm, bkg_data, bkg_norm = self.info_dict[key]
+
+            norm = np.log10(bkg_norm / pk_norm)
+
+            if not np.isfinite(norm) or norm < ratio_min or norm > ratio_max:
                 peak.setSigmaIntensity(peak.getIntensity())
 
         lamda = np.array(mtd[self.peaks].column("Wavelength"))
