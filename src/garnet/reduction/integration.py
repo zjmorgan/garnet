@@ -3728,6 +3728,6 @@ class PeakEllipsoid:
         mad_ind = np.searchsorted(np.cumsum(weights), half_weight)
         mad = dev[indices][mad_ind]
 
-        b_err = 1.4826 * mad
+        b_err = mad / scipy.stats.norm.ppf(0.75)
 
         return b, b_err

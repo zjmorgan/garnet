@@ -41,7 +41,7 @@ centering_reflection = {
     "P": "Primitive",
     "I": "Body centred",
     "F": "All-face centred",
-    "R": "Rhombohedrally centred",  # rhomb/hex axes
+    "R": "Rhombohedrally centred, obverse",  # rhomb/hex axes
     "R(obv)": "Rhombohedrally centred, obverse",  # hex axes
     "R(rev)": "Rhombohedrally centred, reverse",  # hex axes
     "A": "A-face centred",

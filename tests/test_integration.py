@@ -280,6 +280,31 @@ def test_ellipsoid_methods():
     inv_S1 = ellipsoid.inv_S_matrix(r0, r1, r2, u0, u1, u2 + delta)
     print(np.allclose(d_inv_S[2], (inv_S1 - inv_S0) / delta))
 
+    modes = ["3d", "2d_0", "2d_1", "2d_2", "1d_0", "1d_1", "1d_2"]
 
-# test_ellipsoid_methods()
-test_ellipsoid()
+    x0 = np.linspace(1, 2)
+    x1 = np.linspace(-3, -2)
+    x2 = np.linspace(0, 1)
+
+    c0, c1, c2 = 1.5, -2.5, 0.5
+
+    x0, x1, x2 = np.meshgrid(x0, x1, x2, indexing="ij")
+
+    delta = 1e-8
+
+    for mode in modes[:]:
+        c = c0, c1, c2
+        dg = ellipsoid.gaussian_jac_c(x0, x1, x2, c, inv_S0, mode=mode)
+        g0 = ellipsoid.gaussian(x0, x1, x2, c, inv_S0, mode=mode)
+
+        c = c0 + delta, c1, c2
+        g1 = ellipsoid.gaussian(x0, x1, x2, c, inv_S0, mode=mode)
+        print(
+            mode,
+            np.allclose(dg[0], 0),
+            np.allclose(dg[0], (g1 - g0) / delta, atol=1e-6),
+        )
+
+
+test_ellipsoid_methods()
+# test_ellipsoid()
