@@ -241,7 +241,7 @@ class UBModel:
 
     def get_primitive_cell_length_range(self, centering):
         const = self.get_lattice_parameters()
-        const = self.convert_conventional_to_primitive(*const)
+        const = self.convert_conventional_to_primitive(*const, centering)
 
         d_min = 0.95 * np.min(const[:3])
         d_max = 1.05 * np.max(const[:3])
