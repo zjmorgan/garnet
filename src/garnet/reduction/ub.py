@@ -206,7 +206,7 @@ class UBModel:
             Tolerance=tol,
             FixParameters=True,
             NumInitial=50,
-            Iterations=3,
+            Iterations=1,
         )
 
     def convert_conventional_to_primitive(
@@ -243,8 +243,8 @@ class UBModel:
         const = self.get_lattice_parameters()
         const = self.convert_conventional_to_primitive(*const, centering)
 
-        d_min = 0.95 * np.min(const[:3])
-        d_max = 1.05 * np.max(const[:3])
+        d_min = 0.9 * np.min(const[:3])
+        d_max = 1.1 * np.max(const[:3])
 
         return d_min, d_max
 
