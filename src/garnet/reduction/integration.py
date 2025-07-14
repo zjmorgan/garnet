@@ -195,7 +195,7 @@ class Integration(SubPlan):
 
                 min_d, max_d = ub.get_primitive_cell_length_range(centering)
 
-                const = ub.convert_conventional_to_primitive(centering)
+                const = ub.convert_conventional_to_primitive(*const, centering)
 
                 data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 

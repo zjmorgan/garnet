@@ -1662,40 +1662,32 @@ class LaueData(BaseDataModel):
                         InputWorkspace="bkg", OutputWorkspace="bkg"
                     )
 
-                if mtd.doesExist("spectra"):
-                    ConvertUnits(
-                        InputWorkspace="bkg",
-                        OutputWorkspace="bkg",
-                        Target="Wavelength",
-                    )
+            pc = mtd["bkg"].run().getProperty("gd_prtn_chrg").value
 
-            if not mtd.doesExist("spectra"):
-                pc = mtd["bkg"].run().getProperty("gd_prtn_chrg").value
+            CreateSingleValuedWorkspace(
+                DataValue=pc, OutputWorkspace="pc_scale"
+            )
 
-                CreateSingleValuedWorkspace(
-                    DataValue=pc, OutputWorkspace="pc_scale"
-                )
+            Multiply(
+                LHSWorkspace="bkg",
+                RHSWorkspace="pc_scale",
+                OutputWorkspace="bkg",
+            )
 
-                Multiply(
-                    LHSWorkspace="bkg",
-                    RHSWorkspace="pc_scale",
-                    OutputWorkspace="bkg",
-                )
+            Q_min_vals, Q_max_vals = self.get_min_max_values()
 
-                Q_min_vals, Q_max_vals = self.get_min_max_values()
+            ConvertToMD(
+                InputWorkspace="bkg",
+                QDimensions="Q3D",
+                dEAnalysisMode="Elastic",
+                Q3DFrames="Q_lab",
+                LorentzCorrection=False,
+                MinValues=Q_min_vals,
+                MaxValues=Q_max_vals,
+                OutputWorkspace="bkg_md",
+            )
 
-                ConvertToMD(
-                    InputWorkspace="bkg",
-                    QDimensions="Q3D",
-                    dEAnalysisMode="Elastic",
-                    Q3DFrames="Q_lab",
-                    LorentzCorrection=mtd.doesExist("spectra"),
-                    MinValues=Q_min_vals,
-                    MaxValues=Q_max_vals,
-                    OutputWorkspace="bkg_md",
-                )
-
-                DeleteWorkspace(Workspace="bkg")
+            DeleteWorkspace(Workspace="bkg")
 
     def normalize_to_hkl(self, md, projections, extents, bins, symmetry=None):
         """
