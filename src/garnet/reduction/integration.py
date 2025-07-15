@@ -1622,13 +1622,13 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def data_norm(self, d, n, rel_err=0.0, abs_err=0):
+    def data_norm(self, d, n, rel_err=0.05):
         mask = (n > 0) & np.isfinite(n)
 
         d[~mask] = np.nan
         n[~mask] = np.nan
 
-        # c_bkg = np.nanmean(c)
+        abs_err = np.nanstd(d)
 
         y_int = d / n
         e_int = np.sqrt(d + (rel_err * d) ** 2 + abs_err**2) / n
@@ -1638,28 +1638,26 @@ class PeakEllipsoid:
     def normalize(self, x0, x1, x2, d, n, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        b = (n > 0).astype(float)
-
         if mode == "1d_0":
-            d_int = np.nansum(d + b, axis=(1, 2))
+            d_int = np.nansum(d, axis=(1, 2))
             n_int = np.nanmean(n / dx1 / dx2, axis=(1, 2))
         elif mode == "1d_1":
-            d_int = np.nansum(d + b, axis=(0, 2))
+            d_int = np.nansum(d, axis=(0, 2))
             n_int = np.nanmean(n / dx0 / dx2, axis=(0, 2))
         elif mode == "1d_2":
-            d_int = np.nansum(d + b, axis=(0, 1))
+            d_int = np.nansum(d, axis=(0, 1))
             n_int = np.nanmean(n / dx0 / dx1, axis=(0, 1))
         elif mode == "2d_0":
-            d_int = np.nansum(d + b, axis=0)
+            d_int = np.nansum(d, axis=0)
             n_int = np.nanmean(n / dx0, axis=0)
         elif mode == "2d_1":
-            d_int = np.nansum(d + b, axis=1)
+            d_int = np.nansum(d, axis=1)
             n_int = np.nanmean(n / dx1, axis=1)
         elif mode == "2d_2":
-            d_int = np.nansum(d + b, axis=2)
+            d_int = np.nansum(d, axis=2)
             n_int = np.nanmean(n / dx2, axis=2)
         elif mode == "3d":
-            d_int = d + b
+            d_int = d
             n_int = n.copy()
 
         y_int, e_int = self.data_norm(d_int, n_int)
