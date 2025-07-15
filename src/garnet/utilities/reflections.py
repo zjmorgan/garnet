@@ -1286,8 +1286,8 @@ class Peaks:
         powder_min = powder_Q1 - 1.5 * powder_IQR
         powder_max = powder_Q3 + 1.5 * powder_IQR
 
-        peak_min = peak_Q1 - 1.5 * peak_IQR
-        peak_max = peak_Q3 + 1.5 * peak_IQR
+        peak_min = peak_Q1 - 2 * peak_IQR
+        peak_max = peak_Q3 + 2 * peak_IQR
 
         filename = os.path.splitext(self.filename)[0]
 
