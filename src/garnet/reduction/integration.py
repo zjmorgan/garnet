@@ -860,7 +860,7 @@ class Integration(SubPlan):
             if region.area >= min_size:
                 filtered_mask[labeled == region.label] = True
 
-        return filtered_mask
+        return ~filtered_mask
 
     def interpolate(self, x0, x1, x2, d, n, sigma=2):
         detection_mask = self.detection_mask(n)
@@ -869,6 +869,8 @@ class Integration(SubPlan):
 
         gd = scipy.ndimage.gaussian_filter(d * detection_mask, sigma=sigma)
         gn = scipy.ndimage.gaussian_filter(n * detection_mask, sigma=sigma)
+
+        gm[~detection_mask] = np.nan
 
         gd /= gm
         gn /= gm
