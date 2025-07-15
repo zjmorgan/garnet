@@ -1621,7 +1621,7 @@ class PeakEllipsoid:
 
         return c, inv_S
 
-    def data_norm(self, d, n, rel_err=0.05, abs_err=0):
+    def data_norm(self, d, n, rel_err=0.0, abs_err=0):
         mask = (n > 0) & np.isfinite(n)
 
         d[~mask] = np.nan
