@@ -39,9 +39,14 @@ import scipy.interpolate
 
 from scipy.spatial.transform import Rotation
 
+from mantid.geometry import (
+    CrystalStructure,
+    ReflectionGenerator,
+    ReflectionConditionFilter,
+)
+
 from mantid.kernel import V3D
 
-# from mantid.geometry import PointGroupFactory
 from mantid import config
 
 config["Q.convention"] = "Crystallography"
@@ -1259,6 +1264,33 @@ class Peaks:
             f.write("{:.4e}".format(scale))
 
     def remove_off_centered(self):
+        aluminum = CrystalStructure(
+            "4.05 4.05 4.05", "F m -3 m", "Al 0 0 0 1.0 0.005"
+        )
+
+        copper = CrystalStructure(
+            "3.61 3.61 3.61", "F m -3 m", "Cu 0 0 0 1.0 0.005"
+        )
+
+        generator_al = ReflectionGenerator(aluminum)
+        generator_cu = ReflectionGenerator(copper)
+
+        d = np.array(mtd[self.peaks].column("DSpacing"))
+
+        d_min = np.nanmin(d)
+        d_max = np.nanmax(d)
+
+        hkls_al = generator_al.getUniqueHKLsUsingFilter(
+            d_min, d_max, ReflectionConditionFilter.StructureFactor
+        )
+
+        hkls_cu = generator_cu.getUniqueHKLsUsingFilter(
+            d_min, d_max, ReflectionConditionFilter.StructureFactor
+        )
+
+        d_al = np.unique(generator_al.getDValues(hkls_al))
+        d_cu = np.unique(generator_cu.getDValues(hkls_cu))
+
         ol = mtd[self.peaks].sample().getOrientedLattice()
 
         powder_err = []
@@ -1313,6 +1345,18 @@ class Peaks:
         ax[2].axhline(peak_max[1], color="k", linestyle="--", linewidth=1)
         ax[3].axhline(peak_min[2], color="k", linestyle="--", linewidth=1)
         ax[3].axhline(peak_max[2], color="k", linestyle="--", linewidth=1)
+
+        for i in range(4):
+            for d in d_al:
+                ax[i].axvline(
+                    2 * np.pi / d, color="k", linestyle=":", linewidth=1
+                )
+
+            for d in d_cu:
+                ax[i].axvline(
+                    2 * np.pi / d, color="k", linestyle=":", linewidth=1
+                )
+
         fig.savefig(filename + "_cont.pdf")
 
         for i, peak in enumerate(mtd[self.peaks]):

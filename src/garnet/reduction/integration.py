@@ -841,27 +841,15 @@ class Integration(SubPlan):
 
         return key, value
 
-    def detection_mask(self, data, min_size=10, connectivity=3):
-        """
-        Identify large connected low-value regions in a 3D array.
-
-        Parameters
-        ----------
-        data : ndarray
-            3D input array.
-        min_size : int
-            Minimum number of voxels for a region to be considered significant.
-        connectivity : int
-            Connectivity for region labeling. Use 1, 2, or 3 for 3D.
-
-        Returns
-        -------
-        mask : ndarray (bool)
-            Boolean mask where True marks large low-value regions.
-
-        """
+    def detection_mask(self, data, min_size=10):
+        connectivity = data.ndim
 
         coverage_mask = data == 0.0
+
+        structure = np.ones((3,) * connectivity, dtype=bool)
+        coverage_mask = scipy.ndimage.binary_closing(
+            coverage_mask, structure=structure
+        )
 
         labeled, _ = skimage.measure.label(
             coverage_mask, connectivity=connectivity, return_num=True
@@ -874,18 +862,18 @@ class Integration(SubPlan):
 
         return ~filtered_mask
 
-    def interpolate(self, x0, x1, x2, d, n):
+    def interpolate(self, x0, x1, x2, d, n, sigma=2):
         detection_mask = self.detection_mask(n)
 
-        gd = scipy.ndimage.gaussian_filter(d.copy(), sigma=2)
-        gn = scipy.ndimage.gaussian_filter(n.copy(), sigma=2)
+        gm = scipy.ndimage.gaussian_filter(detection_mask, sigma=sigma)
 
-        data_mask = np.isfinite(gn) & (gn > 0)
+        gd = scipy.ndimage.gaussian_filter(d * detection_mask, sigma=sigma)
+        gn = scipy.ndimage.gaussian_filter(n * detection_mask, sigma=sigma)
 
-        gd[~data_mask] = np.nan
-        gn[~data_mask] = np.nan
+        gd /= gm
+        gn /= gm
 
-        return gd, gn, data_mask, detection_mask
+        return gd, gn, detection_mask, detection_mask
 
     def extract_peak_info(self, peaks_ws, r_cut, norm=False, fit=True):
         """
@@ -1647,25 +1635,25 @@ class PeakEllipsoid:
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == "1d_0":
-            d_int = np.nansum(d, axis=(1, 2))
+            d_int = np.nansum(d + 1, axis=(1, 2))
             n_int = np.nanmean(n / dx1 / dx2, axis=(1, 2))
         elif mode == "1d_1":
-            d_int = np.nansum(d, axis=(0, 2))
+            d_int = np.nansum(d + 1, axis=(0, 2))
             n_int = np.nanmean(n / dx0 / dx2, axis=(0, 2))
         elif mode == "1d_2":
-            d_int = np.nansum(d, axis=(0, 1))
+            d_int = np.nansum(d + 1, axis=(0, 1))
             n_int = np.nanmean(n / dx0 / dx1, axis=(0, 1))
         elif mode == "2d_0":
-            d_int = np.nansum(d, axis=0)
+            d_int = np.nansum(d + 1, axis=0)
             n_int = np.nanmean(n / dx0, axis=0)
         elif mode == "2d_1":
-            d_int = np.nansum(d, axis=1)
+            d_int = np.nansum(d + 1, axis=1)
             n_int = np.nanmean(n / dx1, axis=1)
         elif mode == "2d_2":
-            d_int = np.nansum(d, axis=2)
+            d_int = np.nansum(d + 1, axis=2)
             n_int = np.nanmean(n / dx2, axis=2)
         elif mode == "3d":
-            d_int = d.copy()
+            d_int = d + 1
             n_int = n.copy()
 
         y_int, e_int = self.data_norm(d_int, n_int)
