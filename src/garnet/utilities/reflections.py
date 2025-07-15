@@ -1627,7 +1627,7 @@ class Peaks:
             lamda = peak.getWavelength()
             Tbar = peak.getAbsorptionWeightedPathLength() * 1e8  # Ang
 
-            N, vol, data, norm, b, b_err = self.info_dict[key]
+            N, vol, pk_data, pk_norm, bkg_data, bkg_norm = self.info_dict[key]
 
             key = (h, k, l, m, n, p)
 
@@ -1636,10 +1636,10 @@ class Peaks:
                 items = [], [], [], [], [], [], [], [], [], []
             items[0].append(N)
             items[1].append(vol)
-            items[2].append(data)
-            items[3].append(norm)
-            items[4].append(b)
-            items[5].append(b_err)
+            items[2].append(pk_data)
+            items[3].append(pk_norm)
+            items[4].append(bkg_data)
+            items[5].append(bkg_norm)
             items[6].append(lamda)
             items[7].append(Tbar)
             items[8].append(intens)
@@ -1701,7 +1701,7 @@ class Peaks:
             norm = np.nansum(pk_norm)
             data = np.nansum(pk_data)
 
-            vol = np.nansum(N * d3x)
+            vol = np.nanmean(N * d3x)
 
             b = np.nansum(bkg_data) / np.nansum(bkg_norm)
             b_err = np.sqrt(np.nansum(bkg_data)) / np.nansum(bkg_norm)
@@ -1726,43 +1726,43 @@ class Peaks:
             peak.setAbsorptionWeightedPathLength(wpl * 1e-8)
             peaks_lean.addPeak(peak)
 
-        F2, Q, y = np.array(F2), np.array(Q), np.array(y)
+        # F2, Q, y = np.array(F2), np.array(Q), np.array(y)
 
-        A = np.column_stack(
-            [
-                np.log(F2) ** 2,
-                Q**2,
-                np.log(F2) * Q,
-                np.log(F2),
-                Q,
-                np.ones_like(y),
-            ]
-        )
-        x, *_ = np.linalg.lstsq(A, y)
+        # A = np.column_stack(
+        #     [
+        #         np.log(F2) ** 2,
+        #         Q**2,
+        #         np.log(F2) * Q,
+        #         np.log(F2),
+        #         Q,
+        #         np.ones_like(y),
+        #     ]
+        # )
+        # x, *_ = np.linalg.lstsq(A, y)
 
-        y_fit = np.dot(A, x)
+        # y_fit = np.dot(A, x)
 
         filename = os.path.splitext(self.filename)[0] + app + "_merge"
 
-        vmin, vmax = [np.min(y), np.max(y)] if len(y) > 1 else [0.1, 10]
+        # vmin, vmax = [np.min(y), np.max(y)] if len(y) > 1 else [0.1, 10]
 
-        label = "$\sigma_\mathrm{int}/\sigma_\mathrm{ext}$"
+        # label = "$\sigma_\mathrm{int}/\sigma_\mathrm{ext}$"
 
-        fig, ax = plt.subplots(1, 2, sharey=True, layout="constrained")
-        ax[0].minorticks_on()
-        ax[1].minorticks_on()
-        ax[0].set_yscale("log")
-        ax[1].set_yscale("log")
-        im = ax[0].scatter(Q, F2, c=y, vmin=vmin, vmax=vmax, norm="log")
-        ax[1].scatter(Q, F2, c=y_fit, vmin=vmin, vmax=vmax, norm="log")
-        ax[0].set_xlabel("$|Q|$ [$\AA^{-1}]$")
-        ax[1].set_xlabel("$|Q|$ [$\AA^{-1}]$")
-        ax[0].set_ylabel("$F^2$ [arb. unit]")
-        cb = fig.colorbar(im, ax=ax, label=label)
-        cb.minorticks_on()
-        fig.savefig(filename + ".pdf")
+        # fig, ax = plt.subplots(1, 2, sharey=True, layout="constrained")
+        # ax[0].minorticks_on()
+        # ax[1].minorticks_on()
+        # ax[0].set_yscale("log")
+        # ax[1].set_yscale("log")
+        # im = ax[0].scatter(Q, F2, c=y, vmin=vmin, vmax=vmax, norm="log")
+        # ax[1].scatter(Q, F2, c=y_fit, vmin=vmin, vmax=vmax, norm="log")
+        # ax[0].set_xlabel("$|Q|$ [$\AA^{-1}]$")
+        # ax[1].set_xlabel("$|Q|$ [$\AA^{-1}]$")
+        # ax[0].set_ylabel("$F^2$ [arb. unit]")
+        # cb = fig.colorbar(im, ax=ax, label=label)
+        # cb.minorticks_on()
+        # fig.savefig(filename + ".pdf")
 
-        self.x = x
+        # self.x = x
 
         FilterPeaks(
             InputWorkspace=peaks + "_lean",
@@ -1855,7 +1855,7 @@ class Peaks:
             Operator=">",
         )
 
-        # self.merge_intensities(name, fit_dict)
+        self.merge_intensities(name, fit_dict)
 
         # for peak in mtd[peaks]:
         # I = peak.getIntensity()
