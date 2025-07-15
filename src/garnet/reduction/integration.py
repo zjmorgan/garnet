@@ -1242,7 +1242,7 @@ class PeakProfile:
         y_bar = np.nanmean(y)
         y_hat_bar = np.nanmean(y_hat)
 
-        w = 1 / (e**2 + (0.05 * y) ** 2 + 1e-16)
+        w = 1 / (e**2 + (0.05 * y) ** 2 + np.nanstd(y) ** 2)
         w[np.isinf(w)] = np.nan
         y[np.isinf(y)] = np.nan
 
