@@ -864,12 +864,13 @@ class Integration(SubPlan):
 
     def interpolate(self, x0, x1, x2, d, n, sigma=2):
         detection_mask = self.detection_mask(n)
-        print(np.sum(detection_mask))
 
-        gm = scipy.ndimage.gaussian_filter(detection_mask, sigma=sigma)
+        mask = detection_mask.astype(float)
 
-        gd = scipy.ndimage.gaussian_filter(d * detection_mask, sigma=sigma)
-        gn = scipy.ndimage.gaussian_filter(n * detection_mask, sigma=sigma)
+        gm = scipy.ndimage.gaussian_filter(mask, sigma=sigma)
+
+        gd = scipy.ndimage.gaussian_filter(d * mask, sigma=sigma)
+        gn = scipy.ndimage.gaussian_filter(n * mask, sigma=sigma)
 
         gm[~detection_mask] = np.nan
 
