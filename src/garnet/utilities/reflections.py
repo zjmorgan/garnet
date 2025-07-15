@@ -1701,7 +1701,7 @@ class Peaks:
             norm = np.nansum(pk_norm)
             data = np.nansum(pk_data)
 
-            vol = np.nanmean(N * d3x)
+            vol = np.nansum(N * d3x * pk_norm) / norm
 
             b = np.nansum(bkg_data) / np.nansum(bkg_norm)
             b_err = np.sqrt(np.nansum(bkg_data)) / np.nansum(bkg_norm)
