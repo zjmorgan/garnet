@@ -1638,7 +1638,7 @@ class PeakEllipsoid:
     def normalize(self, x0, x1, x2, d, n, mode="3d"):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
-        b = (n > 0).dtype(float) * 0
+        b = (n > 0).astype(float)
 
         if mode == "1d_0":
             d_int = np.nansum(d + b, axis=(1, 2))
