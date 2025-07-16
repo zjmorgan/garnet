@@ -1440,8 +1440,8 @@ class PeakProfile:
             Q0, Q1, Q2, _, _, *interp, dQ, Q, k, projections = data_info
             d, n, val_mask, det_mask = interp
 
-            d0 = self.fiter_array(np.nansum(d, axis=(1, 2)))
-            n0 = self.fiter_array(np.nansum(n, axis=(1, 2)))
+            d0 = self.filter_array(np.nansum(d, axis=(1, 2)))
+            n0 = self.filter_array(np.nansum(n, axis=(1, 2)))
             y0 = d0 / n0
             e0 = np.sqrt(d0) / n0
             x0 = Q0[:, 0, 0] - Q
@@ -1450,8 +1450,8 @@ class PeakProfile:
             e0s.append(e0)
             x0s.append(x0)
 
-            d1 = self.fiter_array(np.nansum(d, axis=(0, 2)))
-            n1 = self.fiter_array(np.nansum(n, axis=(0, 2)))
+            d1 = self.filter_array(np.nansum(d, axis=(0, 2)))
+            n1 = self.filter_array(np.nansum(n, axis=(0, 2)))
             y1 = d1 / n1
             e1 = np.sqrt(d1) / n1
             x1 = Q1[0, :, 0]
@@ -1460,8 +1460,8 @@ class PeakProfile:
             e1s.append(e1)
             x1s.append(x1)
 
-            d2 = self.fiter_array(np.nansum(d, axis=(0, 1)))
-            n2 = self.fiter_array(np.nansum(n, axis=(0, 1)))
+            d2 = self.filter_array(np.nansum(d, axis=(0, 1)))
+            n2 = self.filter_array(np.nansum(n, axis=(0, 1)))
             y2 = d2 / n2
             e2 = np.sqrt(d2) / n2
             x2 = Q2[0, 0, :]
