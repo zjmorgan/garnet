@@ -1066,7 +1066,7 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        n_bins = 21 if fit else 9
+        n_bins = 15 if fit else 9
 
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
@@ -1116,7 +1116,7 @@ class Integration(SubPlan):
             bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
             bins[bins < 10] = 10
-            bins[bins > 40] = 40
+            bins[bins > 20] = 20
 
             extents = np.vstack((min_adjusted, max_adjusted)).T
 
@@ -1232,9 +1232,9 @@ class PeakProfile:
         self.params.add("r1", value=r_cut / 2, min=0.001, max=2 * r_cut)
         self.params.add("r2", value=r_cut / 2, min=0.001, max=2 * r_cut)
 
-        self.params.add("dr0", value=0, min=0, max=r_cut * 10, vary=True)
-        self.params.add("dr1", value=0, min=0, max=r_cut * 10, vary=True)
-        self.params.add("dr2", value=0, min=0, max=r_cut * 10, vary=True)
+        self.params.add("dr0", value=0, min=0, max=r_cut * 10, vary=False)
+        self.params.add("dr1", value=0, min=0, max=r_cut * 10, vary=False)
+        self.params.add("dr2", value=0, min=0, max=r_cut * 10, vary=False)
 
     def calculate_fit(self, y, z, e):
         y_hat = np.exp(-0.5 * z**2)
