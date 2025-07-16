@@ -3332,13 +3332,13 @@ class PeakEllipsoid:
             self.residual,
             self.params,
             fcn_args=(args_1d, args_2d, args_3d),
-            # nan_policy="omit",
+            nan_policy="omit",
         )
 
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            max_nfev=200,
+            max_nfev=100,
             col_deriv=True,
         )
 
@@ -3390,9 +3390,9 @@ class PeakEllipsoid:
         # r1 = self.params["r1"].value
         # r2 = self.params["r2"].value
 
-        self.params["r0"].set(vary=False)
-        self.params["r1"].set(vary=False)
-        self.params["r2"].set(vary=False)
+        self.params["r0"].set(vary=True)
+        self.params["r1"].set(vary=True)
+        self.params["r2"].set(vary=True)
 
         # self.params["r1"].set(expr="{}*r0".format(r1 / r0))
         # self.params["r2"].set(expr="{}*r0".format(r2 / r0))
