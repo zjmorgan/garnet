@@ -1075,9 +1075,9 @@ class Integration(SubPlan):
             kappa = 2 * np.pi / lamda
             Q = 2 * kappa * np.sin(0.5 * np.deg2rad(two_theta))
             dQ_cut = [
-                2 * r0 * (1 + dr0 * kappa),
-                2 * r1 * (1 + dr1 * kappa),
-                2 * r2 * (1 + dr2 * Q),
+                r0 * (1 + dr0 * kappa),
+                r1 * (1 + dr1 * kappa),
+                r2 * (1 + dr2 * Q),
             ]
 
         bin_sizes = np.array(dQ_cut) / n_bins
