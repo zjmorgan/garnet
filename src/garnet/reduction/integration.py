@@ -1116,7 +1116,7 @@ class Integration(SubPlan):
             bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
             bins[bins < 10] = 10
-            bins[bins > 30] = 30
+            bins[bins > 40] = 40
 
             extents = np.vstack((min_adjusted, max_adjusted)).T
 
@@ -1417,13 +1417,13 @@ class PeakProfile:
 
         return (x0c, x1c, x2c), (y0c, y1c, y2c), (e0c, e1c, e2c), Qs, ks
 
-    def filter_array(self, data, sigma=2):
+    def filter_array(self, data, size=3):
         array = np.array(data)
 
         array[~np.isfinite(array)] = 0
 
-        result = scipy.ndimage.gaussian_filter(
-            array, sigma=sigma, mode="constant", cval=0
+        result = scipy.ndimage.uniform_filter(
+            array, size=size, mode="constant", cval=0
         )
 
         return result
@@ -1440,11 +1440,8 @@ class PeakProfile:
             Q0, Q1, Q2, _, _, *interp, dQ, Q, k, projections = data_info
             d, n, val_mask, det_mask = interp
 
-            gd = self.filter_array(d)
-            gn = self.filter_array(n)
-
-            d0 = np.nansum(gd, axis=(1, 2))
-            n0 = np.nansum(gn, axis=(1, 2))
+            d0 = self.fiter_array(np.nansum(d, axis=(1, 2)))
+            n0 = self.fiter_array(np.nansum(n, axis=(1, 2)))
             y0 = d0 / n0
             e0 = np.sqrt(d0) / n0
             x0 = Q0[:, 0, 0] - Q
@@ -1453,8 +1450,8 @@ class PeakProfile:
             e0s.append(e0)
             x0s.append(x0)
 
-            d1 = np.nansum(gd, axis=(0, 2))
-            n1 = np.nansum(gn, axis=(0, 2))
+            d1 = self.fiter_array(np.nansum(d, axis=(0, 2)))
+            n1 = self.fiter_array(np.nansum(n, axis=(0, 2)))
             y1 = d1 / n1
             e1 = np.sqrt(d1) / n1
             x1 = Q1[0, :, 0]
@@ -1463,8 +1460,8 @@ class PeakProfile:
             e1s.append(e1)
             x1s.append(x1)
 
-            d2 = np.nansum(gd, axis=(0, 1))
-            n2 = np.nansum(gn, axis=(0, 1))
+            d2 = self.fiter_array(np.nansum(d, axis=(0, 1)))
+            n2 = self.fiter_array(np.nansum(n, axis=(0, 1)))
             y2 = d2 / n2
             e2 = np.sqrt(d2) / n2
             x2 = Q2[0, 0, :]
