@@ -1242,7 +1242,7 @@ class PeakProfile:
         y_bar = np.nanmean(y)
         y_hat_bar = np.nanmean(y_hat)
 
-        w = 1 / (e**2 + (0.05 * y) ** 2 + np.nanstd(y) ** 2)
+        w = 1 / (e**2 + (0.05 * y) ** 2 + np.nanstd(0.05 * y) ** 2 + 1e-16)
         w[np.isinf(w)] = np.nan
         y[np.isinf(y)] = np.nan
 
@@ -1417,6 +1417,17 @@ class PeakProfile:
 
         return (x0c, x1c, x2c), (y0c, y1c, y2c), (e0c, e1c, e2c), Qs, ks
 
+    def filter_array(self, data, size=2):
+        array = np.array(data)
+
+        array[~np.isfinite(array)] = 0
+
+        result = scipy.ndimage.gaussian_filter(
+            array, size=size, mode="constant", cval=0
+        )
+
+        return result
+
     def extract_info(self, peak_dict):
         y0s, e0s, x0s = [], [], []
         y1s, e1s, x1s = [], [], []
@@ -1429,8 +1440,11 @@ class PeakProfile:
             Q0, Q1, Q2, _, _, *interp, dQ, Q, k, projections = data_info
             d, n, val_mask, det_mask = interp
 
-            d0 = np.nansum(d, axis=(1, 2))
-            n0 = np.nansum(n, axis=(1, 2))
+            gd = self.filter_array(d)
+            gn = self.filter_array(n)
+
+            d0 = np.nansum(gd, axis=(1, 2))
+            n0 = np.nansum(gn, axis=(1, 2))
             y0 = d0 / n0
             e0 = np.sqrt(d0) / n0
             x0 = Q0[:, 0, 0] - Q
@@ -1439,8 +1453,8 @@ class PeakProfile:
             e0s.append(e0)
             x0s.append(x0)
 
-            d1 = np.nansum(d, axis=(0, 2))
-            n1 = np.nansum(n, axis=(0, 2))
+            d1 = np.nansum(gd, axis=(0, 2))
+            n1 = np.nansum(gn, axis=(0, 2))
             y1 = d1 / n1
             e1 = np.sqrt(d1) / n1
             x1 = Q1[0, :, 0]
@@ -1449,8 +1463,8 @@ class PeakProfile:
             e1s.append(e1)
             x1s.append(x1)
 
-            d2 = np.nansum(d, axis=(0, 1))
-            n2 = np.nansum(n, axis=(0, 1))
+            d2 = np.nansum(gd, axis=(0, 1))
+            n2 = np.nansum(gn, axis=(0, 1))
             y2 = d2 / n2
             e2 = np.sqrt(d2) / n2
             x2 = Q2[0, 0, :]
@@ -1628,7 +1642,7 @@ class PeakEllipsoid:
         d[~mask] = np.nan
         n[~mask] = np.nan
 
-        abs_err = np.nanstd(d)
+        abs_err = np.nanstd(rel_err * d)
 
         y_int = d / n
         e_int = np.sqrt(d + (rel_err * d) ** 2 + abs_err**2) / n
@@ -1663,17 +1677,6 @@ class PeakEllipsoid:
         y_int, e_int = self.data_norm(d_int, n_int)
 
         return y_int, e_int
-
-    def filter_array(self, data, size=3):
-        array = np.array(data)
-
-        array[~np.isfinite(array)] = 0
-
-        result = scipy.ndimage.gaussian_filter(
-            array, size=size, mode="constant", cval=0
-        )
-
-        return result
 
     def ellipsoid_covariance(self, inv_S, mode="3d", perc=99.7):
         if mode == "3d":
