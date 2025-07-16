@@ -1417,13 +1417,13 @@ class PeakProfile:
 
         return (x0c, x1c, x2c), (y0c, y1c, y2c), (e0c, e1c, e2c), Qs, ks
 
-    def filter_array(self, data, size=2):
+    def filter_array(self, data, sigma=2):
         array = np.array(data)
 
         array[~np.isfinite(array)] = 0
 
         result = scipy.ndimage.gaussian_filter(
-            array, size=size, mode="constant", cval=0
+            array, sigma=sigma, mode="constant", cval=0
         )
 
         return result
