@@ -1066,7 +1066,7 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        n_bins = 15 if fit else 9
+        n_bins = 21 if fit else 9
 
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
