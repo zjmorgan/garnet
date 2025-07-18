@@ -1745,13 +1745,17 @@ class Peaks:
             norm = np.nansum(pk_norm)
             data = np.nansum(pk_data)
 
-            vol = np.nansum(N * d3x * pk_norm) / norm
+            volume = N * d3x
+
+            w = pk_norm / N
+
+            vol = np.nansum(volume * w) / np.nansum(w)
 
             b = np.nansum(bkg_data) / np.nansum(bkg_norm)
             b_err = np.sqrt(np.nansum(bkg_data)) / np.nansum(bkg_norm)
 
-            wl = np.nansum(lamda * pk_norm) / norm
-            wpl = np.nansum(Tbar * pk_norm) / norm
+            wl = np.nansum(lamda * w) / np.nansum(w)
+            wpl = np.nansum(Tbar * w) / np.nansum(w)
 
             intens = self.scale * (data / norm - b) * vol
             sig_ext = self.scale * np.sqrt(data / norm**2 + b_err**2) * vol
