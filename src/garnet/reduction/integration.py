@@ -1242,7 +1242,7 @@ class PeakProfile:
         y_bar = np.nanmean(y)
         y_hat_bar = np.nanmean(y_hat)
 
-        w = 1 / (e**2 + (0.05 * y) ** 2 + np.nanstd(0.05 * y) ** 2 + 1e-16)
+        w = 1 / (e**2 + (0.05 * y) ** 2 + 1e-16)
         w[np.isinf(w)] = np.nan
         y[np.isinf(y)] = np.nan
 
@@ -1443,7 +1443,7 @@ class PeakProfile:
             d0 = self.filter_array(np.nansum(d, axis=(1, 2)))
             n0 = self.filter_array(np.nansum(n, axis=(1, 2)))
             y0 = d0 / n0
-            e0 = np.sqrt(d0) / n0
+            e0 = np.sqrt(d0 + (y0 == 0) ** 2) / n0
             x0 = Q0[:, 0, 0] - Q
 
             y0s.append(y0)
@@ -1453,7 +1453,7 @@ class PeakProfile:
             d1 = self.filter_array(np.nansum(d, axis=(0, 2)))
             n1 = self.filter_array(np.nansum(n, axis=(0, 2)))
             y1 = d1 / n1
-            e1 = np.sqrt(d1) / n1
+            e1 = np.sqrt(d1 + (y1 == 0) ** 2) / n1
             x1 = Q1[0, :, 0]
 
             y1s.append(y1)
@@ -1463,7 +1463,7 @@ class PeakProfile:
             d2 = self.filter_array(np.nansum(d, axis=(0, 1)))
             n2 = self.filter_array(np.nansum(n, axis=(0, 1)))
             y2 = d2 / n2
-            e2 = np.sqrt(d2) / n2
+            e2 = np.sqrt(d2 + (y2 == 0) ** 2) / n2
             x2 = Q2[0, 0, :]
 
             y2s.append(y2)
@@ -1639,7 +1639,7 @@ class PeakEllipsoid:
         d[~mask] = np.nan
         n[~mask] = np.nan
 
-        abs_err = np.nanstd(rel_err * d)
+        abs_err = (d == 0) & (n > 0)
 
         y_int = d / n
         e_int = np.sqrt(d + (rel_err * d) ** 2 + abs_err**2) / n
