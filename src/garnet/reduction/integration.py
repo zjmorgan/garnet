@@ -1066,7 +1066,7 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        n_bins = 15 if fit else 9
+        n_bins = 30 if fit else 9
 
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
@@ -1116,7 +1116,7 @@ class Integration(SubPlan):
             bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
             bins[bins < 10] = 10
-            bins[bins > 20] = 20
+            bins[bins > 30] = 30
 
             extents = np.vstack((min_adjusted, max_adjusted)).T
 
