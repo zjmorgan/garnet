@@ -943,6 +943,11 @@ class Integration(SubPlan):
                 d, _, Q0, Q1, Q2 = data.extract_bin_info("md_data")
                 n, _, Q0, Q1, Q2 = data.extract_bin_info("md_norm")
 
+                if data.workspace_exists("md_bkg_data"):
+                    b, _, Q0, Q1, Q2 = data.extract_bin_info("md_data")
+
+                    d -= b
+
                 data.clear_norm("md")
 
             else:
@@ -3387,9 +3392,9 @@ class PeakEllipsoid:
         # r1 = self.params["r1"].value
         # r2 = self.params["r2"].value
 
-        self.params["r0"].set(vary=True)
-        self.params["r1"].set(vary=True)
-        self.params["r2"].set(vary=True)
+        self.params["r0"].set(vary=False)
+        self.params["r1"].set(vary=False)
+        self.params["r2"].set(vary=False)
 
         # self.params["r1"].set(expr="{}*r0".format(r1 / r0))
         # self.params["r2"].set(expr="{}*r0".format(r2 / r0))
