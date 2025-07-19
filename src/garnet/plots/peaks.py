@@ -929,9 +929,9 @@ class PeakPlot(BasePlot):
         x1_min, x1_max = x1[0, 0, 0] - s1, x1[0, -1, 0] + s1
         x2_min, x2_max = x2[0, 0, 0] - s2, x2[0, 0, -1] + s2
 
-        mask_0 = np.isfinite(y0) & (y0 > 0)
-        mask_1 = np.isfinite(y1) & (y1 > 0)
-        mask_2 = np.isfinite(y2) & (y2 > 0)
+        mask_0 = np.isfinite(y0)
+        mask_1 = np.isfinite(y1)
+        mask_2 = np.isfinite(y2)
 
         y0[~mask_0] = np.nan
         y1[~mask_1] = np.nan
