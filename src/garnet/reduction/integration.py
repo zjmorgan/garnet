@@ -943,10 +943,9 @@ class Integration(SubPlan):
                 d, _, Q0, Q1, Q2 = data.extract_bin_info("md_data")
                 n, _, Q0, Q1, Q2 = data.extract_bin_info("md_norm")
 
-                if data.workspace_exists("md_bkg_data"):
-                    b, _, Q0, Q1, Q2 = data.extract_bin_info("md_bkg_data")
-
-                    d -= b
+                # if data.workspace_exists("md_bkg_data"):
+                #     b, _, Q0, Q1, Q2 = data.extract_bin_info("md_bkg_data")
+                #     d -= b
 
                 data.clear_norm("md")
 
