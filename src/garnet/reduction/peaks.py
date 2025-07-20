@@ -54,7 +54,7 @@ class PeaksModel:
     def __init__(self):
         self.edge_pixels = 0
 
-    def find_peaks(self, md, peaks, max_d, density=10, max_peaks=1000):
+    def find_peaks(self, md, peaks, max_d, density=50, max_peaks=1000):
         """
         Harvest strong peak locations from Q-sample into a peaks table.
 
