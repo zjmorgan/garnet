@@ -3561,11 +3561,7 @@ class PeakEllipsoid:
 
         y = np.exp(-0.5 * d2) / np.sqrt((2 * np.pi) ** 3 * det)
 
-        d3x = self.voxel_volume(x0, x1, x2)
-
-        val_mask = pk & det_mask
-
-        return pk, bkg, np.nansum(y[val_mask]) * d3x
+        return pk, bkg, y
 
     def extract_raw_intensity(self, counts, pk, bkg):
         d = counts.copy()
@@ -3585,12 +3581,14 @@ class PeakEllipsoid:
 
         return intens, sig
 
-    def extract_intensity(self, d, n, pk, bkg):
+    def extract_intensity(self, d, n, pk, bkg, kernel):
         d_pk = d[pk].copy()
         n_pk = n[pk].copy()
 
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
+
+        w = kernel[pk] / np.nansum(kernel[pk])
 
         bkg_cnts = np.nansum(d_bkg)
         bkg_norm = np.nansum(n_bkg)
@@ -3618,8 +3616,19 @@ class PeakEllipsoid:
         if pk_cnts == 0.0:
             pk_norm = float("nan")
 
-        intens = vox * (pk_cnts / pk_norm - b)
-        sig = vox * np.sqrt(pk_cnts / pk_norm**2 + b_err**2)
+        bkg_intens = np.nansum(d_bkg / n_bkg)
+        bkg_err = np.sqrt(np.nansum(d_bkg / n_bkg**2))
+
+        norm = np.nansum(n_pk * w)
+
+        pk_intens = pk_cnts / norm
+        pk_err = np.sqrt(pk_cnts) / norm
+
+        intens = pk_intns - bkg_intens
+        sig_intens = np.sqrt(pk_err**2 + bkg_err**2)
+
+        # intens = vox * (pk_cnts / pk_norm - b)
+        # sig = vox * np.sqrt(pk_cnts / pk_norm**2 + b_err**2)
 
         if not sig > 0:
             sig = float("inf")
@@ -3631,20 +3640,17 @@ class PeakEllipsoid:
 
         d3x = self.voxel_volume(x0, x1, x2)
 
-        pk, bkg, vol_fract = self.peak_roi(x0, x1, x2, c, S, det_mask)
+        pk, bkg, kernel = self.peak_roi(x0, x1, x2, c, S, det_mask)
 
         d[np.isinf(d)] = np.nan
         n[np.isinf(n)] = np.nan
 
-        result = self.extract_intensity(d, n, pk, bkg)
+        result = self.extract_intensity(d, n, pk, bkg, kernel)
 
         intens, sig, b, b_err, N, pk_data, pk_norm, bkg_data, bkg_norm = result
 
         intens *= d3x
         sig *= d3x
-
-        # intens /= vol_fract
-        # sig /= vol_fract
 
         self.intensity.append(intens)
         self.sigma.append(sig)
