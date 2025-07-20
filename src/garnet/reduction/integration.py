@@ -3549,8 +3549,6 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        structure = np.ones((3, 3, 3), dtype=bool)
-
         pk = ellipsoid <= 1
 
         bkg = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2)
@@ -3592,7 +3590,9 @@ class PeakEllipsoid:
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
 
-        w = kernel[pk] / np.nansum(kernel[pk])
+        mask = pk & (n_pk > 0)
+
+        w = kernel[mask] / np.nansum(kernel[mask])
 
         bkg_cnts = np.nansum(d_bkg)
         bkg_norm = np.nansum(n_bkg)
