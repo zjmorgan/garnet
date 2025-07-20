@@ -1643,9 +1643,9 @@ class PeakEllipsoid:
         d[~mask] = np.nan
         n[~mask] = np.nan
 
-        med = np.nanmedian(d[mask])
+        std = np.nanstd(d[mask])
 
-        abs_err = np.sqrt(np.where(d > med, d, med))
+        abs_err = np.sqrt(np.where(d > std, 0, std))
 
         y_int = d / n
         e_int = np.sqrt(d + (rel_err * d) ** 2 + abs_err**2) / n
