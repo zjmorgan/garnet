@@ -3549,9 +3549,17 @@ class PeakEllipsoid:
 
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        pk = ellipsoid <= 1  # & val_mask
+        structure = np.ones((3, 3, 3), dtype=bool)
 
-        bkg = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2)  # & val_mask
+        mask = ellipsoid <= 1
+
+        pk = scipy.ndimage.binary_dilation(mask, structure=structure)
+
+        mask = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2)
+
+        shell = scipy.ndimage.binary_dilation(mask, structure=structure)
+
+        bkg = shell & (~mask)
 
         scale = scipy.stats.chi2.ppf(p, df=3)
 
