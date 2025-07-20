@@ -3624,8 +3624,8 @@ class PeakEllipsoid:
         pk_intens = pk_cnts / norm
         pk_err = np.sqrt(pk_cnts) / norm
 
-        intens = pk_intns - bkg_intens
-        sig_intens = np.sqrt(pk_err**2 + bkg_err**2)
+        intens = pk_intens - bkg_intens
+        sig = np.sqrt(pk_err**2 + bkg_err**2)
 
         # intens = vox * (pk_cnts / pk_norm - b)
         # sig = vox * np.sqrt(pk_cnts / pk_norm**2 + b_err**2)
