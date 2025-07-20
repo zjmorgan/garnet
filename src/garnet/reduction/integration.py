@@ -3590,9 +3590,7 @@ class PeakEllipsoid:
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
 
-        mask = pk & (n_pk > 0)
-
-        w = kernel[mask] / np.nansum(kernel[mask])
+        w = kernel[pk] / np.nansum(kernel[pk])
 
         bkg_cnts = np.nansum(d_bkg)
         bkg_norm = np.nansum(n_bkg)
