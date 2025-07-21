@@ -1614,22 +1614,6 @@ class Peaks:
 
         self.rescale_intensities()
 
-    def monte_carlo_integration(self, c, S_inv, mins, maxs, n_samples=10000):
-        V_box = np.prod(maxs - mins)
-
-        samples = np.random.uniform(mins, maxs, size=(n_samples, 3))
-
-        diff = samples[:, np.newaxis, :] - c[np.newaxis, :, :]
-        d2 = np.einsum("...ni,nij,...nj->...n", diff, S_inv, diff)
-        mask = d2 <= 1.0
-
-        overlap = np.sum(mask, axis=1)
-        overlap[overlap == 0] = 1
-
-        veff = np.sum(mask / overlap[:, None], axis=0) * V_box / n_samples
-
-        return veff
-
     def merge_intensities(self, name=None, fit_dict=None):
         if name is not None:
             peaks = name

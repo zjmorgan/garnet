@@ -51,47 +51,50 @@ from mantid.simpleapi import (
 
 
 class Vanadium:
-    def __init__(
-        self,
-        Instrument="TOPAZ",
-        VanadiumIPTS=31856,
-        VanadiumRuns=None,
-        NoSampleIPTS=31856,
-        NoSampleRuns=None,
-        OutputFolder="",
-        DetectorCalibration=None,
-        TubeCalibration=None,
-        InstrumentDefinition=None,
-        SampleShape="sphere",
-        Diameter=4,
-        Height=None,
-        BeamDiameter=None,
-        MomentumLimits=[1.8, 18],
-        MaskOptions=None,
-        Grouping=[4, 4],
-    ):
-        self.instrument = Instrument
+    def __init__(self, config):
+        defaults = {
+            "Instrument": "TOPAZ",
+            "VanadiumIPTS": 31856,
+            "VanadiumRuns": None,
+            "NoSampleIPTS": 31856,
+            "NoSampleRuns": None,
+            "OutputFolder": "",
+            "DetectorCalibration": None,
+            "TubeCalibration": None,
+            "InstrumentDefinition": None,
+            "SampleShape": "sphere",
+            "Diameter": 4,
+            "Height": None,
+            "BeamDiameter": None,
+            "MomentumLimits": [1.8, 18],
+            "MaskOptions": None,
+            "Grouping": [4, 4],
+        }
 
-        self.van_ipts = VanadiumIPTS
-        self.van_nos = VanadiumRuns
+        defaults.update(config)
 
-        self.bkg_ipts = NoSampleIPTS
-        self.bkg_nos = NoSampleRuns
+        self.instrument = defaults.get("Instrument")
 
-        self.output_folder = OutputFolder
+        self.van_ipts = defaults.get("VanadiumIPTS")
+        self.van_nos = defaults.get("VanadiumRuns")
 
-        self.detector_calibration = DetectorCalibration
-        self.tube_calibration = TubeCalibration
-        self.instrument_definition = InstrumentDefinition
+        self.bkg_ipts = defaults.get("NoSampleIPTS")
+        self.bkg_nos = defaults.get("NoSampleRuns")
 
-        self.sample_shape = SampleShape
-        self.diameter = Diameter
-        self.height = Height
+        self.output_folder = defaults.get("OutputFolder")
 
-        self.beam_diameter = BeamDiameter
+        self.detector_calibration = defaults.get("DetectorCalibration")
+        self.tube_calibration = defaults.get("TubeCalibration")
+        self.instrument_definition = defaults.get("InstrumentDefinition")
 
-        self.mask_options = MaskOptions or {}
-        self.x_bins, self.y_bins = Grouping
+        self.sample_shape = defaults.get("SampleShape")
+        self.diameter = defaults.get("Diameter")
+        self.height = defaults.get("Height")
+
+        self.beam_diameter = defaults.get("BeamDiameter")
+
+        self.mask_options = defaults.get("MaskOptions") or {}
+        self.x_bins, self.y_bins = defaults.get("Grouping")
 
         self.file_folder = "/SNS/{}/IPTS-{}/nexus/"
         self.file_name = "{}_{}.nxs.h5"
@@ -99,7 +102,7 @@ class Vanadium:
 
         self.n_bins = 1000
 
-        self.k_min, self.k_max = MomentumLimits
+        self.k_min, self.k_max = defaults.get("MomentumLimits")
         self.k_step = (self.k_max - self.k_min) / self.n_bins
 
         self.lamda_min = 2 * np.pi / self.k_max
@@ -592,5 +595,5 @@ if __name__ == "__main__":
     with open(config_file, "r") as f:
         params = yaml.safe_load(f)
 
-    norm = Vanadium(**params)
+    norm = Vanadium(params)
     norm.run()
