@@ -186,7 +186,7 @@ class WobbleCorrection:
 
         return np.exp(-0.5 * x**2 / (1 + b * lamda) ** 2)
 
-    def cost(self, coeffs, sigma=1):
+    def cost(self, coeffs, sigma=0.1):
         diff = []
 
         for key in self.peak_dict.keys():
@@ -207,18 +207,19 @@ class WobbleCorrection:
             diff += (w * (y[i] / y_bar - 1)).flatten().tolist()
             diff += (w * (y[j] / y_bar - 1)).flatten().tolist()
 
-        diff += list(coeffs)
-        return diff
+        # diff += list(coeffs)
+        return np.nansum(np.square(diff))
 
     def refine_centering(self):
-        sol = scipy.optimize.least_squares(
+        sol = scipy.optimize.differential_evolution(
             self.cost,
-            x0=[0, 0, 0, 0.5],
-            bounds=[(-1, -1, -1, 0), (1, 1, 1, 1)],
-            verbose=2,
+            x0=[0, 0, 0, 0.0],
+            bounds=np.array([(-1, -1, -1, 0), (1, 1, 1, 1)]).T,
+            # verbose=2,
+            workers=-1,
         )
 
-        assert sol.status >= 1
+        # assert sol.status >= 1
 
         coeffs = sol.x
 
@@ -317,13 +318,14 @@ class AbsorptionCorrection:
 
         self.u_vector = u_vector
         self.v_vector = v_vector
+        print(params)
 
-        if shape == "sphere":
-            assert len(params) == 1
+        if shape == "plate":
+            assert len(params) == 3
         elif shape == "cylinder":
             assert len(params) == 2
-        else:
-            assert len(params) == 3
+        # else:
+        #     assert len(params) == 1
 
         self.shape = shape
         self.params = params

@@ -3621,16 +3621,13 @@ class PeakEllipsoid:
         bkg_intens = np.nansum(d_bkg / n_bkg)
         bkg_err = np.sqrt(np.nansum(d_bkg / n_bkg**2))
 
-        norm = np.nansum(n_pk * w)
+        norm = np.nanmean(n_pk)
 
         pk_intens = pk_cnts / norm
         pk_err = np.sqrt(pk_cnts) / norm
 
         intens = pk_intens - bkg_intens
         sig = np.sqrt(pk_err**2 + bkg_err**2)
-
-        # intens = vox * (pk_cnts / pk_norm - b)
-        # sig = vox * np.sqrt(pk_cnts / pk_norm**2 + b_err**2)
 
         if not sig > 0:
             sig = float("inf")
