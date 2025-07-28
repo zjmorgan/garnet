@@ -2133,7 +2133,7 @@ class PeakEllipsoid:
             dx = [dx0[:, :, 0], dx1[:, :, 0]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             l0, l1 = np.einsum("ij,j...->i...", inv_var, dx)
-            l2 = np.zeros_like(l2)
+            l2 = np.zeros_like(l0)
             k = 2
         elif mode == "1d_0":
             dx = dx0[:, 0, 0]
