@@ -3648,9 +3648,6 @@ class PeakEllipsoid:
         intens *= d3x
         sig *= d3x
 
-        intens *= N
-        sig *= N
-
         self.intensity.append(intens)
         self.sigma.append(sig)
 
