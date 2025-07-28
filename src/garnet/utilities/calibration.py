@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from mantid.simpleapi import (
+    SaveNexus,
     LoadNexus,
     LoadEmptyInstrument,
     LoadParameterFile,
@@ -70,26 +71,35 @@ class Calibration:
 
         FilterPeaks(
             InputWorkspace="peaks",
-            OutputWorkspace="peaks_ws",
+            OutputWorkspace="peaks",
             FilterVariable="Signal/Noise",
             FilterValue=15,
             Operator=">",
         )
 
-        for peak in mtd["peaks_ws"]:
+        self.goniometer_dict = {}
+
+        for peak in mtd["peaks"]:
             peak.setIntensity(0)
             peak.setSigmaIntensity(0)
+            run = peak.getRunNumber()
+            R = peak.getGoniometerMatrix().copy()
+            self.goniometer_dict[run] = R
 
-        runs = np.unique(mtd["peaks_ws"].column("RunNumber")).tolist()
+    def initialize_peaks(self):
+        runs = np.unique(mtd["peaks"].column("RunNumber")).tolist()
 
         for i, run in enumerate(runs):
             FilterPeaks(
-                InputWorkspace="peaks_ws",
+                InputWorkspace="peaks",
                 OutputWorkspace="tmp",
                 FilterVariable="RunNumber",
                 FilterValue=run,
                 Operator="=",
             )
+
+            for peak in mtd["tmp"]:
+                peak.setGoniometerMatrix(np.eye(3))
 
             CalculateUMatrix(
                 PeaksWorkspace="tmp",
@@ -101,27 +111,37 @@ class Calibration:
                 gamma=self.gamma,
             )
 
-            U = mtd["tmp"].sample().getOrientedLattice().getU().copy()
+            RU = mtd["tmp"].sample().getOrientedLattice().getU().copy()
 
             for peak in mtd["tmp"]:
-                peak.setGoniometerMatrix(peak.getGoniometerMatrix() @ U)
+                peak.setGoniometerMatrix(RU)
 
             mtd["tmp"].sample().getOrientedLattice().setU(np.eye(3))
 
             if i == 0:
-                CloneWorkspace(InputWorkspace="tmp", OutputWorkspace="peaks")
+                CloneWorkspace(
+                    InputWorkspace="tmp", OutputWorkspace="peaks_ws"
+                )
             else:
                 CombinePeaksWorkspaces(
                     LHSWorkspace="tmp",
-                    RHSWorkspace="peaks",
-                    OutputWorkspace="peaks",
+                    RHSWorkspace="peaks_ws",
+                    OutputWorkspace="peaks_ws",
                 )
 
             DeleteWorkspace(Workspace="tmp")
 
+        CloneWorkspace(InputWorkspace="peaks_ws", OutputWorkspace="peaks")
+
+        DeleteWorkspace(Workspace="peaks_ws")
+
         mtd["peaks"].sample().getOrientedLattice().setU(np.eye(3))
 
-        IndexPeaks(PeaksWorkspace="peaks", Tolerance=0.1)
+        IndexPeaks(PeaksWorkspace="peaks", Tolerance=0.2)
+
+        # for peak in mtd["peaks"]:
+        #     peak.setIntensity(peak.getDSpacing())
+        #     peak.setSigmaIntensity(1)
 
     def load_instrument(self):
         LoadEmptyInstrument(
@@ -139,7 +159,7 @@ class Calibration:
     def _get_ouput(self, ext=".xml"):
         return os.path.join(self._get_output_folder(), "calibration" + ext)
 
-    def calibrate(self):
+    def calibrate_instrument(self, iteration):
         SCDCalibratePanels(
             PeakWorkspace="peaks",
             RecalculateUB=True,
@@ -165,7 +185,7 @@ class Calibration:
             SearchRadiusRotZBank=15,
             VerboseOutput=True,
             SearchRadiusSamplePos=0.01,
-            TuneSamplePosition=False,
+            TuneSamplePosition=True,
             CalibrateSize=self.instrument != "CORELLI",
             SearchRadiusSize=0.15,
             FixAspectRatio=False,
@@ -176,7 +196,7 @@ class Calibration:
             Filename=self._get_ouput(".xml"),
         )
 
-        inst = mtd["peaks"].getInstrument()
+        inst = mtd[self.instrument].getInstrument()
         sample_pos = inst.getComponentByName("sample-position").getPos()
 
         components = np.unique(mtd["peaks"].column("BankName")).tolist()
@@ -205,6 +225,51 @@ class Calibration:
             InputWorkspace="peaks",
             InstrumentWorkspace=self.instrument,
             OutputWorkspace="peaks",
+        )
+
+        CloneWorkspace(InputWorkspace="peaks", OutputWorkspace="peaks_ws")
+
+        for peak in mtd["peaks_ws"]:
+            run = peak.getRunNumber()
+            R = self.goniometer_dict[run]
+            peak.setGoniometerMatrix(R)
+
+        SaveNexus(
+            InputWorkspace="peaks_ws",
+            Filename=self._get_ouput("_{}.nxs".format(iteration)),
+        )
+
+        DeleteWorkspace(Workspace="peaks_ws")
+
+        SCDCalibratePanels(
+            PeakWorkspace="peaks",
+            RecalculateUB=False,
+            Tolerance=0.2,
+            a=self.a,
+            b=self.b,
+            c=self.c,
+            alpha=self.alpha,
+            beta=self.beta,
+            gamma=self.gamma,
+            OutputWorkspace="calibration_table",
+            DetCalFilename=self._get_ouput(".DetCal"),
+            CSVFilename=self._get_ouput(".csv"),
+            XmlFilename=self._get_ouput(".xml"),
+            CalibrateT0=False,
+            SearchRadiusT0=0,
+            CalibrateL1=False,
+            SearchRadiusL1=0.0,
+            CalibrateBanks=False,
+            SearchRadiusTransBank=0.0,
+            SearchRadiusRotXBank=0,
+            SearchRadiusRotYBank=0,
+            SearchRadiusRotZBank=0,
+            VerboseOutput=True,
+            SearchRadiusSamplePos=0.0,
+            TuneSamplePosition=False,
+            CalibrateSize=False,
+            SearchRadiusSize=0.0,
+            FixAspectRatio=True,
         )
 
     def generate_diagnostic(self, iteration):
@@ -246,16 +311,15 @@ class Calibration:
                 x = np.array(x)
                 y = np.array(y)
 
-                # ax.plot([d_min, d_max], [0, 0], color='C0')
-                ax.plot(x, y / x - 1, ".", color="C1")
-                ax.axhline(0, linestyle="-", color="C0")
+                ax.plot(x, (y / x - 1) * 100, ".", color="C0")
+                ax.axhline(0, linestyle="-", color="k", linewidth=1)
 
                 ax.set_title(key)
                 ax.minorticks_on()
-                # ax.set_xlim(d_min, d_max)
-                # ax.set_ylim(d_min, d_max)
+                ax.set_xlim(d_min, d_max)
+                ax.set_ylim(-5, 5)
                 ax.set_xlabel(r"$d_0$ [$\AA$]")
-                ax.set_ylabel(r"$d/d_0-1$")
+                ax.set_ylabel(r"$d/d_0-1$ [%]")
 
                 pdf.savefig(fig)
                 plt.close()
@@ -264,8 +328,9 @@ class Calibration:
         self.load_instrument()
         self.load_peaks()
         for iteration in range(self.interations):
+            self.initialize_peaks()
             self.generate_diagnostic(iteration)
-            self.calibrate()
+            self.calibrate_instrument(iteration)
         self.generate_diagnostic(self.interations)
 
 
