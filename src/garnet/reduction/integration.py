@@ -3623,7 +3623,7 @@ class PeakEllipsoid:
         e_bkg[~np.isfinite(e_bkg)] = np.nan
 
         bkg_intens = np.nansum(y_bkg)
-        bkg_err = np.sqrt(e_bkg**2)
+        bkg_err = np.sqrt(np.nansum(e_bkg**2))
 
         norm = np.nanmean(n_pk)
 
@@ -3636,7 +3636,7 @@ class PeakEllipsoid:
         if not sig > 0:
             sig = float("inf")
 
-        return intens, sig, b, b_err, vox, pk_cnts, pk_norm, bkg_cnts, bkg_norm
+        return intens, sig, b, b_err, N, pk_cnts, pk_norm, bkg_cnts, bkg_norm
 
     def integrate(self, x0, x1, x2, d, n, val_mask, det_mask, c, S):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
