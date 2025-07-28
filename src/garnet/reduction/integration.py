@@ -1812,9 +1812,6 @@ class PeakEllipsoid:
         pk = (d2 <= 1**2) & np.isfinite(y) & (e > 0)
         bkg = (d2 > 1**2) & (d2 < 2 ** (2 / k)) & (e > 0)
 
-        # b = np.nansum(y[bkg]/e[bkg]**2)/np.nansum(1/e[bkg]**2)
-        # b_err = 1/np.sqrt(np.nansum(1/e[bkg]**2))
-
         b = np.nanmean(y[bkg])
         b_err = np.sqrt(np.nanmean(e[bkg] ** 2))
 
@@ -2077,32 +2074,32 @@ class PeakEllipsoid:
             dx = [dx1[0, :, :], dx2[0, :, :]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             g1, g2 = np.einsum("ij,j...->i...", inv_var, dx)
-            g0 = g1 * 0
+            g0 = np.zeros_like(g1)
         elif mode == "2d_1":
             dx = [dx0[:, 0, :], dx2[:, 0, :]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             g0, g2 = np.einsum("ij,j...->i...", inv_var, dx)
-            g1 = g2 * 0
+            g1 = np.zeros_like(g0)
         elif mode == "2d_2":
             dx = [dx0[:, :, 0], dx1[:, :, 0]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             g0, g1 = np.einsum("ij,j...->i...", inv_var, dx)
-            g2 = g0 * 0
+            g2 = np.zeros_like(g0)
         elif mode == "1d_0":
             dx = dx0[:, 0, 0]
             d2 = inv_var * dx**2
             g0 = inv_var * dx
-            g1 = g2 = g0 * 0
+            g1 = g2 = np.zeros_like(g0)
         elif mode == "1d_1":
             dx = dx1[0, :, 0]
             d2 = inv_var * dx**2
             g1 = inv_var * dx
-            g2 = g0 = g1 * 0
+            g2 = g0 = np.zeros_like(g1)
         elif mode == "1d_2":
             dx = dx2[0, 0, :]
             d2 = inv_var * dx**2
             g2 = inv_var * dx
-            g0 = g1 = g2 * 0
+            g0 = g1 = np.zeros_like(g2)
 
         g = np.exp(-0.5 * d2)
 
@@ -2124,37 +2121,37 @@ class PeakEllipsoid:
             dx = [dx1[0, :, :], dx2[0, :, :]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             l1, l2 = np.einsum("ij,j...->i...", inv_var, dx)
-            l0 = l1 * 0
+            l0 = np.zeros_like(l1)
             k = 2
         elif mode == "2d_1":
             dx = [dx0[:, 0, :], dx2[:, 0, :]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             l0, l2 = np.einsum("ij,j...->i...", inv_var, dx)
-            l1 = l2 * 0
+            l1 = np.zeros_like(l0)
             k = 2
         elif mode == "2d_2":
             dx = [dx0[:, :, 0], dx1[:, :, 0]]
             d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
             l0, l1 = np.einsum("ij,j...->i...", inv_var, dx)
-            l2 = l0 * 0
+            l2 = np.zeros_like(l2)
             k = 2
         elif mode == "1d_0":
             dx = dx0[:, 0, 0]
             d2 = inv_var * dx**2
             l0 = inv_var * dx
-            l1 = l2 = l0 * 0
+            l1 = l2 = np.zeros_like(l0)
             k = 1
         elif mode == "1d_1":
             dx = dx1[0, :, 0]
             d2 = inv_var * dx**2
             l1 = inv_var * dx
-            l2 = l0 = l1 * 0
+            l2 = l0 = np.zeros_like(l1)
             k = 1
         elif mode == "1d_2":
             dx = dx2[0, 0, :]
             d2 = inv_var * dx**2
             l2 = inv_var * dx
-            l0 = l1 = l2 * 0
+            l0 = l1 = np.zeros_like(l2)
             k = 1
 
         lp = (k + 1) / (1 + d2) ** (0.5 * (3 + k))
@@ -3590,7 +3587,7 @@ class PeakEllipsoid:
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
 
-        w = kernel[pk] / np.nansum(kernel[pk])
+        # w = kernel[pk] / np.nansum(kernel[pk])
 
         bkg_cnts = np.nansum(d_bkg)
         bkg_norm = np.nansum(n_bkg)
@@ -3650,6 +3647,9 @@ class PeakEllipsoid:
 
         intens *= d3x
         sig *= d3x
+
+        intens *= N
+        sig *= N
 
         self.intensity.append(intens)
         self.sigma.append(sig)

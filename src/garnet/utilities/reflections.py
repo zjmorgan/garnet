@@ -38,6 +38,7 @@ import scipy.optimize
 import scipy.interpolate
 
 from scipy.spatial.transform import Rotation
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 from mantid.geometry import (
     CrystalStructure,
@@ -318,7 +319,6 @@ class AbsorptionCorrection:
 
         self.u_vector = u_vector
         self.v_vector = v_vector
-        print(params)
 
         if shape == "plate":
             assert len(params) == 3
@@ -1336,9 +1336,9 @@ class Peaks:
         ax[2].minorticks_on()
         ax[3].minorticks_on()
         ax[0].plot(Q0_mod, powder_err, ".", color="C0")
-        ax[1].plot(Q0_mod, peak_err[:, 0], ".", color="C1")
-        ax[2].plot(Q0_mod, peak_err[:, 1], ".", color="C2")
-        ax[3].plot(Q0_mod, peak_err[:, 2], ".", color="C3")
+        ax[1].plot(Q0_mod, peak_err[:, 0], ".", color="C1", rasterized=True)
+        ax[2].plot(Q0_mod, peak_err[:, 1], ".", color="C2", rasterized=True)
+        ax[3].plot(Q0_mod, peak_err[:, 2], ".", color="C3", rasterized=True)
         ax[0].axhline(powder_min, color="k", linestyle="--", linewidth=1)
         ax[0].axhline(powder_max, color="k", linestyle="--", linewidth=1)
         ax[1].axhline(peak_min[0], color="k", linestyle="--", linewidth=1)
@@ -1457,6 +1457,7 @@ class Peaks:
         vals = ["intens", "sig", "vol"]
 
         info_dict = {}
+        norm_dict = {}
 
         items = keys + vals
 
@@ -1480,7 +1481,8 @@ class Peaks:
             bkg_data = run_info.getLogData("peaks_bkg_data").value
             bkg_norm = run_info.getLogData("peaks_bkg_norm").value
 
-            filename = os.path.splitext(self.filename)[0]
+            intens = run_info.getLogData("peaks_intens").value
+            sig = run_info.getLogData("peaks_sig").value
 
             for i in range(len(run)):
                 key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
@@ -1493,8 +1495,12 @@ class Peaks:
                     bkg_norm[i],
                 )
                 info_dict[key] = vals
+                norm_dict[key] = (intens[i], sig[i])
+
+        filename = os.path.splitext(self.filename)[0]
 
         self.info_dict = info_dict
+        self.norm_dict = norm_dict
 
         x, y = [], []
 
@@ -1529,7 +1535,7 @@ class Peaks:
 
         fig, ax = plt.subplots(1, 1, sharex=True, layout="constrained")
         ax.set_xlabel("$|Q|$ [$\AA^{-1}$]")
-        ax.plot(x, y, ".")
+        ax.plot(x, y, ".", rasterized=True)
         ax.minorticks_on()
         ax.set_ylabel("Log peak-background norm")
         ax.axhline(ratio_max, color="k", linestyle="--", linewidth=1)
@@ -1613,6 +1619,98 @@ class Peaks:
             ColumnNameToSortBy="Intens",
             SortAscending=False,
         )
+
+        # lamda = np.array(mtd[self.peaks].column("Wavelength"))
+        # lamda_min = np.min(lamda)
+        # lamda_max = np.max(lamda)
+
+        # banks = np.array(mtd[self.peaks].column("BankName"))
+
+        # spectrum_dict = {}
+
+        # for i, peak in enumerate(mtd[self.peaks]):
+        #     h, k, l = [int(val) for val in peak.getIntHKL()]
+        #     m, n, p = [int(val) for val in peak.getIntMNP()]
+
+        #     run = int(peak.getRunNumber())
+        #     key = (run, h, k, l, m, n, p)
+        #     raw_intens, raw_sig = self.norm_dict[key]
+
+        #     bank = banks[i]
+
+        #     intens = peak.getIntensity()
+        #     sig = peak.getSigmaIntensity()
+
+        #     lamda = peak.getWavelength()
+        #     two_theta = peak.getScattering()
+
+        #     L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
+
+        #     norm = raw_intens / intens
+        #     err = np.abs(norm) * np.sqrt((raw_sig / raw_intens)**2 + (sig / intens)**2)
+
+        #     items = spectrum_dict.get(bank)
+        #     if items is None:
+        #         items = [], [], [], []
+        #     items[0].append(lamda)
+        #     items[1].append(norm / L)
+        #     items[2].append(err / L)
+        #     items[3].append(i)
+        #     spectrum_dict[bank] = items
+
+        # with PdfPages(filename + "_spec.pdf") as pdf:
+
+        #     for bank in spectrum_dict.keys():
+
+        #         x, y, e, ind = spectrum_dict[bank]
+
+        #         x, y, e = np.array(x), np.array(y), np.array(e)
+
+        #         ind = np.array(ind)
+
+        #         sort = np.argsort(x)
+
+        #         x, y, e = x[sort], y[sort], e[sort]
+
+        #         ind = ind[sort]
+
+        #         y_hat = lowess(y, x, frac=0.15, delta=0.1, it=10, return_sorted=False)
+
+        #         diff = y - y_hat
+
+        #         spread = 3 * np.nanmedian(np.abs(diff))
+
+        #         mask = np.abs(diff) < spread
+
+        #         fig, ax = plt.subplots(1, 1, sharex=True, layout="constrained")
+        #         ax.set_xlabel("$\lambda$ [$\AA$]")
+        #         ax.errorbar(x[mask], y[mask], fmt=".", color="C0")
+        #         ax.errorbar(x[~mask], y[~mask], fmt="x", color="C0")
+        #         ax.plot(x, y_hat, color="C1")
+        #         ax.plot(x[mask], diff[mask], ".", color="C2")
+        #         ax.plot(x[~mask], diff[~mask], "x", color="C2")
+        #         ax.axhline(y=0, color='k', linestyle='--', linewidth=1)
+        #         ax.axhline(y=-spread, color='k', linestyle=':', linewidth=1)
+        #         ax.axhline(y=+spread, color='k', linestyle=':', linewidth=1)
+        #         ax.minorticks_on()
+        #         ax.set_xlim(lamda_min, lamda_max)
+        #         ax.set_ylabel("Spectrum")
+        #         ax.set_title(bank)
+
+        #         pdf.savefig(fig, dpi=100, bbox_inches=None)
+        #         plt.close(fig)
+
+        #         for i in ind[~mask].tolist():
+        #             peak = mtd[self.peaks].getPeak(i)
+        #             peak.setSigmaIntensity(peak.getIntensity())
+
+        # FilterPeaks(
+        #     InputWorkspace=self.peaks,
+        #     OutputWorkspace=self.peaks,
+        #     FilterVariable="Signal/Noise",
+        #     FilterValue=3,
+        #     Operator=">",
+        # )
 
         self.rescale_intensities()
 
