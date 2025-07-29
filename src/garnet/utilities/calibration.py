@@ -8,7 +8,12 @@ import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_pdf import PdfPages
 
+import scipy.spatial.transform
+import scipy.optimize
+import scipy.linalg
+
 from mantid.simpleapi import (
+    SaveAscii,
     SaveNexus,
     LoadNexus,
     LoadEmptyInstrument,
@@ -17,16 +22,19 @@ from mantid.simpleapi import (
     FilterPeaks,
     IndexPeaks,
     CombinePeaksWorkspaces,
+    TransformHKL,
     CalculateUMatrix,
     ApplyInstrumentToPeaks,
     SCDCalibratePanels,
     MoveInstrumentComponent,
+    RotateInstrumentComponent,
+    CreateEmptyTableWorkspace,
     CloneWorkspace,
     DeleteWorkspace,
     mtd,
 )
 
-from mantid.geometry import UnitCell
+from mantid.geometry import UnitCell, PointGroupFactory
 
 
 class Calibration:
@@ -38,6 +46,9 @@ class Calibration:
             "OutputFolder": "",
             "UnitCellLengths": [5.431, 5.431, 5.431],
             "UnitCellAngles": [90, 90, 90],
+            "CrystalSystem": "Cubic",
+            "LatticeSystem": "Cubic",
+            "RefineGoniometerChi": False,
         }
 
         defaults.update(config)
@@ -54,7 +65,12 @@ class Calibration:
         self.a, self.b, self.c = defaults.get("UnitCellLengths")
         self.alpha, self.beta, self.gamma = defaults.get("UnitCellAngles")
 
-        self.interations = 10
+        self.crystal_system = defaults.get("CrystalSystem")
+        self.lattice_system = defaults.get("LatticeSystem")
+
+        self.refine_chi = defaults.get("RefineGoniometerChi")
+
+        self.interations = 3
 
     def load_peaks(self):
         ext = os.path.splitext(self.peaks)[1]
@@ -85,6 +101,109 @@ class Calibration:
             run = peak.getRunNumber()
             R = peak.getGoniometerMatrix().copy()
             self.goniometer_dict[run] = R
+
+        self.table = "goniometer"
+
+        CreateEmptyTableWorkspace(OutputWorkspace="goniometer")
+
+        mtd["goniometer"].addColumn("float", "Refined u0")
+        mtd["goniometer"].addColumn("float", "Refined u1")
+        mtd["goniometer"].addColumn("float", "Refined u2")
+        mtd["goniometer"].addColumn("float", "Offset Chi")
+
+    def reindex_peaks(self):
+        runs = np.unique(mtd["peaks"].column("RunNumber")).tolist()
+
+        transforms = self.cell_symmetry_matrices()
+
+        for i, run in enumerate(runs):
+            FilterPeaks(
+                InputWorkspace="peaks",
+                OutputWorkspace="tmp",
+                FilterVariable="RunNumber",
+                FilterValue=run,
+                Operator="=",
+            )
+
+            CalculateUMatrix(
+                PeaksWorkspace="tmp",
+                a=self.a,
+                b=self.b,
+                c=self.c,
+                alpha=self.alpha,
+                beta=self.beta,
+                gamma=self.gamma,
+            )
+            if i == 0:
+                U = mtd["tmp"].sample().getOrientedLattice().getU().copy()
+
+                CloneWorkspace(
+                    InputWorkspace="tmp", OutputWorkspace="peaks_ws"
+                )
+            else:
+                UB = mtd["tmp"].sample().getOrientedLattice().getUB().copy()
+                B = mtd["tmp"].sample().getOrientedLattice().getB().copy()
+
+                cost = np.inf
+                for order, M in transforms.items():
+                    Up = UB @ np.linalg.inv(M) @ np.linalg.inv(B)
+                    cos_theta = (np.trace(Up.T @ U) - 1) / 2
+                    theta = np.arccos(np.clip(cos_theta, -1.0, 1.0))
+                    if theta < cost:
+                        cost = theta
+                        T = M.copy()
+
+                hkl_trans = ",".join(9 * ["{}"]).format(*T.flatten())
+
+                TransformHKL(
+                    PeaksWorkspace="tmp",
+                    HKLTransform=hkl_trans,
+                    FindError=False,
+                )
+
+                CombinePeaksWorkspaces(
+                    LHSWorkspace="peaks_ws",
+                    RHSWorkspace="tmp",
+                    OutputWorkspace="peaks_ws",
+                )
+
+            DeleteWorkspace(Workspace="tmp")
+
+        CloneWorkspace(InputWorkspace="peaks_ws", OutputWorkspace="peaks")
+
+        DeleteWorkspace(Workspace="peaks_ws")
+
+    def cell_symmetry_matrices(self):
+        if self.crystal_system == "Cubic":
+            symbol = "m-3m"
+        elif self.crystal_system == "Hexagonal":
+            symbol = "6/mmm"
+        elif self.crystal_system == "Tetragonal":
+            symbol = "4/mmm"
+        elif self.crystal_system == "Trigonal":
+            if self.lattice_system == "Rhombohedral":
+                symbol = "-3m r"
+            elif self.lattice_system == "Hexagonal":
+                symbol = "-3m"
+        elif self.crystal_system == "Orthorhombic":
+            symbol = "mmm"
+        elif self.crystal_system == "Monoclinic":
+            symbol = "2/m"
+        elif self.crystal_system == "Triclinic":
+            symbol = "-1"
+
+        pg = PointGroupFactory.createPointGroup(symbol)
+
+        coords = np.eye(3).astype(int)
+
+        transforms = {}
+        for symop in pg.getSymmetryOperations():
+            T = np.column_stack([symop.transformHKL(vec) for vec in coords])
+            if np.linalg.det(T) > 0:
+                name = "{}: ".format(symop.getOrder()) + symop.getIdentifier()
+                transforms[name] = T
+
+        return transforms
 
     def initialize_peaks(self):
         runs = np.unique(mtd["peaks"].column("RunNumber")).tolist()
@@ -137,11 +256,7 @@ class Calibration:
 
         mtd["peaks"].sample().getOrientedLattice().setU(np.eye(3))
 
-        IndexPeaks(PeaksWorkspace="peaks", Tolerance=0.2)
-
-        # for peak in mtd["peaks"]:
-        #     peak.setIntensity(peak.getDSpacing())
-        #     peak.setSigmaIntensity(1)
+        IndexPeaks(PeaksWorkspace="peaks")
 
     def load_instrument(self):
         LoadEmptyInstrument(
@@ -272,6 +387,90 @@ class Calibration:
             FixAspectRatio=True,
         )
 
+    def calibrate_goniometer(self, iteration):
+        u0, u1, u2, chi_off = self.refine_goniometer()
+
+        w = np.array([u0, u1, u2])
+        theta = np.linalg.norm(w)
+
+        wx, wy, wz = (w / theta).tolist()
+
+        LoadParameterFile(
+            Workspace=self.instrument,
+            Filename=self._get_ouput(".xml"),
+        )
+
+        components = np.unique(mtd["peaks"].column("BankName")).tolist()
+
+        for component in components:
+            RotateInstrumentComponent(
+                Workspace=self.instrument,
+                ComponentName=component,
+                X=wx,
+                Y=wy,
+                Z=wz,
+                Angle=-theta,
+                RelativePosition=False,
+            )
+
+        ApplyInstrumentToPeaks(
+            InputWorkspace="peaks",
+            InstrumentWorkspace=self.instrument,
+            OutputWorkspace="peaks",
+        )
+
+        CloneWorkspace(InputWorkspace="peaks", OutputWorkspace="peaks_ws")
+
+        for peak in mtd["peaks_ws"]:
+            run = peak.getRunNumber()
+            R = self.goniometer_dict[run]
+            omega, chi, phi = self.calculate_goniometer_angles(R)
+            Rp = self.calculate_goniometer_matrix(omega, chi + chi_off, phi)
+            peak.setGoniometerMatrix(Rp)
+
+        SaveNexus(
+            InputWorkspace="peaks_ws",
+            Filename=self._get_ouput("_{}.nxs".format(iteration)),
+        )
+
+        DeleteWorkspace(Workspace="peaks_ws")
+
+        SCDCalibratePanels(
+            PeakWorkspace="peaks",
+            RecalculateUB=False,
+            Tolerance=0.2,
+            a=self.a,
+            b=self.b,
+            c=self.c,
+            alpha=self.alpha,
+            beta=self.beta,
+            gamma=self.gamma,
+            OutputWorkspace="calibration_table",
+            DetCalFilename=self._get_ouput(".DetCal"),
+            CSVFilename=self._get_ouput(".csv"),
+            XmlFilename=self._get_ouput(".xml"),
+            CalibrateT0=False,
+            SearchRadiusT0=0,
+            CalibrateL1=False,
+            SearchRadiusL1=0.0,
+            CalibrateBanks=False,
+            SearchRadiusTransBank=0.0,
+            SearchRadiusRotXBank=0,
+            SearchRadiusRotYBank=0,
+            SearchRadiusRotZBank=0,
+            VerboseOutput=True,
+            SearchRadiusSamplePos=0.0,
+            TuneSamplePosition=False,
+            CalibrateSize=False,
+            SearchRadiusSize=0.0,
+            FixAspectRatio=True,
+        )
+
+        SaveAscii(
+            InputWorkspace="gononometer",
+            Filename=self._get_ouput("_{}.txt".format(iteration)),
+        )
+
     def generate_diagnostic(self, iteration):
         uc = UnitCell(
             self.a, self.b, self.c, self.alpha, self.beta, self.gamma
@@ -324,13 +523,125 @@ class Calibration:
                 pdf.savefig(fig)
                 plt.close()
 
+    def refine_goniometer(self):
+        self.peak_dict = {}
+
+        runs = np.unique(mtd["peaks"].column("RunNumber")).tolist()
+
+        for i, run in enumerate(runs):
+            FilterPeaks(
+                InputWorkspace="peaks",
+                FilterVariable="RunNumber",
+                FilterValue=run,
+                Operator="=",
+                OutputWorkspace="tmp",
+            )
+
+            if i == 0:
+                CalculateUMatrix(
+                    PeaksWorkspace="tmp",
+                    a=self.a,
+                    b=self.b,
+                    c=self.c,
+                    alpha=self.alpha,
+                    beta=self.beta,
+                    gamma=self.gamma,
+                )
+                self.U = mtd["tmp"].sample().getOrientedLattice().getU().copy()
+                self.B = mtd["tmp"].sample().getOrientedLattice().getB().copy()
+
+            Q = np.array(mtd["tmp"].column("QLab"))
+            hkl = np.array(mtd["tmp"].column("IntHKL"))
+
+            mask = hkl.any(axis=1)
+
+            R = mtd["tmp"].getPeak(0).getGoniometerMatrix().copy()
+
+            omega, chi, phi = self.calculate_goniometer_angles(R)
+
+            self.peak_dict[run] = (omega, chi, phi), Q[mask], hkl[mask]
+
+            DeleteWorkspace(Workspace="tmp")
+
+        return self.optimize_goniometer()
+
+    def calculate_goniometer_angles(self, R):
+        return (
+            scipy.spatial.transform.Rotation.from_matrix(R)
+            .as_euler("YZY", degrees=True)
+            .tolist()
+        )
+
+    def calculate_goniometer_matrix(self, omega, chi, phi):
+        return scipy.spatial.transform.Rotation.from_euler(
+            "YZY", [omega, chi, phi], degrees=True
+        ).as_matrix()
+
+    def calculate_rotation_matrix(self, u0, u1, u2):
+        return scipy.spatial.transform.Rotation.from_rotvec(
+            [u0, u1, u2], degrees=True
+        ).as_matrix()
+
+    def calculate_rotation_vector(self, U):
+        return scipy.spatial.transform.Rotation.from_matrix(
+            U, degrees=True
+        ).as_rotvec()
+
+    def residual(self, x, peak_dict, func):
+        phi, theta, omega, *params = func(x)
+
+        B = self.B
+        U = self.U_matrix(phi, theta, omega)
+
+        UB = np.dot(U, B)
+
+        u0, u1, u2, chi_off = params
+
+        G = self.calculate_rotation(u0, u1, u2)
+
+        diff = []
+
+        for i, run in enumerate(peak_dict.keys()):
+            (omega, chi, phi), Q, hkl = peak_dict[run]
+            R = self.calculate_goniometer_matrix(omega, chi + chi_off, phi)
+            T = G @ R @ UB * 2 * np.pi
+            diff += (np.einsum("ij,lj->li", T, hkl) - Q).flatten().tolist()
+
+        return diff
+
+    def fix_chi_angle(self, x):
+        return *x, 0
+
+    def refine_chi_angle(self, x):
+        return x
+
+    def optimize_goniometer(self):
+        phi, theta, omega = self.calculate_rotation_vector(self.U)
+
+        fun = self.refine_chi_angle if self.refine_chi else self.fix_chi_angle
+
+        x0 = (phi, theta, omega, 0, 0, 0)
+        args = (self.peak_dict, fun)
+
+        sol = scipy.optimize.least_squares(self.residual, x0=x0, args=args)
+
+        phi, theta, omega, *params = fun(sol.x)
+
+        u0, u1, u2, chi_off = params
+
+        mtd[self.table].addRow([u0, u1, u2, chi_off])
+
+        return u0, u1, u2, chi_off
+
     def run(self):
         self.load_instrument()
         self.load_peaks()
+        self.reindex_peaks()
         for iteration in range(self.interations):
             self.initialize_peaks()
             self.generate_diagnostic(iteration)
             self.calibrate_instrument(iteration)
+            self.calibrate_goniometer(iteration)
         self.generate_diagnostic(self.interations)
 
 

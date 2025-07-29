@@ -321,12 +321,6 @@ class Vanadium:
             OutputWorkspace="vanadium",
         )
 
-        # Divide(
-        #     LHSWorkspace="background",
-        #     RHSWorkspace="pixels",
-        #     OutputWorkspace="background",
-        # )
-
     def _vanadium_niobium_lattice_constant(self, x):
         y = 2 * x - 1
         a = 3.19199921 + 0.13954993 * y - 0.02242883 * y**2
