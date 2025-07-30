@@ -38,7 +38,8 @@ import scipy.optimize
 import scipy.interpolate
 
 from scipy.spatial.transform import Rotation
-from statsmodels.nonparametric.smoothers_lowess import lowess
+
+# from statsmodels.nonparametric.smoothers_lowess import lowess
 
 from mantid.geometry import (
     CrystalStructure,
