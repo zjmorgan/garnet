@@ -83,6 +83,7 @@ class Parametrization(SubPlan):
                     "data",
                     self.plan.get("DetectorCalibration"),
                     self.plan.get("TubeCalibration"),
+                    self.plan.get("GoniometerCalibration"),
                 )
 
                 log_vals, log_units = data.log_split_info(

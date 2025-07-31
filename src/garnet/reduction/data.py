@@ -114,6 +114,8 @@ class BaseDataModel:
                 )
                 gon_ind += 1
 
+        self.gon_axis_logs = gon_axis_names
+
         wl = instrument_config["Wavelength"]
 
         self.update_wavelength(wl)
@@ -1302,7 +1304,11 @@ class LaueData(BaseDataModel):
         self.Q_max = 4 * np.pi / lamda_min * np.sin(self.theta_max)
 
     def apply_calibration(
-        self, event_name, detector_calibration, tube_calibration=None
+        self,
+        event_name,
+        detector_calibration,
+        tube_calibration=None,
+        goniometer_calibration=None,
     ):
         """
         Apply detector calibration.
@@ -1315,6 +1321,8 @@ class LaueData(BaseDataModel):
             Detector calibration as either .xml or .DetCal.
         tube_calibration : str, optional
             CORELLI-only tube calibration. The default is None.
+        goniometer_calibration : str
+            Goniometer calibration as .xml. The default is None.
 
         """
 
@@ -1338,6 +1346,37 @@ class LaueData(BaseDataModel):
                 LoadIsawDetCal(
                     InputWorkspace=event_name, Filename=detector_calibration
                 )
+
+        if goniometer_calibration is not None:
+            if os.path.splitext(goniometer_calibration)[1] == ".xml":
+                LoadEmptyInstrument(
+                    InstrumentName=self.ref_inst, OutputWorkspace="goniometer"
+                )
+
+                LoadParameterFile(
+                    Workspace="goniometer", Filename=goniometer_calibration
+                )
+
+                inst = mtd["goniometer"].getInstrument()
+                run = mtd[event_name].run()
+
+                params = ["omega-offset", "chi-offset"]
+
+                for i, param in enumerate(params):
+                    if inst.hasParameter(param):
+                        v = inst.getNumberParameter(param)[0]
+                        print(v)
+                        name = self.gon_axis_logs[i]
+                        run[name] = (run.getProperty(name).value + v).tolist()
+
+                self.set_goniometer(event_name)
+
+                param = "goniometer-tilt"
+                if inst.hasParameter(param):
+                    v = inst.getStringParameter(param)[0]
+                    G = np.array(v.split(",")).astype(float).reshape(3, 3)
+                    gon = run.getGoniometer()
+                    gon.setR(G @ gon.getR())
 
         if mtd.doesExist("sa") and not self.sa_cal:
             self.sa_cal = True

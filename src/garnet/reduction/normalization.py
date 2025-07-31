@@ -87,6 +87,7 @@ class Normalization(SubPlan):
                     "data",
                     self.plan.get("DetectorCalibration"),
                     self.plan.get("TubeCalibration"),
+                    self.plan.get("GoniometerCalibration"),
                 )
 
                 data.apply_mask("data", self.plan.get("MaskFile"))

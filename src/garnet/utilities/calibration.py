@@ -13,11 +13,13 @@ import scipy.optimize
 import scipy.linalg
 
 from mantid.simpleapi import (
-    SaveAscii,
-    SaveNexus,
     LoadNexus,
+    SaveNexus,
     LoadEmptyInstrument,
     LoadParameterFile,
+    SaveParameterFile,
+    SetInstrumentParameter,
+    ClearInstrumentParameters,
     LoadIsawPeaks,
     FilterPeaks,
     IndexPeaks,
@@ -29,6 +31,7 @@ from mantid.simpleapi import (
     MoveInstrumentComponent,
     RotateInstrumentComponent,
     CreateEmptyTableWorkspace,
+    SaveAscii,
     CloneWorkspace,
     DeleteWorkspace,
     mtd,
@@ -48,7 +51,7 @@ class Calibration:
             "UnitCellAngles": [90, 90, 90],
             "CrystalSystem": "Cubic",
             "LatticeSystem": "Cubic",
-            "RefineGoniometerChi": False,
+            "RefineGoniometer": False,
         }
 
         defaults.update(config)
@@ -68,9 +71,9 @@ class Calibration:
         self.crystal_system = defaults.get("CrystalSystem")
         self.lattice_system = defaults.get("LatticeSystem")
 
-        self.refine_chi = defaults.get("RefineGoniometerChi")
+        self.refine_off = defaults.get("RefineGoniometer")
 
-        self.interations = 3
+        self.interations = 5
 
     def load_peaks(self):
         ext = os.path.splitext(self.peaks)[1]
@@ -104,9 +107,10 @@ class Calibration:
 
         CreateEmptyTableWorkspace(OutputWorkspace="goniometer")
 
-        mtd["goniometer"].addColumn("float", "Refined u0")
-        mtd["goniometer"].addColumn("float", "Refined u1")
-        mtd["goniometer"].addColumn("float", "Refined u2")
+        mtd["goniometer"].addColumn("float", "Refined Z Angle")
+        mtd["goniometer"].addColumn("float", "Refined Y Angle")
+        mtd["goniometer"].addColumn("float", "Refined X Angle")
+        mtd["goniometer"].addColumn("float", "Offset Omega")
         mtd["goniometer"].addColumn("float", "Offset Chi")
 
     def reindex_peaks(self):
@@ -388,9 +392,7 @@ class Calibration:
         )
 
     def calibrate_goniometer(self, iteration):
-        G, chi_off = self.refine_goniometer()
-        G = np.eye(3)
-        chi_off = 0
+        Gz, Gy, Gx, omega_off, chi_off = self.refine_goniometer()
 
         SaveAscii(
             InputWorkspace="goniometer",
@@ -414,8 +416,8 @@ class Calibration:
                 quat, scalar_first=True
             ).as_matrix()
 
-            x, y, z = G.T @ pos
-            Rp = G.T @ R
+            x, y, z = Gz.T @ pos
+            Rp = Gz.T @ R
 
             w = scipy.spatial.transform.Rotation.from_matrix(Rp).as_rotvec(
                 degrees=True
@@ -450,12 +452,16 @@ class Calibration:
 
         CloneWorkspace(InputWorkspace="peaks", OutputWorkspace="peaks_ws")
 
+        G = Gy @ Gx
+
         for peak in mtd["peaks_ws"]:
             run = peak.getRunNumber()
             R = self.goniometer_dict[run]
-            omega, chi, phi = self.calculate_goniometer_angles(R)
-            Rp = self.calculate_goniometer_matrix(omega, chi + chi_off, phi)
-            peak.setGoniometerMatrix(Rp)
+            phi, chi, omega = self.calculate_goniometer_angles(R)
+            Rp = self.calculate_goniometer_matrix(
+                phi, chi + chi_off, omega + omega_off
+            )
+            peak.setGoniometerMatrix(G @ Rp)
 
         CalculateUMatrix(
             PeaksWorkspace="peaks_ws",
@@ -505,6 +511,39 @@ class Calibration:
             CalibrateSize=False,
             SearchRadiusSize=0.0,
             FixAspectRatio=True,
+        )
+
+        ClearInstrumentParameters(Workspace=self.instrument)
+
+        SetInstrumentParameter(
+            Workspace=self.instrument,
+            ParameterName="goniometer-tilt",
+            ParameterType="String",
+            Value=",".join(G.astype(str).flatten().tolist()),
+        )
+
+        SetInstrumentParameter(
+            Workspace=self.instrument,
+            ParameterName="omega-offset",
+            ParameterType="Number",
+            Value=str(omega_off),
+        )
+
+        SetInstrumentParameter(
+            Workspace=self.instrument,
+            ParameterName="chi-offset",
+            ParameterType="Number",
+            Value=str(chi_off),
+        )
+
+        SaveParameterFile(
+            Workspace=self.instrument,
+            Filename=self._get_ouput("_goniometer.xml"),
+        )
+
+        LoadParameterFile(
+            Workspace=self.instrument,
+            Filename=self._get_ouput(".xml"),
         )
 
     def generate_diagnostic(self, iteration):
@@ -592,9 +631,9 @@ class Calibration:
             mask = hkl.any(axis=1)
 
             R = self.goniometer_dict[run]
-            omega, chi, phi = self.calculate_goniometer_angles(R)
+            phi, chi, omega = self.calculate_goniometer_angles(R)
 
-            self.peak_dict[run] = (omega, chi, phi), Q[mask], hkl[mask]
+            self.peak_dict[run] = (phi, chi, omega), Q[mask], hkl[mask]
 
             DeleteWorkspace(Workspace="tmp")
 
@@ -607,17 +646,29 @@ class Calibration:
             .tolist()
         )
 
-    def calculate_goniometer_matrix(self, omega, chi, phi):
+    def calculate_goniometer_matrix(self, phi, chi, omega):
         return scipy.spatial.transform.Rotation.from_euler(
-            "YZY", [omega, chi, phi], degrees=True
+            "YZY", [phi, chi, omega], degrees=True
         ).as_matrix()
 
-    def calculate_rotation_matrix(self, u0, u1, u2):
+    def calculate_goniometer_offset_matrices(self, alpha, beta, gamma):
+        Gx = scipy.spatial.transform.Rotation.from_euler(
+            "X", alpha, degrees=True
+        ).as_matrix()
+        Gy = scipy.spatial.transform.Rotation.from_euler(
+            "Y", beta, degrees=True
+        ).as_matrix()
+        Gz = scipy.spatial.transform.Rotation.from_euler(
+            "Z", gamma, degrees=True
+        ).as_matrix()
+        return Gx, Gy, Gz
+
+    def calculate_orientation_matrix(self, u0, u1, u2):
         return scipy.spatial.transform.Rotation.from_rotvec(
             [u0, u1, u2], degrees=True
         ).as_matrix()
 
-    def calculate_rotation_vector(self, U):
+    def calculate_orientation_vector(self, U):
         return scipy.spatial.transform.Rotation.from_matrix(U).as_rotvec(
             degrees=True
         )
@@ -626,49 +677,55 @@ class Calibration:
         phi, theta, omega, *params = func(x)
 
         B = self.B
-        U = self.calculate_rotation_matrix(phi, theta, omega)
+        U = self.calculate_orientation_matrix(phi, theta, omega)
 
         UB = np.dot(U, B)
 
-        u0, u1, u2, chi_off = params
+        gamma, beta, alpha, omega_off, chi_off = params
 
-        G = self.calculate_rotation_matrix(u0, u1, u2)
+        Gx, Gy, Gz = self.calculate_goniometer_offset_matrices(
+            alpha, beta, gamma
+        )
 
         diff = []
 
         for i, run in enumerate(peak_dict.keys()):
-            (omega, chi, phi), Q, hkl = peak_dict[run]
-            R = self.calculate_goniometer_matrix(omega, chi + chi_off, phi)
-            T = G @ R @ UB * 2 * np.pi
+            (phi, chi, omega), Q, hkl = peak_dict[run]
+            R = self.calculate_goniometer_matrix(
+                phi, chi + chi_off, omega + omega_off
+            )
+            T = Gz @ Gy @ Gx @ R @ UB * 2 * np.pi
             diff += (np.einsum("ij,lj->li", T, hkl) - Q).flatten().tolist()
 
-        return diff
+        return diff + list(params)
 
-    def fix_chi_angle(self, x):
-        return *x, 0
+    def fix_offsets(self, x):
+        return *x, 0, 0
 
-    def refine_chi_angle(self, x):
+    def refine_offsets(self, x):
         return x
 
     def optimize_goniometer(self):
-        phi, theta, omega = self.calculate_rotation_vector(self.U)
+        phi, theta, omega = self.calculate_orientation_vector(self.U)
 
-        fun = self.refine_chi_angle if self.refine_chi else self.fix_chi_angle
+        fun = self.refine_offsets if self.refine_off else self.fix_offsets
 
-        x0 = (phi, theta, omega) + (0,) * (3 + self.refine_chi)
+        x0 = (phi, theta, omega) + (0,) * (3 + 2 * self.refine_off)
         args = (self.peak_dict, fun)
 
         sol = scipy.optimize.least_squares(self.residual, x0=x0, args=args)
 
         phi, theta, omega, *params = fun(sol.x)
 
-        u0, u1, u2, chi_off = params
+        gamma, beta, alpha, omega_off, chi_off = params
 
-        G = self.calculate_rotation_matrix(u0, u1, u2)
+        Gx, Gy, Gz = self.calculate_goniometer_offset_matrices(
+            alpha, beta, gamma
+        )
 
-        mtd["goniometer"].addRow([u0, u1, u2, chi_off])
+        mtd["goniometer"].addRow([gamma, beta, alpha, omega_off, chi_off])
 
-        return G, chi_off
+        return Gz, Gy, Gx, omega_off, chi_off
 
     def run(self):
         self.load_instrument()

@@ -166,6 +166,7 @@ class Integration(SubPlan):
                 "data",
                 self.plan.get("DetectorCalibration"),
                 self.plan.get("TubeCalibration"),
+                self.plan.get("GoniometerCalibration"),
             )
 
             data.preprocess_detectors("data")
@@ -199,6 +200,10 @@ class Integration(SubPlan):
 
                 data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
+                # md_file = self.get_diagnostic_file("run#{}_data".format(run))
+
+                # data.save_histograms(md_file, "md")
+
                 peaks.find_peaks("md", "peaks", max_d)
 
                 peaks.integrate_peaks("md", "peaks", self.params["Radius"])
@@ -224,10 +229,6 @@ class Integration(SubPlan):
             # pk_file = self.get_diagnostic_file("run#{}_peaks".format(run))
 
             # peaks.save_peaks(pk_file, "peaks")
-
-            # md_file = self.get_diagnostic_file("run#{}_data".format(run))
-
-            # data.save_histograms(md_file, "md")
 
             data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
