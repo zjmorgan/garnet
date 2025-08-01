@@ -73,7 +73,7 @@ class Calibration:
 
         self.refine_off = defaults.get("RefineGoniometer")
 
-        self.interations = 5
+        self.interations = 1
 
     def load_peaks(self):
         ext = os.path.splitext(self.peaks)[1]
@@ -96,11 +96,16 @@ class Calibration:
             Operator=">",
         )
 
+        uc = UnitCell(
+            self.a, self.b, self.c, self.alpha, self.beta, self.gamma
+        )
+
         self.goniometer_dict = {}
 
         for peak in mtd["peaks"]:
             peak.setIntensity(0)
-            peak.setSigmaIntensity(0)
+            peak.setSigmaIntensity(uc.d(*peak.getIntHKL()))
+            peak.setBinCount(0)
             run = peak.getRunNumber()
             R = peak.getGoniometerMatrix().copy()
             self.goniometer_dict[run] = R
@@ -279,7 +284,6 @@ class Calibration:
     def calibrate_instrument(self, iteration):
         SCDCalibratePanels(
             PeakWorkspace="peaks",
-            RecalculateUB=True,
             Tolerance=0.2,
             a=self.a,
             b=self.b,
@@ -399,60 +403,60 @@ class Calibration:
             Filename=self._get_ouput(".txt"),
         )
 
-        LoadParameterFile(
-            Workspace=self.instrument,
-            Filename=self._get_ouput(".xml"),
-        )
+        # LoadParameterFile(
+        #     Workspace=self.instrument,
+        #     Filename=self._get_ouput(".xml"),
+        # )
 
-        inst = mtd[self.instrument].getInstrument()
+        # inst = mtd[self.instrument].getInstrument()
 
-        components = np.unique(mtd["peaks"].column("BankName")).tolist()
+        # components = np.unique(mtd["peaks"].column("BankName")).tolist()
 
-        for component in components:
-            pos = list(inst.getComponentByName(component).getPos())
-            rot = inst.getComponentByName(component).getRotation()
-            quat = [rot.real(), rot.imagI(), rot.imagJ(), rot.imagK()]
-            R = scipy.spatial.transform.Rotation.from_quat(
-                quat, scalar_first=True
-            ).as_matrix()
+        # for component in components:
+        #     pos = list(inst.getComponentByName(component).getPos())
+        #     rot = inst.getComponentByName(component).getRotation()
+        #     quat = [rot.real(), rot.imagI(), rot.imagJ(), rot.imagK()]
+        #     R = scipy.spatial.transform.Rotation.from_quat(
+        #         quat, scalar_first=True
+        #     ).as_matrix()
 
-            x, y, z = Gz.T @ pos
-            Rp = Gz.T @ R
+        #     x, y, z = Gz @ pos
+        #     Rp = Gz @ R
 
-            w = scipy.spatial.transform.Rotation.from_matrix(Rp).as_rotvec(
-                degrees=True
-            )
-            theta = np.linalg.norm(w)
-            wx, wy, wz = (w / theta) if not np.isclose(theta, 0) else (0, 0, 1)
+        #     w = scipy.spatial.transform.Rotation.from_matrix(Rp).as_rotvec(
+        #         degrees=True
+        #     )
+        #     theta = np.linalg.norm(w)
+        #     wx, wy, wz = (w / theta) if not np.isclose(theta, 0) else (0, 0, 1)
 
-            MoveInstrumentComponent(
-                Workspace=self.instrument,
-                ComponentName=component,
-                X=x,
-                Y=y,
-                Z=z,
-                RelativePosition=False,
-            )
+        #     MoveInstrumentComponent(
+        #         Workspace=self.instrument,
+        #         ComponentName=component,
+        #         X=x,
+        #         Y=y,
+        #         Z=z,
+        #         RelativePosition=False,
+        #     )
 
-            RotateInstrumentComponent(
-                Workspace=self.instrument,
-                ComponentName=component,
-                X=wx,
-                Y=wy,
-                Z=wz,
-                Angle=theta,
-                RelativeRotation=False,
-            )
+        #     RotateInstrumentComponent(
+        #         Workspace=self.instrument,
+        #         ComponentName=component,
+        #         X=wx,
+        #         Y=wy,
+        #         Z=wz,
+        #         Angle=theta,
+        #         RelativeRotation=False,
+        #     )
 
-        ApplyInstrumentToPeaks(
-            InputWorkspace="peaks",
-            InstrumentWorkspace=self.instrument,
-            OutputWorkspace="peaks",
-        )
+        # ApplyInstrumentToPeaks(
+        #     InputWorkspace="peaks",
+        #     InstrumentWorkspace=self.instrument,
+        #     OutputWorkspace="peaks",
+        # )
 
         CloneWorkspace(InputWorkspace="peaks", OutputWorkspace="peaks_ws")
 
-        G = Gy @ Gx
+        G = Gz @ Gy @ Gx
 
         for peak in mtd["peaks_ws"]:
             run = peak.getRunNumber()
