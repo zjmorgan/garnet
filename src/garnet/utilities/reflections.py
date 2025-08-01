@@ -1296,6 +1296,7 @@ class Peaks:
 
         ol = mtd[self.peaks].sample().getOrientedLattice()
 
+        Q_vol = []
         powder_err = []
         peak_err = []
         Q0_mod = []
@@ -1308,9 +1309,25 @@ class Peaks:
             peak_err.append(peak.getQSampleFrame() - Q0)
             Q0_mod.append(2 * np.pi / d0)
 
+            shape = peak.getPeakShape()
+            if shape.shapeName() == "ellipsoid":
+                ellipsoid = eval(shape.toJSON())
+
+                r0 = ellipsoid["radius0"]
+                r1 = ellipsoid["radius1"]
+                r2 = ellipsoid["radius2"]
+
+            else:
+                r0 = r1 = r2 = 1e-6
+
+            vol = 4 / 3 * np.pi * r0 * r1 * r2
+
+            Q_vol.append(vol)
+
         Q0_mod = np.array(Q0_mod)
         powder_err = np.array(powder_err)
         peak_err = np.array(peak_err) / Q0_mod[:, np.newaxis]
+        Q_vol = np.array(Q_vol)
 
         powder_Q1, powder_Q3 = np.nanpercentile(powder_err, [25, 75])
         peak_Q1, peak_Q3 = np.nanpercentile(peak_err, [25, 75], axis=0)
@@ -1324,22 +1341,30 @@ class Peaks:
         peak_min = peak_Q1 - 3 * peak_IQR
         peak_max = peak_Q3 + 3 * peak_IQR
 
+        vol_Q1, vol_Q3 = np.nanpercentile(Q_vol, [25, 75])
+        vol_IQR = vol_Q3 - vol_Q1
+
+        vol_cut = vol_Q3 + 1.5 * vol_IQR
+
         filename = os.path.splitext(self.filename)[0]
 
-        fig, ax = plt.subplots(4, 1, layout="constrained")
-        ax[0].set_xlabel("$|Q|$ [$\AA^{-1}$]")
+        fig, ax = plt.subplots(5, 1, layout="constrained")
+        ax[4].set_xlabel("$|Q|$ [$\AA^{-1}$]")
         ax[0].set_ylabel("$d/d_0-1$")
         ax[1].set_ylabel("$\Delta{Q_1}/|Q|$")
         ax[2].set_ylabel("$\Delta{Q_2}/|Q|$")
         ax[3].set_ylabel("$\Delta{Q_3}/|Q|$")
+        ax[4].set_ylabel("$V$")
         ax[0].minorticks_on()
         ax[1].minorticks_on()
         ax[2].minorticks_on()
         ax[3].minorticks_on()
+        ax[4].minorticks_on()
         ax[0].plot(Q0_mod, powder_err, ".", color="C0")
         ax[1].plot(Q0_mod, peak_err[:, 0], ".", color="C1", rasterized=True)
         ax[2].plot(Q0_mod, peak_err[:, 1], ".", color="C2", rasterized=True)
         ax[3].plot(Q0_mod, peak_err[:, 2], ".", color="C3", rasterized=True)
+        ax[4].plot(Q0_mod, Q_vol, ".", color="C4", rasterized=True)
         ax[0].axhline(powder_min, color="k", linestyle="--", linewidth=1)
         ax[0].axhline(powder_max, color="k", linestyle="--", linewidth=1)
         ax[1].axhline(peak_min[0], color="k", linestyle="--", linewidth=1)
@@ -1348,8 +1373,9 @@ class Peaks:
         ax[2].axhline(peak_max[1], color="k", linestyle="--", linewidth=1)
         ax[3].axhline(peak_min[2], color="k", linestyle="--", linewidth=1)
         ax[3].axhline(peak_max[2], color="k", linestyle="--", linewidth=1)
+        ax[4].axhline(vol_cut, color="k", linestyle="--", linewidth=1)
 
-        for i in range(4):
+        for i in range(5):
             for d in d_al:
                 ax[i].axvline(
                     2 * np.pi / d, color="k", linestyle=":", linewidth=1
@@ -1363,9 +1389,10 @@ class Peaks:
         fig.savefig(filename + "_cont.pdf")
 
         for i, peak in enumerate(mtd[self.peaks]):
-            # powder = powder_err[i] > powder_max or powder_err[i] < powder_min
+            powder = powder_err[i] > powder_max or powder_err[i] < powder_min
             contamination = (peak_err[i] > peak_max) | (peak_err[i] < peak_min)
-            if contamination.any():
+            background = Q_vol[i] > vol_cut
+            if contamination.any() or powder.any() or background:
                 peak.setSigmaIntensity(peak.getIntensity())
 
     def remove_non_integrated(self):

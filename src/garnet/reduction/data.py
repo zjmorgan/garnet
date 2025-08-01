@@ -67,6 +67,7 @@ from mantid.simpleapi import (
 )
 
 from mantid.dataobjects import EventWorkspace
+from mantid.kernel import FloatTimeSeriesProperty
 
 from mantid import config
 
@@ -1220,6 +1221,10 @@ class LaueData(BaseDataModel):
         self.sa_cal = False
         self.flux_cal = False
 
+        LoadEmptyInstrument(
+            InstrumentName=self.ref_inst, OutputWorkspace="goniometer"
+        )
+
     def load_data(self, event_name, IPTS, runs, grouping=None, time_cut=None):
         """
         Load raw data into time-of-flight vs counts.
@@ -1349,10 +1354,6 @@ class LaueData(BaseDataModel):
 
         if goniometer_calibration is not None:
             if os.path.splitext(goniometer_calibration)[1] == ".xml":
-                LoadEmptyInstrument(
-                    InstrumentName=self.ref_inst, OutputWorkspace="goniometer"
-                )
-
                 LoadParameterFile(
                     Workspace="goniometer", Filename=goniometer_calibration
                 )
@@ -1364,12 +1365,18 @@ class LaueData(BaseDataModel):
 
                 for i, param in enumerate(params):
                     if inst.hasParameter(param):
-                        v = inst.getNumberParameter(param)[0]
-                        print(v)
+                        val = inst.getNumberParameter(param)[0]
                         name = self.gon_axis_logs[i]
-                        run[name] = (run.getProperty(name).value + v).tolist()
+                        values = run.getProperty(name).value
+                        times = run.getProperty(name).times
+                        log = FloatTimeSeriesProperty(name)
+                        for t, v in zip(times, values):
+                            log.addValue(t, v + val)
+                        run[name] = log
 
                 self.set_goniometer(event_name)
+
+                run = mtd[event_name].run()
 
                 param = "goniometer-tilt"
                 if inst.hasParameter(param):
