@@ -118,7 +118,7 @@ class Calibration:
             d = peak.getDSpacing()
             d0 = uc.d(*peak.getIntHKL())
 
-            key = banks[i]
+            key = banks[i].strip("bank")
             items = self.d_dict.get(key)
             if items is None:
                 items = [], []
@@ -581,7 +581,7 @@ class Calibration:
             d = peak.getDSpacing()
             d0 = uc.d(*peak.getIntHKL())
 
-            key = banks[i]
+            key = banks[i].strip("bank")
             items = d_dict.get(key)
             if items is None:
                 items = [], []
@@ -606,7 +606,9 @@ class Calibration:
                 x = np.array(x)
                 y = np.array(y)
 
-                ax.plot(x, (y / x - 1) * 100, ".", color="C0")
+                ax.plot(
+                    x, (y / x - 1) * 100, "s", color="C0", label="Ucalibrated"
+                )
 
                 if iteration > 0:
                     x, y = d_dict[key]
@@ -614,9 +616,16 @@ class Calibration:
                     x = np.array(x)
                     y = np.array(y)
 
-                    ax.plot(x, (y / x - 1) * 100, "x", color="C1")
+                    ax.plot(
+                        x,
+                        (y / x - 1) * 100,
+                        "o",
+                        color="C1",
+                        label="Calibrated",
+                    )
 
                 ax.axhline(0, linestyle="-", color="k", linewidth=1)
+                ax.legend(shadow=True)
 
                 ax.set_title(key)
                 ax.minorticks_on()
