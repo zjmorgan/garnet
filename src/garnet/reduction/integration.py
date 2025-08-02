@@ -200,9 +200,9 @@ class Integration(SubPlan):
 
                 data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
-                # md_file = self.get_diagnostic_file("run#{}_data".format(run))
+                md_file = self.get_diagnostic_file("run#{}_data".format(run))
 
-                # data.save_histograms(md_file, "md")
+                data.save_histograms(md_file, "md")
 
                 peaks.find_peaks("md", "peaks", max_d)
 
@@ -214,6 +214,7 @@ class Integration(SubPlan):
                 ub.determine_UB_with_lattice_parameters(*const)
                 ub.index_peaks()
                 ub.transform_primitive_to_conventional(centering)
+                ub.refine_UB_with_constraints(cell)
 
                 Reorient("peaks", cell)
 
@@ -225,10 +226,6 @@ class Integration(SubPlan):
                 ub.save_UB(ub_file)
 
                 data.load_clear_UB(ub_file, "data", run)
-
-            # pk_file = self.get_diagnostic_file("run#{}_peaks".format(run))
-
-            # peaks.save_peaks(pk_file, "peaks")
 
             data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
