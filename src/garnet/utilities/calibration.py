@@ -110,11 +110,28 @@ class Calibration:
             R = peak.getGoniometerMatrix().copy()
             self.goniometer_dict[run] = R
 
+        self.d_dict = {}
+
+        banks = mtd["peaks"].column("BankName")
+
+        for i, peak in enumerate(mtd["peaks"]):
+            d = peak.getDSpacing()
+            d0 = uc.d(*peak.getIntHKL())
+
+            key = banks[i]
+            items = self.d_dict.get(key)
+            if items is None:
+                items = [], []
+            items[0].append(d0)
+            items[1].append(d)
+
+            self.d_dict[key] = items
+
         CreateEmptyTableWorkspace(OutputWorkspace="goniometer")
 
-        mtd["goniometer"].addColumn("float", "Refined Z Angle")
-        mtd["goniometer"].addColumn("float", "Refined Y Angle")
         mtd["goniometer"].addColumn("float", "Refined X Angle")
+        mtd["goniometer"].addColumn("float", "Refined Y Angle")
+        mtd["goniometer"].addColumn("float", "Refined Z Angle")
         mtd["goniometer"].addColumn("float", "Offset Omega")
         mtd["goniometer"].addColumn("float", "Offset Chi")
 
@@ -396,7 +413,7 @@ class Calibration:
         )
 
     def calibrate_goniometer(self, iteration):
-        Gz, Gy, Gx, omega_off, chi_off = self.refine_goniometer()
+        G, omega_off, chi_off = self.refine_goniometer()
 
         SaveAscii(
             InputWorkspace="goniometer",
@@ -456,14 +473,12 @@ class Calibration:
 
         CloneWorkspace(InputWorkspace="peaks", OutputWorkspace="peaks_ws")
 
-        G = Gz @ Gy @ Gx
-
         for peak in mtd["peaks_ws"]:
             run = peak.getRunNumber()
             R = self.goniometer_dict[run]
-            phi, chi, omega = self.calculate_goniometer_angles(R)
+            omega, chi, phi = self.calculate_goniometer_angles(R)
             Rp = self.calculate_goniometer_matrix(
-                phi, chi + chi_off, omega + omega_off
+                omega + omega_off, chi + chi_off, phi
             )
             peak.setGoniometerMatrix(G @ Rp)
 
@@ -555,7 +570,7 @@ class Calibration:
             self.a, self.b, self.c, self.alpha, self.beta, self.gamma
         )
 
-        peak_dict = {}
+        d_dict = {}
 
         banks = mtd["peaks"].column("BankName")
 
@@ -567,35 +582,46 @@ class Calibration:
             d0 = uc.d(*peak.getIntHKL())
 
             key = banks[i]
-            items = peak_dict.get(key)
+            items = d_dict.get(key)
             if items is None:
                 items = [], []
             items[0].append(d0)
             items[1].append(d)
 
-            peak_dict[key] = items
+            d_dict[key] = items
 
             if d > d_max:
                 d_max = d
             if d < d_min:
                 d_min = d
 
+        d_dict = {key: d_dict[key] for key in sorted(d_dict)}
+
         with PdfPages(self._get_ouput("_{}.pdf".format(iteration))) as pdf:
-            for key in peak_dict.keys():
+            for key in d_dict.keys():
                 fig, ax = plt.subplots(1, 1, layout="constrained")
 
-                x, y = peak_dict[key]
+                x, y = self.d_dict[key]
 
                 x = np.array(x)
                 y = np.array(y)
 
                 ax.plot(x, (y / x - 1) * 100, ".", color="C0")
+
+                if iteration > 0:
+                    x, y = d_dict[key]
+
+                    x = np.array(x)
+                    y = np.array(y)
+
+                    ax.plot(x, (y / x - 1) * 100, "x", color="C1")
+
                 ax.axhline(0, linestyle="-", color="k", linewidth=1)
 
                 ax.set_title(key)
                 ax.minorticks_on()
                 ax.set_xlim(d_min, d_max)
-                ax.set_ylim(-5, 5)
+                ax.set_ylim(-2, 2)
                 ax.set_xlabel(r"$d_0$ [$\AA$]")
                 ax.set_ylabel(r"$d/d_0-1$ [%]")
 
@@ -635,9 +661,9 @@ class Calibration:
             mask = hkl.any(axis=1)
 
             R = self.goniometer_dict[run]
-            phi, chi, omega = self.calculate_goniometer_angles(R)
+            omega, chi, phi = self.calculate_goniometer_angles(R)
 
-            self.peak_dict[run] = (phi, chi, omega), Q[mask], hkl[mask]
+            self.peak_dict[run] = (omega, chi, phi), Q[mask], hkl[mask]
 
             DeleteWorkspace(Workspace="tmp")
 
@@ -650,22 +676,10 @@ class Calibration:
             .tolist()
         )
 
-    def calculate_goniometer_matrix(self, phi, chi, omega):
+    def calculate_goniometer_matrix(self, omega, chi, phi):
         return scipy.spatial.transform.Rotation.from_euler(
-            "YZY", [phi, chi, omega], degrees=True
+            "YZY", [omega, chi, phi], degrees=True
         ).as_matrix()
-
-    def calculate_goniometer_offset_matrices(self, alpha, beta, gamma):
-        Gx = scipy.spatial.transform.Rotation.from_euler(
-            "X", alpha, degrees=True
-        ).as_matrix()
-        Gy = scipy.spatial.transform.Rotation.from_euler(
-            "Y", beta, degrees=True
-        ).as_matrix()
-        Gz = scipy.spatial.transform.Rotation.from_euler(
-            "Z", gamma, degrees=True
-        ).as_matrix()
-        return Gx, Gy, Gz
 
     def calculate_orientation_matrix(self, u0, u1, u2):
         return scipy.spatial.transform.Rotation.from_rotvec(
@@ -685,20 +699,18 @@ class Calibration:
 
         UB = np.dot(U, B)
 
-        gamma, beta, alpha, omega_off, chi_off = params
+        alpha, beta, gamma, omega_off, chi_off = params
 
-        Gx, Gy, Gz = self.calculate_goniometer_offset_matrices(
-            alpha, beta, gamma
-        )
+        G = self.calculate_orientation_matrix(alpha, beta, gamma)
 
         diff = []
 
         for i, run in enumerate(peak_dict.keys()):
-            (phi, chi, omega), Q, hkl = peak_dict[run]
+            (omega, chi, phi), Q, hkl = peak_dict[run]
             R = self.calculate_goniometer_matrix(
-                phi, chi + chi_off, omega + omega_off
+                omega + omega_off, chi + chi_off, phi
             )
-            T = Gz @ Gy @ Gx @ R @ UB * 2 * np.pi
+            T = G @ R @ UB * 2 * np.pi
             diff += (np.einsum("ij,lj->li", T, hkl) - Q).flatten().tolist()
 
         return diff + list(params)
@@ -721,15 +733,13 @@ class Calibration:
 
         phi, theta, omega, *params = fun(sol.x)
 
-        gamma, beta, alpha, omega_off, chi_off = params
+        alpha, beta, gamma, omega_off, chi_off = params
 
-        Gx, Gy, Gz = self.calculate_goniometer_offset_matrices(
-            alpha, beta, gamma
-        )
+        G = self.calculate_orientation_matrix(alpha, beta, gamma)
 
-        mtd["goniometer"].addRow([gamma, beta, alpha, omega_off, chi_off])
+        mtd["goniometer"].addRow([alpha, beta, gamma, omega_off, chi_off])
 
-        return Gz, Gy, Gx, omega_off, chi_off
+        return G, omega_off, chi_off
 
     def run(self):
         self.load_instrument()
