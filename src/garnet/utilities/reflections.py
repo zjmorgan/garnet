@@ -45,6 +45,7 @@ from mantid.geometry import (
     CrystalStructure,
     ReflectionGenerator,
     ReflectionConditionFilter,
+    PointGroupFactory,
 )
 
 from mantid.kernel import V3D
@@ -446,7 +447,8 @@ class AbsorptionCorrection:
                 matrix_dict[matrix_tuple] = run
 
             runs.append(run)
-            peak.setRunNumber(run)
+            peak.setRunNumber(1)
+            peak.setBinCount(run)
 
         self.runs = np.unique(runs).astype(int).tolist()
         self.Rs = Rs
@@ -1260,6 +1262,7 @@ class Peaks:
             if peak.getIntensity() > 10 * maximal:
                 peak.setSigmaIntensity(peak.getIntensity())
             peak.setPeakNumber(peak.getRunNumber())
+            peak.setBinCount(peak.getRunNumber())
             peak.setRunNumber(1)
 
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
@@ -2049,6 +2052,8 @@ class Peaks:
             OutputWorkspace=peaks,
         )
 
+        self.calculate_statistics(peaks, filename + "_symm.txt")
+
         SaveHKL(
             InputWorkspace=peaks,
             Filename=filename + ".hkl",
@@ -2062,8 +2067,6 @@ class Peaks:
         SaveIsawUB(InputWorkspace=peaks, Filename=filename + ".mat")
 
         self.resort_hkl(peaks, filename + ".hkl")
-
-        self.calculate_statistics(peaks, filename + "_symm.txt")
 
         if self.max_order > 0:
             nuclear = peaks + "_nuc"
@@ -2125,6 +2128,65 @@ class Peaks:
 
             self.resort_hkl(satellite, filename + "_sat.hkl")
 
+    def refine_scales(self, name):
+        CloneWorkspace(InputWorkspace=name, OutputWorkspace="tmp")
+
+        runs, indices = np.unique(
+            mtd["tmp"].column("BinCount"), return_inverse=True
+        )
+
+        pg = PointGroupFactory.createPointGroup(self.point_groups[0])
+
+        peak_dict = {}
+
+        for peak, index in zip(mtd["tmp"], indices):
+            key = pg.getReflectionFamily(peak.getIntHKL())
+            items = peak_dict.get(key)
+            if items is None:
+                items = [], [], []
+            items[0].append(peak.getIntensity())
+            items[1].append(peak.getWavelength())
+            items[2].append(index)
+            peak_dict[key] = items
+
+        for key in peak_dict.keys():
+            items = peak_dict[key]
+            peak_dict[key] = [np.array(item) for item in items]
+
+        x0 = np.concatenate((np.ones_like(runs), np.zeros_like(runs)))[1:]
+        args = (name, peak_dict)
+
+        sol = scipy.optimize.minimize(self.scale_peaks, x0=x0, args=args)
+
+        c, a = np.insert(sol.x, 0, 1).reshape(2, -1)
+        sort = np.argsort(runs)
+        print(c[sort])
+
+        for peak, index in zip(mtd[name], indices):
+            s = c[index] + peak.getWavelength() * a[index]
+            peak.setIntensity(peak.getIntensity() * s)
+            peak.setSigmaIntensity(peak.getSigmaIntensity() * s)
+
+    def update_scales(self, name, peak_dict, x):
+        R_merge = 0
+
+        c, a = np.insert(x, 0, 1).reshape(2, -1)
+
+        for key in peak_dict.keys():
+            I, wl, indices = peak_dict[key]
+            Ip = I * (c[indices] + wl * a[indices])
+            Im = np.nanmean(Ip)
+            R_merge += np.nansum(np.abs(Ip - Im)) / np.nansum(Ip)
+
+        return R_merge
+
+    def scale_peaks(self, x, *args):
+        name, peak_dict = args
+
+        R_merge = self.update_scales("tmp", peak_dict, x)
+
+        return R_merge
+
     def calculate_statistics(self, name, filename):
         point_groups, R_merge = [], []
         for point_group in self.point_groups:
@@ -2143,6 +2205,10 @@ class Peaks:
         i = np.argmin(R_merge)
         point_group = point_groups[i]
 
+        self.point_groups = [point_group]
+
+        self.refine_scales(name)
+
         StatisticsOfPeaksWorkspace(
             InputWorkspace=name,
             PointGroup=point_group_dict[point_group],
@@ -2151,7 +2217,6 @@ class Peaks:
             SigmaCritical=3,
             WeightedZScore=True,
         )
-        self.point_groups = [point_group]
 
         ws = mtd["StatisticsTable"]
 

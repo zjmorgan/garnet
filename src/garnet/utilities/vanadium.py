@@ -322,6 +322,11 @@ class Vanadium:
         )
 
     def _vanadium_niobium_lattice_constant(self, x):
+        """
+        Smith, J. F.; Carlson, O. N. The Nb−V (Niobium-Vanadium) System.
+        Bulletin of Alloy Phase Diagrams 1983, 4 (1), 46–49.
+        https://doi.org/10.1007/BF02880319.
+        """
         y = 2 * x - 1
         a = 3.19199921 + 0.13954993 * y - 0.02242883 * y**2
         return a
@@ -338,7 +343,7 @@ class Vanadium:
                 "Shape": "Cylinder",
                 "Height": self.height * 0.1,
                 "Radius": self.diameter * 0.05,
-                "Axis": [0.0, 0.0, 1.0],
+                "Axis": [0.0, 1.0, 0.0],
                 "Center": [0.0, 0.0, 0.0],
             }
 
@@ -400,6 +405,7 @@ class Vanadium:
         print("mass density: {:.4f} g/cm^3\n".format(rho))
         print("volume: {:.4f} cm^3\n".format(V))
         print("mass: {:.4f} g\n".format(m))
+        print("equivalent radius: {:.4} cm".format(r))
 
     def apply_absorption_correction(self):
         ConvertUnits(

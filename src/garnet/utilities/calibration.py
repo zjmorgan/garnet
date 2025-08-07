@@ -501,36 +501,36 @@ class Calibration:
 
         DeleteWorkspace(Workspace="peaks_ws")
 
-        SCDCalibratePanels(
-            PeakWorkspace="peaks",
-            RecalculateUB=False,
-            Tolerance=0.2,
-            a=self.a,
-            b=self.b,
-            c=self.c,
-            alpha=self.alpha,
-            beta=self.beta,
-            gamma=self.gamma,
-            OutputWorkspace="calibration_table",
-            DetCalFilename=self._get_ouput(".DetCal"),
-            CSVFilename=self._get_ouput(".csv"),
-            XmlFilename=self._get_ouput(".xml"),
-            CalibrateT0=False,
-            SearchRadiusT0=0,
-            CalibrateL1=False,
-            SearchRadiusL1=0.0,
-            CalibrateBanks=False,
-            SearchRadiusTransBank=0.0,
-            SearchRadiusRotXBank=0,
-            SearchRadiusRotYBank=0,
-            SearchRadiusRotZBank=0,
-            VerboseOutput=True,
-            SearchRadiusSamplePos=0.0,
-            TuneSamplePosition=False,
-            CalibrateSize=False,
-            SearchRadiusSize=0.0,
-            FixAspectRatio=True,
-        )
+        # SCDCalibratePanels(
+        #     PeakWorkspace="peaks",
+        #     RecalculateUB=False,
+        #     Tolerance=0.2,
+        #     a=self.a,
+        #     b=self.b,
+        #     c=self.c,
+        #     alpha=self.alpha,
+        #     beta=self.beta,
+        #     gamma=self.gamma,
+        #     OutputWorkspace="calibration_table",
+        #     DetCalFilename=self._get_ouput(".DetCal"),
+        #     CSVFilename=self._get_ouput(".csv"),
+        #     XmlFilename=self._get_ouput(".xml"),
+        #     CalibrateT0=False,
+        #     SearchRadiusT0=0,
+        #     CalibrateL1=False,
+        #     SearchRadiusL1=0.0,
+        #     CalibrateBanks=False,
+        #     SearchRadiusTransBank=0.0,
+        #     SearchRadiusRotXBank=0,
+        #     SearchRadiusRotYBank=0,
+        #     SearchRadiusRotZBank=0,
+        #     VerboseOutput=True,
+        #     SearchRadiusSamplePos=0.0,
+        #     TuneSamplePosition=False,
+        #     CalibrateSize=False,
+        #     SearchRadiusSize=0.0,
+        #     FixAspectRatio=True,
+        # )
 
         ClearInstrumentParameters(Workspace=self.instrument)
 
@@ -607,7 +607,7 @@ class Calibration:
                 y = np.array(y)
 
                 ax.plot(
-                    x, (y / x - 1) * 100, "s", color="C0", label="Ucalibrated"
+                    x, (y / x - 1) * 100, ".", color="C0", label="Uncalibrated"
                 )
 
                 if iteration > 0:
@@ -619,7 +619,7 @@ class Calibration:
                     ax.plot(
                         x,
                         (y / x - 1) * 100,
-                        "o",
+                        ".",
                         color="C1",
                         label="Calibrated",
                     )
@@ -632,7 +632,7 @@ class Calibration:
                 ax.set_xlim(d_min, d_max)
                 ax.set_ylim(-2, 2)
                 ax.set_xlabel(r"$d_0$ [$\AA$]")
-                ax.set_ylabel(r"$d/d_0-1$ [%]")
+                ax.set_ylabel(r"$(d/d_0-1)\times 100$ [%]")
 
                 pdf.savefig(fig)
                 plt.close()
@@ -722,7 +722,7 @@ class Calibration:
             T = G @ R @ UB * 2 * np.pi
             diff += (np.einsum("ij,lj->li", T, hkl) - Q).flatten().tolist()
 
-        return diff + list(params)
+        return diff + [omega_off]
 
     def fix_offsets(self, x):
         return *x, 0, 0
