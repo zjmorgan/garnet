@@ -5,9 +5,7 @@ import yaml
 
 import numpy as np
 
-import scipy.sparse
-import scipy.special
-import scipy.optimize
+import scipy.signal
 
 from mantid.simpleapi import (
     Load,
@@ -43,9 +41,10 @@ from mantid.simpleapi import (
     SphericalAbsorption,
     CylinderAbsorption,
     SmoothNeighbours,
-    WienerSmooth,
     InterpolatingRebin,
     CopyInstrumentParameters,
+    GenerateGoniometerIndependentBackground,
+    SaveDetectorsGrouping,
     mtd,
 )
 
@@ -100,7 +99,7 @@ class Vanadium:
         self.file_name = "{}_{}.nxs.h5"
         self.vanadium_folder = "/SNS/{}/shared/Vanadium"
 
-        self.n_bins = 1000
+        self.n_bins = 500
 
         self.k_min, self.k_max = defaults.get("MomentumLimits")
         self.k_step = (self.k_max - self.k_min) / self.n_bins
@@ -120,6 +119,12 @@ class Vanadium:
             GroupDetectorsBy="bank",
             OutputWorkspace="group",
         )
+        vanadium_folder = self.vanadium_folder.format(self.instrument)
+        output_folder = os.path.join(vanadium_folder, self.output_folder)
+
+        self.grouping = os.path.join(output_folder, "grouping.xml")
+
+        SaveDetectorsGrouping(InputWorkspace="group", OutputFile=self.grouping)
 
     def _join(self, items):
         if isinstance(items, list):
@@ -251,7 +256,7 @@ class Vanadium:
         if not isinstance(run_nos, list):
             run_nos = self._runs_string_to_list(run_nos)
 
-        files_to_load = "+".join(
+        files_to_load = ",".join(
             [
                 os.path.join(
                     self.file_folder.format(self.instrument, ipts),
@@ -261,21 +266,20 @@ class Vanadium:
             ]
         )
 
-        Load(Filename=files_to_load, NumberOfBins=1, OutputWorkspace=workspace)
+        Load(
+            Filename=files_to_load,
+            NumberOfBins=1,
+            LoadType="Multiprocess (experimental)",
+            AllowList="gd_prtn_chrg",
+            OutputWorkspace=workspace,
+        )
+
+        NormaliseByCurrent(InputWorkspace=workspace, OutputWorkspace=workspace)
 
         CopyInstrumentParameters(
             InputWorkspace=self.instrument,
             OutputWorkspace=workspace,
         )
-
-        SmoothNeighbours(
-            InputWorkspace=workspace,
-            OutputWorkspace=workspace,
-            SumPixelsX=self.x_bins,
-            SumPixelsY=self.y_bins,
-        )
-
-        MaskDetectors(Workspace=workspace, MaskedWorkspace="mask")
 
         ConvertUnits(
             InputWorkspace=workspace,
@@ -290,11 +294,68 @@ class Vanadium:
             XMax=self.k_max,
         )
 
+        Rebin(
+            InputWorkspace="vanadium",
+            OutputWorkspace="vanadium",
+            Params=[self.k_min, (self.k_max - self.k_min) / 50, self.k_max],
+            PreserveEvents=True,
+        )
+
+        if mtd[workspace].isGroup():
+            vals = []
+
+            for ws in mtd[workspace].getNames():
+                pc = mtd[ws].run().getProperty("gd_prtn_chrg")
+
+                val = pc.valueAsStr
+                uni = pc.units
+
+                RemoveLogs(Workspace=workspace)
+
+                logs = ["gd_prtn_chrg", "NormalizationFactor"]
+                for log in logs:
+                    AddSampleLog(
+                        Workspace=workspace,
+                        LogName=log,
+                        LogText="1.0",
+                        LogUnit=uni,
+                        LogType="Number",
+                        NumberType="Double",
+                    )
+
+                vals.append(float(val))
+
+            GenerateGoniometerIndependentBackground(
+                InputWorkspaces=workspace,
+                OutputWorkspace=workspace,
+                GroupingFile=self.grouping,
+                PercentMin=0,
+                PercentMax=95,
+            )
+
+            logs = ["gd_prtn_chrg", "NormalizationFactor"]
+            for log in logs:
+                AddSampleLog(
+                    Workspace=workspace,
+                    LogName=log,
+                    LogText=str(np.mean(vals)),
+                    LogUnit=uni,
+                    LogType="Number",
+                    NumberType="Double",
+                )
+
+        SmoothNeighbours(
+            InputWorkspace=workspace,
+            OutputWorkspace=workspace,
+            SumPixelsX=self.x_bins,
+            SumPixelsY=self.y_bins,
+        )
+
+        MaskDetectors(Workspace=workspace, MaskedWorkspace="mask")
+
         CompressEvents(
             InputWorkspace=workspace, Tolerance=1e-3, OutputWorkspace=workspace
         )
-
-        NormaliseByCurrent(InputWorkspace=workspace, OutputWorkspace=workspace)
 
         pc = mtd[workspace].run().getProperty("gd_prtn_chrg")
 
@@ -452,7 +513,7 @@ class Vanadium:
             OutputWorkspace="spectra",
         )
 
-        WienerSmooth(InputWorkspace="spectra", OutputWorkspace="spectra")
+        # self._smooth_data("spectra", units="wavelength")
 
         Rebin(
             InputWorkspace="spectra",
@@ -477,7 +538,7 @@ class Vanadium:
         X = mtd["spectra"].getXDimension()
         lamda_min = X.getMinimum() + X.getBinWidth()
         lamda_max = X.getMaximum() - X.getBinWidth()
-        lamda_step = self.lamda_step / 100
+        lamda_step = self.lamda_step / 200
 
         InterpolatingRebin(
             InputWorkspace="spectra",
@@ -497,6 +558,25 @@ class Vanadium:
             Params=[self.k_min, self.k_max, self.k_max],
             PreserveEvents=True,
         )
+
+    def _smooth_data(self, data, units="wavelength"):
+        y = mtd[data].extractY().copy()
+        x = mtd[data].extractX()
+
+        x = 0.5 * (x[:, 1:] + x[:, :-1])
+
+        for i, (x_val, y_val) in enumerate(zip(x, y)):
+            weights = (
+                x_val**2 if units == "momentum" else np.ones_like(x_val)
+            )
+
+            y_hat = scipy.signal.savgol_filter(
+                y_val * weights,
+                window_length=25,
+                polyorder=1,
+            )
+
+            mtd[data].setY(i, y_hat / weights)
 
     def process_data(self):
         Rebin(
@@ -535,12 +615,12 @@ class Vanadium:
             PreserveEvents=False,
         )
 
-        WienerSmooth(InputWorkspace="incident", OutputWorkspace="incident")
+        # self._smooth_data("incident", units="momentum")
 
         X = mtd["incident"].getXDimension()
         k_min = X.getMinimum() + X.getBinWidth()
         k_max = X.getMaximum() - X.getBinWidth()
-        k_step = self.k_step / 100
+        k_step = self.k_step / 200
 
         InterpolatingRebin(
             InputWorkspace="incident",
@@ -550,7 +630,7 @@ class Vanadium:
 
         IntegrateFlux(
             InputWorkspace="incident",
-            NPoints=self.n_bins * 100,
+            NPoints=self.n_bins * 200,
             OutputWorkspace="flux",
         )
 

@@ -1787,31 +1787,34 @@ class PeakEllipsoid:
 
         if mode == "3d":
             dx = np.prod([dx0, dx1, dx2])
-            k = 3
+            # k = 3
         elif mode == "2d_0":
             dx = np.prod([dx1, dx2])
-            k = 2
+            # k = 2
         elif mode == "2d_1":
             dx = np.prod([dx0, dx2])
-            k = 2
+            # k = 2
         elif mode == "2d_2":
             dx = np.prod([dx0, dx1])
-            k = 2
+            # k = 2
         elif mode == "1d_0":
             dx = dx0
-            k = 1
+            # k = 1
         elif mode == "1d_1":
             dx = dx1
-            k = 1
+            # k = 1
         elif mode == "1d_2":
             dx = dx2
-            k = 1
+            # k = 1
 
         pk = (d2 <= 1**2) & np.isfinite(y) & (e > 0)
-        bkg = (d2 > 1**2) & (d2 < 2 ** (2 / k)) & (e > 0)
+        # bkg = (d2 > 1**2) & (d2 < 2 ** (2 / k)) & (e > 0)
 
-        b = np.nanmean(y[bkg])
-        b_err = np.sqrt(np.nanmean(e[bkg] ** 2))
+        b = self.params["B{}".format(mode)].value
+        b_err = self.params["B{}".format(mode)].stderr
+
+        if b_err is None:
+            b_err = b
 
         I = np.nansum(y[pk] - b) * dx
         sig = np.sqrt(np.nansum(e[pk] ** 2 + b_err**2)) * dx
@@ -1851,44 +1854,6 @@ class PeakEllipsoid:
             d2 = inv_var * dx**2
 
         return np.exp(-0.5 * d2)
-
-    def lorentzian(self, x0, x1, x2, c, inv_S, mode="3d"):
-        c0, c1, c2 = c
-
-        dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
-
-        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
-
-        if mode == "3d":
-            dx = [dx0, dx1, dx2]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            k = 3
-        elif mode == "2d_0":
-            dx = [dx1[0, :, :], dx2[0, :, :]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            k = 2
-        elif mode == "2d_1":
-            dx = [dx0[:, 0, :], dx2[:, 0, :]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            k = 2
-        elif mode == "2d_2":
-            dx = [dx0[:, :, 0], dx1[:, :, 0]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            k = 2
-        elif mode == "1d_0":
-            dx = dx0[:, 0, 0]
-            d2 = inv_var * dx**2
-            k = 1
-        elif mode == "1d_1":
-            dx = dx1[0, :, 0]
-            d2 = inv_var * dx**2
-            k = 1
-        elif mode == "1d_2":
-            dx = dx2[0, 0, :]
-            d2 = inv_var * dx**2
-            k = 1
-
-        return 1 / (1 + d2) ** (0.5 * (1 + k))
 
     def inv_S_deriv_r(self, r0, r1, r2, u0, u1, u2):
         U = self.U_matrix(u0, u1, u2)
@@ -1939,25 +1904,6 @@ class PeakEllipsoid:
 
         return np.sqrt((2 * np.pi) ** k * det)
 
-    def lorentzian_integral(self, inv_S, mode="3d"):
-        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
-
-        if mode == "3d":
-            k = 3
-            det = 1 / np.linalg.det(inv_var)
-        elif "2d" in mode:
-            k = 2
-            det = 1 / np.linalg.det(inv_var)
-        elif "1d" in mode:
-            k = 1
-            det = 1 / inv_var
-
-        return (
-            scipy.special.gamma(0.5)
-            * np.sqrt(np.pi * det)
-            / scipy.special.gamma(0.5 * (1 + k))
-        )
-
     def gaussian_integral_jac_S(self, inv_S, d_inv_S, mode="3d"):
         inv_var = self.ellipsoid_covariance(inv_S, mode)
 
@@ -2004,59 +1950,6 @@ class PeakEllipsoid:
 
         return 0.5 * g * np.array([g0, g1, g2])
 
-    def lorentzian_integral_jac_S(self, inv_S, d_inv_S, mode="3d"):
-        inv_var = self.ellipsoid_covariance(inv_S, mode)
-
-        if mode == "3d":
-            k = 3
-            det = 1 / np.linalg.det(inv_var)
-        elif "2d" in mode:
-            k = 2
-            det = 1 / np.linalg.det(inv_var)
-        elif "1d" in mode:
-            k = 1
-            det = 1 / inv_var
-
-        l = (
-            scipy.special.gamma(0.5)
-            * np.sqrt(np.pi * det)
-            / scipy.special.gamma(0.5 * (1 + k))
-        )
-
-        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
-        d_inv_var = [
-            self.ellipsoid_covariance(val, mode) / (2 * np.log(2))
-            for val in d_inv_S
-        ]
-
-        if mode == "3d":
-            l0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
-            l1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
-            l2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
-        elif mode == "2d_0":
-            l1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
-            l2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
-            l0 = l1 * 0
-        elif mode == "2d_1":
-            l0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
-            l2 = np.einsum("ij,ji->", inv_var, d_inv_var[2])
-            l1 = l2 * 0
-        elif mode == "2d_2":
-            l0 = np.einsum("ij,ji->", inv_var, d_inv_var[0])
-            l1 = np.einsum("ij,ji->", inv_var, d_inv_var[1])
-            l2 = l0 * 0
-        elif mode == "1d_0":
-            l0 = d_inv_var[0] * inv_var
-            l1 = l2 = l0 * 0
-        elif mode == "1d_1":
-            l1 = d_inv_var[1] * inv_var
-            l2 = l0 = l1 * 0
-        elif mode == "1d_2":
-            l2 = d_inv_var[2] * inv_var
-            l0 = l1 = l2 * 0
-
-        return 0.5 * l * np.array([l0, l1, l2])
-
     def gaussian_jac_c(self, x0, x1, x2, c, inv_S, mode="3d"):
         c0, c1, c2 = c
 
@@ -2102,59 +1995,6 @@ class PeakEllipsoid:
         g = np.exp(-0.5 * d2)
 
         return g * np.array([g0, g1, g2])
-
-    def lorentzian_jac_c(self, x0, x1, x2, c, inv_S, mode="3d"):
-        c0, c1, c2 = c
-
-        dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
-
-        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
-
-        if mode == "3d":
-            dx = [dx0, dx1, dx2]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l0, l1, l2 = np.einsum("ij,j...->i...", inv_var, dx)
-            k = 3
-        elif mode == "2d_0":
-            dx = [dx1[0, :, :], dx2[0, :, :]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l1, l2 = np.einsum("ij,j...->i...", inv_var, dx)
-            l0 = np.zeros_like(l1)
-            k = 2
-        elif mode == "2d_1":
-            dx = [dx0[:, 0, :], dx2[:, 0, :]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l0, l2 = np.einsum("ij,j...->i...", inv_var, dx)
-            l1 = np.zeros_like(l0)
-            k = 2
-        elif mode == "2d_2":
-            dx = [dx0[:, :, 0], dx1[:, :, 0]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l0, l1 = np.einsum("ij,j...->i...", inv_var, dx)
-            l2 = np.zeros_like(l0)
-            k = 2
-        elif mode == "1d_0":
-            dx = dx0[:, 0, 0]
-            d2 = inv_var * dx**2
-            l0 = inv_var * dx
-            l1 = l2 = np.zeros_like(l0)
-            k = 1
-        elif mode == "1d_1":
-            dx = dx1[0, :, 0]
-            d2 = inv_var * dx**2
-            l1 = inv_var * dx
-            l2 = l0 = np.zeros_like(l1)
-            k = 1
-        elif mode == "1d_2":
-            dx = dx2[0, 0, :]
-            d2 = inv_var * dx**2
-            l2 = inv_var * dx
-            l0 = l1 = np.zeros_like(l2)
-            k = 1
-
-        lp = (k + 1) / (1 + d2) ** (0.5 * (3 + k))
-
-        return lp * np.array([l0, l1, l2])
 
     def gaussian_jac_S(self, x0, x1, x2, c, inv_S, d_inv_S, mode="3d"):
         c0, c1, c2 = c
@@ -2208,68 +2048,6 @@ class PeakEllipsoid:
 
         return -0.5 * g * np.array([g0, g1, g2])
 
-    def lorentzian_jac_S(self, x0, x1, x2, c, inv_S, d_inv_S, mode="3d"):
-        c0, c1, c2 = c
-
-        dx0, dx1, dx2 = x0 - c0, x1 - c1, x2 - c2
-
-        inv_var = self.ellipsoid_covariance(inv_S, mode) / (2 * np.log(2))
-        d_inv_var = [
-            self.ellipsoid_covariance(val, mode) / (2 * np.log(2))
-            for val in d_inv_S
-        ]
-
-        if mode == "3d":
-            dx = [dx0, dx1, dx2]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l0 = np.einsum("i...,ij,j...->...", dx, d_inv_var[0], dx)
-            l1 = np.einsum("i...,ij,j...->...", dx, d_inv_var[1], dx)
-            l2 = np.einsum("i...,ij,j...->...", dx, d_inv_var[2], dx)
-            k = 3
-        elif mode == "2d_0":
-            dx = [dx1[0, :, :], dx2[0, :, :]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l1 = np.einsum("i...,ij,j...->...", dx, d_inv_var[1], dx)
-            l2 = np.einsum("i...,ij,j...->...", dx, d_inv_var[2], dx)
-            l0 = l1 * 0
-            k = 2
-        elif mode == "2d_1":
-            dx = [dx0[:, 0, :], dx2[:, 0, :]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l0 = np.einsum("i...,ij,j...->...", dx, d_inv_var[0], dx)
-            l2 = np.einsum("i...,ij,j...->...", dx, d_inv_var[2], dx)
-            l1 = l2 * 0
-            k = 2
-        elif mode == "2d_2":
-            dx = [dx0[:, :, 0], dx1[:, :, 0]]
-            d2 = np.einsum("i...,ij,j...->...", dx, inv_var, dx)
-            l0 = np.einsum("i...,ij,j...->...", dx, d_inv_var[0], dx)
-            l1 = np.einsum("i...,ij,j...->...", dx, d_inv_var[1], dx)
-            l2 = l0 * 0
-            k = 2
-        elif mode == "1d_0":
-            dx = dx0[:, 0, 0]
-            d2 = inv_var * dx**2
-            l0 = d_inv_var[0] * dx**2
-            l1 = l2 = l0 * 0
-            k = 1
-        elif mode == "1d_1":
-            dx = dx1[0, :, 0]
-            d2 = inv_var * dx**2
-            l1 = d_inv_var[1] * dx**2
-            l2 = l0 = l1 * 0
-            k = 1
-        elif mode == "1d_2":
-            dx = dx2[0, 0, :]
-            d2 = inv_var * dx**2
-            l2 = d_inv_var[2] * dx**2
-            l0 = l1 = l2 * 0
-            k = 1
-
-        lp = (k + 1) / (1 + d2) ** (0.5 * (3 + k))
-
-        return -0.5 * lp * np.array([l0, l1, l2])
-
     def residual_1d(self, params, x0, x1, x2, ys, es):
         y0, y1, y2 = ys
         e0, e1, e2 = es
@@ -2294,14 +2072,6 @@ class PeakEllipsoid:
         B1 = params["B1d_1"]
         B2 = params["B1d_2"]
 
-        C0 = params["C1d_0"]
-        C1 = params["C1d_1"]
-        C2 = params["C1d_2"]
-
-        H0 = params["H1d_0"]
-        H1 = params["H1d_1"]
-        H2 = params["H1d_2"]
-
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
         )
@@ -2312,15 +2082,11 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "1d_1")
         y2_gauss = self.gaussian(*args, "1d_2")
 
-        y0_lorentz = self.lorentzian(*args, "1d_0")
-        y1_lorentz = self.lorentzian(*args, "1d_1")
-        y2_lorentz = self.lorentzian(*args, "1d_2")
-
         diff = []
 
-        y0_fit = A0 * y0_gauss + H0 * y0_lorentz + B0 + C0 * (x0[:, 0, 0] - c0)
-        y1_fit = A1 * y1_gauss + H1 * y1_lorentz + B1 + C1 * (x1[0, :, 0] - c1)
-        y2_fit = A2 * y2_gauss + H2 * y2_lorentz + B2 + C2 * (x2[0, 0, :] - c2)
+        y0_fit = A0 * y0_gauss + B0
+        y1_fit = A1 * y1_gauss + B1
+        y2_fit = A2 * y2_gauss + B2
 
         res = (y0_fit - y0) / e0
 
@@ -2364,17 +2130,11 @@ class PeakEllipsoid:
         A1 = params["A1d_1"]
         A2 = params["A1d_2"]
 
-        # B0 = params['B1d_0']
-        # B1 = params['B1d_1']
-        # B2 = params['B1d_2']
+        B0 = params["B1d_0"]
+        B1 = params["B1d_1"]
+        B2 = params["B1d_2"]
 
-        C0 = params["C1d_0"]
-        C1 = params["C1d_1"]
-        C2 = params["C1d_2"]
-
-        H0 = params["H1d_0"]
-        H1 = params["H1d_1"]
-        H2 = params["H1d_2"]
+        B = params["B3d"]
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2386,41 +2146,21 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "1d_1")
         y2_gauss = self.gaussian(*args, "1d_2")
 
-        y0_lorentz = self.lorentzian(*args, "1d_0")
-        y1_lorentz = self.lorentzian(*args, "1d_1")
-        y2_lorentz = self.lorentzian(*args, "1d_2")
-
         dA0 = y0_gauss / e0
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        dH0 = y0_lorentz / e0
-        dH1 = y1_lorentz / e1
-        dH2 = y2_lorentz / e2
-
-        dB0 = 1 / e0
-        dB1 = 1 / e1
-        dB2 = 1 / e2
-
-        dC0 = (x0[:, 0, 0] - c0) / e0
-        dC1 = (x1[0, :, 0] - c1) / e1
-        dC2 = (x2[0, 0, :] - c2) / e2
+        dB0 = 1 / e0 * B0 / B
+        dB1 = 1 / e1 * B1 / B
+        dB2 = 1 / e2 * B2 / B
 
         yc0_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="1d_0")
         yc1_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="1d_1")
         yc2_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="1d_2")
 
-        yc0_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="1d_0")
-        yc1_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="1d_1")
-        yc2_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="1d_2")
-
-        dc0_0, dc1_0, dc2_0 = (A0 * yc0_gauss + H0 * yc0_lorentz) / e0
-        dc0_1, dc1_1, dc2_1 = (A1 * yc1_gauss + H1 * yc1_lorentz) / e1
-        dc0_2, dc1_2, dc2_2 = (A2 * yc2_gauss + H2 * yc2_lorentz) / e2
-
-        dc0_0 -= C0 / e0
-        dc1_1 -= C1 / e1
-        dc2_2 -= C2 / e2
+        dc0_0, dc1_0, dc2_0 = (A0 * yc0_gauss) / e0
+        dc0_1, dc1_1, dc2_1 = (A1 * yc1_gauss) / e1
+        dc0_2, dc1_2, dc2_2 = (A2 * yc2_gauss) / e2
 
         dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
         du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
@@ -2429,37 +2169,17 @@ class PeakEllipsoid:
         yr1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode="1d_1")
         yr2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode="1d_2")
 
-        yr0_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, dr, mode="1d_0"
-        )
-        yr1_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, dr, mode="1d_1"
-        )
-        yr2_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, dr, mode="1d_2"
-        )
-
-        dr0_0, dr1_0, dr2_0 = (A0 * yr0_gauss + H0 * yr0_lorentz) / e0
-        dr0_1, dr1_1, dr2_1 = (A1 * yr1_gauss + H1 * yr1_lorentz) / e1
-        dr0_2, dr1_2, dr2_2 = (A2 * yr2_gauss + H2 * yr2_lorentz) / e2
+        dr0_0, dr1_0, dr2_0 = (A0 * yr0_gauss) / e0
+        dr0_1, dr1_1, dr2_1 = (A1 * yr1_gauss) / e1
+        dr0_2, dr1_2, dr2_2 = (A2 * yr2_gauss) / e2
 
         yu0_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="1d_0")
         yu1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="1d_1")
         yu2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="1d_2")
 
-        yu0_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, du, mode="1d_0"
-        )
-        yu1_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, du, mode="1d_1"
-        )
-        yu2_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, du, mode="1d_2"
-        )
-
-        du0_0, du1_0, du2_0 = (A0 * yu0_gauss + H0 * yu0_lorentz) / e0
-        du0_1, du1_1, du2_1 = (A1 * yu1_gauss + H1 * yu1_lorentz) / e1
-        du0_2, du1_2, du2_2 = (A2 * yu2_gauss + H2 * yu2_lorentz) / e2
+        du0_0, du1_0, du2_0 = (A0 * yu0_gauss) / e0
+        du0_1, du1_1, du2_1 = (A1 * yu1_gauss) / e1
+        du0_2, du1_2, du2_2 = (A2 * yu2_gauss) / e2
 
         n0, n1, n2, n_params = y0.size, y1.size, y2.size, len(params)
 
@@ -2469,9 +2189,7 @@ class PeakEllipsoid:
         jac = np.zeros((n_params, n012))
 
         jac[params_list.index("A1d_0"), :n0] = dA0.flatten()
-        jac[params_list.index("H1d_0"), :n0] = dH0.flatten()
         jac[params_list.index("B1d_0"), :n0] = dB0.flatten()
-        jac[params_list.index("C1d_0"), :n0] = dC0.flatten()
         jac[params_list.index("c0"), :n0] = dc0_0.flatten()
         jac[params_list.index("c1"), :n0] = dc1_0.flatten()
         jac[params_list.index("c2"), :n0] = dc2_0.flatten()
@@ -2483,9 +2201,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), :n0] = du2_0.flatten()
 
         jac[params_list.index("A1d_1"), n0:n01] = dA1.flatten()
-        jac[params_list.index("H1d_1"), n0:n01] = dH1.flatten()
         jac[params_list.index("B1d_1"), n0:n01] = dB1.flatten()
-        jac[params_list.index("C1d_1"), n0:n01] = dC1.flatten()
         jac[params_list.index("c0"), n0:n01] = dc0_1.flatten()
         jac[params_list.index("c1"), n0:n01] = dc1_1.flatten()
         jac[params_list.index("c2"), n0:n01] = dc2_1.flatten()
@@ -2497,9 +2213,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), n0:n01] = du2_1.flatten()
 
         jac[params_list.index("A1d_2"), n01:n012] = dA2.flatten()
-        jac[params_list.index("H1d_2"), n01:n012] = dH2.flatten()
         jac[params_list.index("B1d_2"), n01:n012] = dB2.flatten()
-        jac[params_list.index("C1d_2"), n01:n012] = dC2.flatten()
         jac[params_list.index("c0"), n01:n012] = dc0_2.flatten()
         jac[params_list.index("c1"), n01:n012] = dc1_2.flatten()
         jac[params_list.index("c2"), n01:n012] = dc2_2.flatten()
@@ -2544,19 +2258,6 @@ class PeakEllipsoid:
         B1 = params["B2d_1"]
         B2 = params["B2d_2"]
 
-        C01 = params["C2d_01"]
-        C02 = params["C2d_02"]
-
-        C10 = params["C2d_10"]
-        C12 = params["C2d_12"]
-
-        C20 = params["C2d_20"]
-        C21 = params["C2d_21"]
-
-        H0 = params["H2d_0"]
-        H1 = params["H2d_1"]
-        H2 = params["H2d_2"]
-
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
         )
@@ -2567,33 +2268,11 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "2d_1")
         y2_gauss = self.gaussian(*args, "2d_2")
 
-        y0_lorentz = self.lorentzian(*args, "2d_0")
-        y1_lorentz = self.lorentzian(*args, "2d_1")
-        y2_lorentz = self.lorentzian(*args, "2d_2")
-
         diff = []
 
-        y0_fit = (
-            A0 * y0_gauss
-            + H0 * y0_lorentz
-            + B0
-            + C01 * (x1[0, :, :] - c1)
-            + C02 * (x2[0, :, :] - c2)
-        )
-        y1_fit = (
-            A1 * y1_gauss
-            + H1 * y1_lorentz
-            + B1
-            + C10 * (x0[:, 0, :] - c0)
-            + C12 * (x2[:, 0, :] - c2)
-        )
-        y2_fit = (
-            A2 * y2_gauss
-            + H2 * y2_lorentz
-            + B2
-            + C20 * (x0[:, :, 0] - c0)
-            + C21 * (x1[:, :, 0] - c1)
-        )
+        y0_fit = A0 * y0_gauss + B0
+        y1_fit = A1 * y1_gauss + B1
+        y2_fit = A2 * y2_gauss + B2
 
         res = (y0_fit - y0) / e0
 
@@ -2637,22 +2316,11 @@ class PeakEllipsoid:
         A1 = params["A2d_1"]
         A2 = params["A2d_2"]
 
-        # B0 = params['B2d_0']
-        # B1 = params['B2d_1']
-        # B2 = params['B2d_2']
+        B0 = params["B2d_0"]
+        B1 = params["B2d_1"]
+        B2 = params["B2d_2"]
 
-        C01 = params["C2d_01"]
-        C02 = params["C2d_02"]
-
-        C10 = params["C2d_10"]
-        C12 = params["C2d_12"]
-
-        C20 = params["C2d_20"]
-        C21 = params["C2d_21"]
-
-        H0 = params["H2d_0"]
-        H1 = params["H2d_1"]
-        H2 = params["H2d_2"]
+        B = params["B3d"]
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2664,51 +2332,21 @@ class PeakEllipsoid:
         y1_gauss = self.gaussian(*args, "2d_1")
         y2_gauss = self.gaussian(*args, "2d_2")
 
-        y0_lorentz = self.lorentzian(*args, "2d_0")
-        y1_lorentz = self.lorentzian(*args, "2d_1")
-        y2_lorentz = self.lorentzian(*args, "2d_2")
-
         dA0 = y0_gauss / e0
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        dH0 = y0_lorentz / e0
-        dH1 = y1_lorentz / e1
-        dH2 = y2_lorentz / e2
-
-        dB0 = 1 / e0
-        dB1 = 1 / e1
-        dB2 = 1 / e2
-
-        dC01 = (x1[0, :, :] - c1) / e0
-        dC02 = (x2[0, :, :] - c2) / e0
-
-        dC10 = (x0[:, 0, :] - c0) / e1
-        dC12 = (x2[:, 0, :] - c2) / e1
-
-        dC20 = (x0[:, :, 0] - c0) / e2
-        dC21 = (x1[:, :, 0] - c1) / e2
+        dB0 = 1 / e0 * B0 / B
+        dB1 = 1 / e1 * B1 / B
+        dB2 = 1 / e2 * B2 / B
 
         yc0_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="2d_0")
         yc1_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="2d_1")
         yc2_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="2d_2")
 
-        yc0_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="2d_0")
-        yc1_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="2d_1")
-        yc2_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="2d_2")
-
-        dc0_0, dc1_0, dc2_0 = (A0 * yc0_gauss + H0 * yc0_lorentz) / e0
-        dc0_1, dc1_1, dc2_1 = (A1 * yc1_gauss + H1 * yc1_lorentz) / e1
-        dc0_2, dc1_2, dc2_2 = (A2 * yc2_gauss + H2 * yc2_lorentz) / e2
-
-        dc1_0 -= C01 / e0
-        dc2_0 -= C02 / e0
-
-        dc0_1 -= C10 / e1
-        dc2_1 -= C12 / e1
-
-        dc0_2 -= C20 / e2
-        dc1_2 -= C21 / e2
+        dc0_0, dc1_0, dc2_0 = (A0 * yc0_gauss) / e0
+        dc0_1, dc1_1, dc2_1 = (A1 * yc1_gauss) / e1
+        dc0_2, dc1_2, dc2_2 = (A2 * yc2_gauss) / e2
 
         dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
         du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
@@ -2717,37 +2355,17 @@ class PeakEllipsoid:
         yr1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode="2d_1")
         yr2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode="2d_2")
 
-        yr0_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, dr, mode="2d_0"
-        )
-        yr1_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, dr, mode="2d_1"
-        )
-        yr2_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, dr, mode="2d_2"
-        )
-
-        dr0_0, dr1_0, dr2_0 = (A0 * yr0_gauss + H0 * yr0_lorentz) / e0
-        dr0_1, dr1_1, dr2_1 = (A1 * yr1_gauss + H1 * yr1_lorentz) / e1
-        dr0_2, dr1_2, dr2_2 = (A2 * yr2_gauss + H2 * yr2_lorentz) / e2
+        dr0_0, dr1_0, dr2_0 = (A0 * yr0_gauss) / e0
+        dr0_1, dr1_1, dr2_1 = (A1 * yr1_gauss) / e1
+        dr0_2, dr1_2, dr2_2 = (A2 * yr2_gauss) / e2
 
         yu0_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="2d_0")
         yu1_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="2d_1")
         yu2_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="2d_2")
 
-        yu0_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, du, mode="2d_0"
-        )
-        yu1_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, du, mode="2d_1"
-        )
-        yu2_lorentz = self.lorentzian_jac_S(
-            x0, x1, x2, c, inv_S, du, mode="2d_2"
-        )
-
-        du0_0, du1_0, du2_0 = (A0 * yu0_gauss + H0 * yu0_lorentz) / e0
-        du0_1, du1_1, du2_1 = (A1 * yu1_gauss + H1 * yu1_lorentz) / e1
-        du0_2, du1_2, du2_2 = (A2 * yu2_gauss + H2 * yu2_lorentz) / e2
+        du0_0, du1_0, du2_0 = (A0 * yu0_gauss) / e0
+        du0_1, du1_1, du2_1 = (A1 * yu1_gauss) / e1
+        du0_2, du1_2, du2_2 = (A2 * yu2_gauss) / e2
 
         n0, n1, n2, n_params = y0.size, y1.size, y2.size, len(params)
 
@@ -2757,10 +2375,7 @@ class PeakEllipsoid:
         jac = np.zeros((n_params, n012))
 
         jac[params_list.index("A2d_0"), :n0] = dA0.flatten()
-        jac[params_list.index("H2d_0"), :n0] = dH0.flatten()
         jac[params_list.index("B2d_0"), :n0] = dB0.flatten()
-        jac[params_list.index("C2d_01"), :n0] = dC01.flatten()
-        jac[params_list.index("C2d_02"), :n0] = dC02.flatten()
         jac[params_list.index("c0"), :n0] = dc0_0.flatten()
         jac[params_list.index("c1"), :n0] = dc1_0.flatten()
         jac[params_list.index("c2"), :n0] = dc2_0.flatten()
@@ -2772,10 +2387,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), :n0] = du2_0.flatten()
 
         jac[params_list.index("A2d_1"), n0:n01] = dA1.flatten()
-        jac[params_list.index("H2d_1"), n0:n01] = dH1.flatten()
         jac[params_list.index("B2d_1"), n0:n01] = dB1.flatten()
-        jac[params_list.index("C2d_10"), n0:n01] = dC10.flatten()
-        jac[params_list.index("C2d_12"), n0:n01] = dC12.flatten()
         jac[params_list.index("c0"), n0:n01] = dc0_1.flatten()
         jac[params_list.index("c1"), n0:n01] = dc1_1.flatten()
         jac[params_list.index("c2"), n0:n01] = dc2_1.flatten()
@@ -2787,10 +2399,7 @@ class PeakEllipsoid:
         jac[params_list.index("u2"), n0:n01] = du2_1.flatten()
 
         jac[params_list.index("A2d_2"), n01:n012] = dA2.flatten()
-        jac[params_list.index("H2d_2"), n01:n012] = dH2.flatten()
         jac[params_list.index("B2d_2"), n01:n012] = dB2.flatten()
-        jac[params_list.index("C2d_20"), n01:n012] = dC20.flatten()
-        jac[params_list.index("C2d_21"), n01:n012] = dC21.flatten()
         jac[params_list.index("c0"), n01:n012] = dc0_2.flatten()
         jac[params_list.index("c1"), n01:n012] = dc1_2.flatten()
         jac[params_list.index("c2"), n01:n012] = dc2_2.flatten()
@@ -2826,7 +2435,6 @@ class PeakEllipsoid:
 
         A = params["A3d"]
         B = params["B3d"]
-        H = params["H3d"]
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2835,11 +2443,10 @@ class PeakEllipsoid:
         args = x0, x1, x2, c, inv_S
 
         y_gauss = self.gaussian(*args, "3d")
-        y_lorentz = self.lorentzian(*args, "3d")
 
         diff = []
 
-        y_fit = A * y_gauss + H * y_lorentz + B
+        y_fit = A * y_gauss
 
         res = (y_fit - y) / e
 
@@ -2870,7 +2477,6 @@ class PeakEllipsoid:
 
         A = params["A3d"]
         # B = params['B3d']
-        H = params["H3d"]
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2879,37 +2485,30 @@ class PeakEllipsoid:
         args = x0, x1, x2, c, inv_S
 
         y_gauss = self.gaussian(*args, "3d")
-        y_lorentz = self.lorentzian(*args, "3d")
 
         dA = y_gauss / e
-
-        dH = y_lorentz / e
 
         dB = 1 / e
 
         yc_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="3d")
-        yc_lorentz = self.lorentzian_jac_c(x0, x1, x2, c, inv_S, mode="3d")
 
-        dc0, dc1, dc2 = (A * yc_gauss + H * yc_lorentz) / e
+        dc0, dc1, dc2 = (A * yc_gauss) / e
 
         dr = self.inv_S_deriv_r(r0, r1, r2, u0, u1, u2)
         du = self.inv_S_deriv_u(r0, r1, r2, u0, u1, u2)
 
         yr_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, dr, mode="3d")
-        yr_lorentz = self.lorentzian_jac_S(x0, x1, x2, c, inv_S, dr, mode="3d")
 
-        dr0, dr1, dr2 = (A * yr_gauss + H * yr_lorentz) / e
+        dr0, dr1, dr2 = (A * yr_gauss) / e
 
         yu_gauss = self.gaussian_jac_S(x0, x1, x2, c, inv_S, du, mode="3d")
-        yu_lorentz = self.lorentzian_jac_S(x0, x1, x2, c, inv_S, du, mode="3d")
 
-        du0, du1, du2 = (A * yu_gauss + H * yu_lorentz) / e
+        du0, du1, du2 = (A * yu_gauss) / e
 
         n, n_params = y.size, len(params)
         jac = np.zeros((n_params, n))
 
         jac[params_list.index("A3d"), :n] = dA.flatten()
-        jac[params_list.index("H3d"), :n] = dH.flatten()
         jac[params_list.index("B3d"), :n] = dB.flatten()
         jac[params_list.index("c0"), :n] = dc0.flatten()
         jac[params_list.index("c1"), :n] = dc1.flatten()
@@ -3019,36 +2618,13 @@ class PeakEllipsoid:
         A1 = self.params["A1d_1"]
         A2 = self.params["A1d_2"]
 
-        H0 = self.params["H1d_0"]
-        H1 = self.params["H1d_1"]
-        H2 = self.params["H1d_2"]
-
         B0 = self.params["B1d_0"]
         B1 = self.params["B1d_1"]
         B2 = self.params["B1d_2"]
 
-        C0 = self.params["C1d_0"]
-        C1 = self.params["C1d_1"]
-        C2 = self.params["C1d_2"]
-
-        y1d_0_fit = (
-            A0 * self.gaussian(*args, "1d_0")
-            + H0 * self.lorentzian(*args, "1d_0")
-            + B0
-            + C0 * (x0[:, 0, 0] - c0)
-        )
-        y1d_1_fit = (
-            A1 * self.gaussian(*args, "1d_1")
-            + H1 * self.lorentzian(*args, "1d_1")
-            + B1
-            + C1 * (x1[0, :, 0] - c1)
-        )
-        y1d_2_fit = (
-            A2 * self.gaussian(*args, "1d_2")
-            + H2 * self.lorentzian(*args, "1d_2")
-            + B2
-            + C2 * (x2[0, 0, :] - c2)
-        )
+        y1d_0_fit = A0 * self.gaussian(*args, "1d_0") + B0
+        y1d_1_fit = A1 * self.gaussian(*args, "1d_1") + B1
+        y1d_2_fit = A2 * self.gaussian(*args, "1d_2") + B2
 
         y1d_0_fit[~(np.isfinite(y1d_0) & (e1d_0 > 0))] = np.nan
         y1d_1_fit[~(np.isfinite(y1d_1) & (e1d_1 > 0))] = np.nan
@@ -3080,44 +2656,13 @@ class PeakEllipsoid:
         A1 = self.params["A2d_1"]
         A2 = self.params["A2d_2"]
 
-        H0 = self.params["H2d_0"]
-        H1 = self.params["H2d_1"]
-        H2 = self.params["H2d_2"]
-
         B0 = self.params["B2d_0"]
         B1 = self.params["B2d_1"]
         B2 = self.params["B2d_2"]
 
-        C01 = self.params["C2d_01"]
-        C02 = self.params["C2d_02"]
-
-        C10 = self.params["C2d_10"]
-        C12 = self.params["C2d_12"]
-
-        C20 = self.params["C2d_20"]
-        C21 = self.params["C2d_21"]
-
-        y2d_0_fit = (
-            A0 * self.gaussian(*args, "2d_0")
-            + H0 * self.lorentzian(*args, "2d_0")
-            + B0
-            + C01 * (x1[0, :, :] - c1)
-            + C02 * (x2[0, :, :] - c2)
-        )
-        y2d_1_fit = (
-            A1 * self.gaussian(*args, "2d_1")
-            + H1 * self.lorentzian(*args, "2d_1")
-            + B1
-            + C10 * (x0[:, 0, :] - c0)
-            + C12 * (x2[:, 0, :] - c2)
-        )
-        y2d_2_fit = (
-            A2 * self.gaussian(*args, "2d_2")
-            + H2 * self.lorentzian(*args, "2d_2")
-            + B2
-            + C20 * (x0[:, :, 0] - c0)
-            + C21 * (x1[:, :, 0] - c1)
-        )
+        y2d_0_fit = A0 * self.gaussian(*args, "2d_0") + B0
+        y2d_1_fit = A1 * self.gaussian(*args, "2d_1") + B1
+        y2d_2_fit = A2 * self.gaussian(*args, "2d_2") + B2
 
         y2d_0_fit[~(np.isfinite(y2d_0) & (e2d_0 > 0))] = np.nan
         y2d_1_fit[~(np.isfinite(y2d_1) & (e2d_1 > 0))] = np.nan
@@ -3147,13 +2692,8 @@ class PeakEllipsoid:
 
         B = self.params["B3d"].value
         A = self.params["A3d"].value
-        H = self.params["H3d"].value
 
-        y3d_fit = (
-            A * self.gaussian(*args, "3d")
-            + H * self.lorentzian(*args, "3d")
-            + B
-        )
+        y3d_fit = A * self.gaussian(*args, "3d") + B
 
         y3d_fit[~(np.isfinite(y3d) & (e3d >= 0))] = np.nan
 
@@ -3208,27 +2748,9 @@ class PeakEllipsoid:
         self.params.add("A1d_1", value=y1_max, min=0, max=2 * y1_max)
         self.params.add("A1d_2", value=y2_max, min=0, max=2 * y2_max)
 
-        self.params.add("H1d_0", value=0, min=0, max=2 * y0_max, vary=False)
-        self.params.add("H1d_1", value=0, min=0, max=2 * y1_max, vary=False)
-        self.params.add("H1d_2", value=0, min=0, max=2 * y2_max, vary=False)
-
         self.params.add("B1d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
         self.params.add("B1d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
         self.params.add("B1d_2", value=y2_min, min=-y2_max, max=5 * y2_max)
-
-        C0_max = (y0_max - y0_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
-        C1_max = (y1_max - y1_min) / (x1[0, -1, 0] - x1[0, 0, 0])
-        C2_max = (y2_max - y2_min) / (x2[0, 0, -1] - x2[0, 0, 0])
-
-        self.params.add(
-            "C1d_0", value=0, min=-2 * C0_max, max=2 * C0_max, vary=False
-        )
-        self.params.add(
-            "C1d_1", value=0, min=-2 * C1_max, max=2 * C1_max, vary=False
-        )
-        self.params.add(
-            "C1d_2", value=0, min=-2 * C2_max, max=2 * C2_max, vary=False
-        )
 
         y1d = [y1d_0, y1d_1, y1d_2]
         e1d = [e1d_0, e1d_1, e1d_2]
@@ -3263,43 +2785,9 @@ class PeakEllipsoid:
         self.params.add("A2d_1", value=y1_max, min=0, max=2 * y1_max)
         self.params.add("A2d_2", value=y2_max, min=0, max=2 * y2_max)
 
-        self.params.add("H2d_0", value=0, min=0, max=2 * y0_max, vary=False)
-        self.params.add("H2d_1", value=0, min=0, max=2 * y1_max, vary=False)
-        self.params.add("H2d_2", value=0, min=0, max=2 * y2_max, vary=False)
-
         self.params.add("B2d_0", value=y0_min, min=-y0_max, max=5 * y0_max)
         self.params.add("B2d_1", value=y1_min, min=-y1_max, max=5 * y1_max)
         self.params.add("B2d_2", value=y2_min, min=-y2_max, max=5 * y2_max)
-
-        C01_max = (y0_max - y0_min) / (x1[0, -1, 0] - x1[0, 0, 0])
-        C02_max = (y0_max - y0_min) / (x2[0, 0, -1] - x2[0, 0, 0])
-
-        C10_max = (y1_max - y1_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
-        C12_max = (y1_max - y1_min) / (x2[0, 0, -1] - x2[0, 0, 0])
-
-        C20_max = (y2_max - y2_min) / (x0[-1, 0, 0] - x0[0, 0, 0])
-        C21_max = (y2_max - y2_min) / (x1[0, -1, 0] - x1[0, 0, 0])
-
-        self.params.add(
-            "C2d_01", value=0, min=-2 * C01_max, max=2 * C01_max, vary=False
-        )
-        self.params.add(
-            "C2d_02", value=0, min=-2 * C02_max, max=2 * C02_max, vary=False
-        )
-
-        self.params.add(
-            "C2d_10", value=0, min=-2 * C10_max, max=2 * C10_max, vary=False
-        )
-        self.params.add(
-            "C2d_12", value=0, min=-2 * C12_max, max=2 * C12_max, vary=False
-        )
-
-        self.params.add(
-            "C2d_20", value=0, min=-2 * C20_max, max=2 * C20_max, vary=False
-        )
-        self.params.add(
-            "C2d_21", value=0, min=-2 * C21_max, max=2 * C21_max, vary=False
-        )
 
         y2d = [y2d_0, y2d_1, y2d_2]
         e2d = [e2d_0, e2d_1, e2d_2]
@@ -3316,9 +2804,17 @@ class PeakEllipsoid:
 
         self.params.add("A3d", value=y_max, min=0, max=2 * y_max)
 
-        self.params.add("H3d", value=0, min=0, max=2 * y_max, vary=False)
-
         self.params.add("B3d", value=y_min, min=-2 * y_max, max=2 * y_max)
+
+        dx0, dx1, dx2 = self.voxels(x0, x1, x1)
+
+        self.params["B1d_0"].set(expr="{}*B3d".format(dx0))
+        self.params["B1d_1"].set(expr="{}*B3d".format(dx1))
+        self.params["B1d_2"].set(expr="{}*B3d".format(dx2))
+
+        self.params["B2d_0"].set(expr="{}*B3d".format(dx1 * dx2))
+        self.params["B2d_1"].set(expr="{}*B3d".format(dx0 * dx2))
+        self.params["B2d_2"].set(expr="{}*B3d".format(dx0 * dx1))
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
@@ -3414,9 +2910,8 @@ class PeakEllipsoid:
     def calculate_intensity(self, A, H, r0, r1, r2, u0, u1, u2, mode="3d"):
         inv_S = self.inv_S_matrix(r0, r1, r2, u0, u1, u2)
         g = self.gaussian_integral(inv_S, mode)
-        l = self.lorentzian_integral(inv_S, mode)
 
-        return A * g, H * l
+        return A * g
 
     def voxels(self, x0, x1, x2):
         return (
@@ -3678,7 +3173,13 @@ class PeakEllipsoid:
 
         self.data_norm_fit = xye, params
 
-        return intens, sig
+        intensity = [
+            x
+            for item in self.intensity
+            for x in (item if isinstance(item, (list, tuple)) else [item])
+        ]
+
+        return intens, np.sqrt(np.nanstd(intensity) ** 2 + sig**2)
 
     def sigma_clip(self, array, sigma=3, maxiters=5):
         array = np.array(array, dtype=float)

@@ -2035,7 +2035,7 @@ class Peaks:
         )
 
         for i, peak in zip(indices.tolist(), mtd[peaks]):
-            peak.setRunNumber(1)
+            peak.setRunNumber(i + 1)
 
         FilterPeaks(
             InputWorkspace=peaks,
