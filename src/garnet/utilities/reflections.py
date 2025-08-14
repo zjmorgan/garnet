@@ -2207,7 +2207,7 @@ class Peaks:
 
         self.point_groups = [point_group]
 
-        self.refine_scales(name)
+        # self.refine_scales(name)
 
         StatisticsOfPeaksWorkspace(
             InputWorkspace=name,
