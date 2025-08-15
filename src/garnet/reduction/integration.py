@@ -2130,11 +2130,9 @@ class PeakEllipsoid:
         A1 = params["A1d_1"]
         A2 = params["A1d_2"]
 
-        B0 = params["B1d_0"]
-        B1 = params["B1d_1"]
-        B2 = params["B1d_2"]
-
-        B = params["B3d"]
+        # B0 = params["B1d_0"]
+        # B1 = params["B1d_1"]
+        # B2 = params["B1d_2"]
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2150,9 +2148,9 @@ class PeakEllipsoid:
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        dB0 = 1 / e0 * B0 / B
-        dB1 = 1 / e1 * B1 / B
-        dB2 = 1 / e2 * B2 / B
+        dB0 = 1 / e0
+        dB1 = 1 / e1
+        dB2 = 1 / e2
 
         yc0_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="1d_0")
         yc1_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="1d_1")
@@ -2316,11 +2314,9 @@ class PeakEllipsoid:
         A1 = params["A2d_1"]
         A2 = params["A2d_2"]
 
-        B0 = params["B2d_0"]
-        B1 = params["B2d_1"]
-        B2 = params["B2d_2"]
-
-        B = params["B3d"]
+        # B0 = params["B2d_0"]
+        # B1 = params["B2d_1"]
+        # B2 = params["B2d_2"]
 
         c, inv_S = self.centroid_inverse_covariance(
             c0, c1, c2, r0, r1, r2, u0, u1, u2
@@ -2336,9 +2332,9 @@ class PeakEllipsoid:
         dA1 = y1_gauss / e1
         dA2 = y2_gauss / e2
 
-        dB0 = 1 / e0 * B0 / B
-        dB1 = 1 / e1 * B1 / B
-        dB2 = 1 / e2 * B2 / B
+        dB0 = 1 / e0
+        dB1 = 1 / e1
+        dB2 = 1 / e2
 
         yc0_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="2d_0")
         yc1_gauss = self.gaussian_jac_c(x0, x1, x2, c, inv_S, mode="2d_1")
@@ -2808,13 +2804,13 @@ class PeakEllipsoid:
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x1)
 
-        self.params["B1d_0"].set(expr="{}*B3d".format(dx0))
-        self.params["B1d_1"].set(expr="{}*B3d".format(dx1))
-        self.params["B1d_2"].set(expr="{}*B3d".format(dx2))
+        # self.params["B1d_0"].set(expr="{}*B3d".format(dx0))
+        # self.params["B1d_1"].set(expr="{}*B3d".format(dx1))
+        # self.params["B1d_2"].set(expr="{}*B3d".format(dx2))
 
-        self.params["B2d_0"].set(expr="{}*B3d".format(dx1 * dx2))
-        self.params["B2d_1"].set(expr="{}*B3d".format(dx0 * dx2))
-        self.params["B2d_2"].set(expr="{}*B3d".format(dx0 * dx1))
+        # self.params["B2d_0"].set(expr="{}*B3d".format(dx1 * dx2))
+        # self.params["B2d_1"].set(expr="{}*B3d".format(dx0 * dx2))
+        # self.params["B2d_2"].set(expr="{}*B3d".format(dx0 * dx1))
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
