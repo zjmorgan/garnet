@@ -2446,7 +2446,7 @@ class PeakEllipsoid:
 
         diff = []
 
-        y_fit = A * y_gauss
+        y_fit = A * y_gauss + B
 
         res = (y_fit - y) / e
 
