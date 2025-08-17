@@ -969,9 +969,9 @@ class Integration(SubPlan):
             kappa = 2 * np.pi / lamda
             Q = 2 * kappa * np.sin(0.5 * np.deg2rad(two_theta))
             dQ_cut = [
-                r0 * (1 + dr0 * kappa),
-                r1 * (1 + dr1 * kappa),
-                r2 * (1 + dr2 * Q),
+                r0 * (1 + dr0 * kappa) * 2,
+                r1 * (1 + dr1 * kappa) * 2,
+                r2 * (1 + dr2 * Q) * 2,
             ]
 
         bin_sizes = np.array(dQ_cut) / n_bins
@@ -1464,6 +1464,8 @@ class PeakEllipsoid:
         c1 = (x1[0, :, 0][-1] + x1[0, :, 0][0]) / 2
         c2 = (x2[0, 0, :][-1] + x2[0, 0, :][0]) / 2
 
+        self.c0, self.c1, self.c2 = c0, c1, c2
+
         c0_min, c1_min, c2_min = (
             c0 - r0_max,
             c1 - r1_max,
@@ -1533,12 +1535,8 @@ class PeakEllipsoid:
         d[~mask] = np.nan
         n[~mask] = np.nan
 
-        std = np.nanstd(d[mask])
-
-        abs_err = np.sqrt(np.where(d > std, 0, std))
-
         y_int = d / n
-        e_int = np.sqrt(d + (rel_err * d) ** 2 + abs_err**2) / n
+        e_int = np.sqrt(d + (rel_err * d) ** 2) / n
 
         return y_int, e_int
 
@@ -1567,9 +1565,33 @@ class PeakEllipsoid:
             d_int = d
             n_int = n.copy()
 
+        if mode == "1d_0":
+            r = x0[:, 0, 0]
+        elif mode == "1d_1":
+            r = x1[0, :, 0]
+        elif mode == "1d_2":
+            r = x2[0, 0, :]
+        elif mode == "2d_0":
+            r = np.sqrt(x1[0, :, :] ** 2 + x2[0, :, :] ** 2)
+        elif mode == "2d_1":
+            r = np.sqrt(x0[:, 0, :] ** 2 + x2[:, 0, :] ** 2)
+        elif mode == "2d_2":
+            r = np.sqrt(x0[:, :, 0] ** 2 + x1[:, :, 0] ** 2)
+        elif mode == "3d":
+            r = np.sqrt(x0**2 + x1**2 + x2**2)
+
+        f = np.exp(-(r**2))
+
+        fmax = f.max()
+        fmin = f.min()
+
+        u = (f - fmin) / (fmax - fmin + 1e-16)
+        w = 0.2 + 0.8 * u
+        w = 0.2 + 0.8 * u
+
         y_int, e_int = self.data_norm(d_int, n_int)
 
-        return y_int, e_int
+        return y_int, e_int / w
 
     def ellipsoid_covariance(self, inv_S, mode="3d", perc=99.7):
         if mode == "3d":
@@ -2416,25 +2438,10 @@ class PeakEllipsoid:
 
         return jac[ind][:, mask]
 
-    def regularization(self, params, lamda=1):
-        beta = np.array([params[key] for key in params.keys()])
-        ridge = lamda * np.array(beta)
-
-        return ridge
-
-    def regularization_jac(self, params, lamda=1):
-        beta = np.array([params[key] for key in params.keys()])
-
-        ridge = lamda * np.eye(len(beta))
-
-        return ridge
-
     def residual(self, params, args_1d, args_2d, args_3d):
         cost_1d = self.residual_1d(params, *args_1d)
         cost_2d = self.residual_2d(params, *args_2d)
         cost_3d = self.residual_3d(params, *args_3d)
-
-        # ridge = self.regularization(params)
 
         cost = np.concatenate([cost_1d, cost_2d, cost_3d])
 
@@ -2445,14 +2452,9 @@ class PeakEllipsoid:
         jac_2d = self.jacobian_2d(params, *args_2d)
         jac_3d = self.jacobian_3d(params, *args_3d)
 
-        # ridge = self.regularization_jac(params)
-
         jac = np.column_stack([jac_1d, jac_2d, jac_3d])
 
         return jac
-
-    def loss(self, r):
-        return np.abs(r).sum()
 
     def extract_result(self, result, args_1d, args_2d, args_3d):
         x0, x1, x2, y1d, e1d = args_1d
@@ -2695,14 +2697,6 @@ class PeakEllipsoid:
         self.params.add("B3d", value=y_min, min=-2 * y_max, max=2 * y_max)
 
         dx0, dx1, dx2 = self.voxels(x0, x1, x1)
-
-        # self.params["B1d_0"].set(expr="{}*B3d".format(dx0))
-        # self.params["B1d_1"].set(expr="{}*B3d".format(dx1))
-        # self.params["B1d_2"].set(expr="{}*B3d".format(dx2))
-
-        # self.params["B2d_0"].set(expr="{}*B3d".format(dx1 * dx2))
-        # self.params["B2d_1"].set(expr="{}*B3d".format(dx0 * dx2))
-        # self.params["B2d_2"].set(expr="{}*B3d".format(dx0 * dx1))
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
