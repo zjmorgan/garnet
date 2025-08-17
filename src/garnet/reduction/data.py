@@ -1289,7 +1289,7 @@ class LaueData(BaseDataModel):
                 TimingOffset=self.time_offset,
             )
 
-        self.monitor = mtd[ws].run().getProtonCharge()
+        self.monitor = mtd[event_name].run().getProtonCharge()
 
         self.set_goniometer(event_name)
 
