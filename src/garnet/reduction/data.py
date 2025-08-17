@@ -479,7 +479,10 @@ class BaseDataModel:
 
         ei = mtd[ws].getExperimentInfo(0)
 
-        UB = ei.sample().getOrientedLattice().getUB()
+        UB = ei.sample().getOrientedLattice().getUB().copy()
+
+        if len(list(mtd[ws].getBasisVector(0))) == mtd[ws].getNumDims():
+            W = np.column_stack([mtd[ws].getBasisVector(i) for i in range(3)])
         W = np.array(ei.run().getProperty("W_MATRIX").value).reshape(3, 3)
 
         dims = [mtd[ws].getDimension(i) for i in range(mtd[ws].getNumDims())]
@@ -496,6 +499,13 @@ class BaseDataModel:
         xs = [0.5 * (x[1:] + x[:-1]) for x in xs]
 
         return UB, W, titles, xs
+
+    def check_volume_preservation(self, ws):
+        UB, W, *_ = self.extract_axis_info(ws)
+
+        det = np.linalg.det(2 * np.pi * UB @ W)
+
+        assert np.isclose(det, 1)
 
     def delete_workspace(self, ws):
         """
@@ -1268,18 +1278,6 @@ class LaueData(BaseDataModel):
         else:
             mtd[event_name].run()["run_number"] = runs
 
-        # FilterBadPulses(
-        #     InputWorkspace=event_name,
-        #     LowerCutOff=20,
-        #     OutputWorkspace=event_name,
-        # )
-
-        # MaskDetectorsIf(
-        #     InputWorkspace=event_name,
-        #     Operator="LessEqual",
-        #     OutputWorkspace=event_name,
-        # )
-
         if self.elastic == True and self.time_offset is not None:
             CopyInstrumentParameters(
                 InputWorkspace=self.ref_inst, OutputWorkspace=event_name
@@ -1290,6 +1288,8 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=event_name,
                 TimingOffset=self.time_offset,
             )
+
+        self.monitor = self.mtd[ws].run().getProtonCharge()
 
         self.set_goniometer(event_name)
 

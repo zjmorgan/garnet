@@ -62,102 +62,54 @@ class Normalization(SubPlan):
 
         runs = self.plan["Runs"]
 
-        if data.laue:
-            self.run = 0
-            self.runs = len(runs)
+        self.run = 0
+        self.runs = len(runs)
 
-            for run in runs:
-                self.run += 1
+        for run in runs:
+            self.run += 1
 
-                print("{}: {:}/{:}".format(self.proc, self.run, len(runs)))
+            print("{}: {:}/{:}".format(self.proc, self.run, len(runs)))
 
-                data.load_data(
-                    "data",
-                    self.plan["IPTS"],
-                    run,
-                    self.plan.get("Grouping"),
-                    self.plan.get("TimeCut"),
-                )
+            data.load_data(
+                "data",
+                self.plan["IPTS"],
+                run,
+                self.plan.get("Grouping"),
+                self.plan.get("TimeCut"),
+            )
 
-                data.load_generate_normalization(
-                    self.plan["VanadiumFile"], self.plan.get("FluxFile")
-                )
+            data.load_generate_normalization(
+                self.plan["VanadiumFile"], self.plan.get("FluxFile")
+            )
 
-                data.apply_calibration(
-                    "data",
-                    self.plan.get("DetectorCalibration"),
-                    self.plan.get("TubeCalibration"),
-                    self.plan.get("GoniometerCalibration"),
-                )
+            data.apply_calibration(
+                "data",
+                self.plan.get("DetectorCalibration"),
+                self.plan.get("TubeCalibration"),
+                self.plan.get("GoniometerCalibration"),
+            )
 
-                data.apply_mask("data", self.plan.get("MaskFile"))
+            data.apply_mask("data", self.plan.get("MaskFile"))
 
-                data.crop_for_normalization("data")
+            data.crop_for_normalization("data")
 
-                data.preprocess_detectors("data")
+            data.preprocess_detectors("data")
 
-                data.load_background(self.plan.get("BackgroundFile"), "data")
+            data.load_background(self.plan.get("BackgroundFile"), "data")
 
-                data.group_pixels("data")
+            data.group_pixels("data")
 
-                data.load_clear_UB(self.plan["UBFile"], "data", run)
+            data.load_clear_UB(self.plan["UBFile"], "data", run)
 
-                data.convert_to_Q_sample("data", "md", lorentz_corr=False)
+            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
-                data.normalize_to_hkl(
-                    "md",
-                    self.params["Projections"],
-                    self.params["Extents"],
-                    self.params["Bins"],
-                    symmetry=self.params.get("Symmetry"),
-                )
-
-        else:
-            if self.plan["Instrument"] == "WAND²":
-                self.runs = 1
-                self.runs += 1
-
-                data.load_data(
-                    "md", self.plan["IPTS"], runs, self.plan.get("Grouping")
-                )
-
-                data.load_generate_normalization(self.plan["VanadiumFile"])
-
-                if self.plan["UBFile"] is not None:
-                    data.load_clear_UB(self.plan["UBFile"], "md")
-
-                data.load_background(self.plan.get("BackgroundFile"), "md")
-
-                data.normalize_to_hkl(
-                    "md",
-                    self.params["Projections"],
-                    self.params["Extents"],
-                    self.params["Bins"],
-                    symmetry=self.params.get("Symmetry"),
-                )
-
-            else:
-                for run in runs:
-                    self.runs += 1
-
-                    data.load_data(
-                        "md", self.plan["IPTS"], run, self.plan.get("Grouping")
-                    )
-
-                    data.load_generate_normalization(self.plan["VanadiumFile"])
-
-                    if self.plan["UBFile"] is not None:
-                        data.load_clear_UB(self.plan["UBFile"], "md")
-
-                    data.load_background(self.plan.get("BackgroundFile"), "md")
-
-                    data.normalize_to_hkl(
-                        "md",
-                        self.params["Projections"],
-                        self.params["Extents"],
-                        self.params["Bins"],
-                        symmetry=self.params.get("Symmetry"),
-                    )
+            data.normalize_to_hkl(
+                "md",
+                self.params["Projections"],
+                self.params["Extents"],
+                self.params["Bins"],
+                symmetry=self.params.get("Symmetry"),
+            )
 
         output_file = self.get_output_file()
 

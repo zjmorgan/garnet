@@ -30,10 +30,6 @@ inst_dict = {
     "bl11b": "MANDI",
     "snap": "SNAP",
     "bl3": "SNAP",
-    "demand": "DEMAND",
-    "hb3a": "DEMAND",
-    "wand2": "WAND²",
-    "hb2c": "WAND²",
 }
 
 reduction_types = {
@@ -69,8 +65,6 @@ if __name__ == "__main__":
     else:
         rp.load_plan(filename)
 
-        by_run = True
-
         if reduction == "norm":
             func = Normalization.normalize_parallel
             comb = Normalization.combine_parallel
@@ -94,33 +88,16 @@ if __name__ == "__main__":
         data = DataModel(beamlines[rp.plan["Instrument"]])
         data.update_raw_path(rp.plan)
 
-        # if reduction == "int":
-        #     profile_fit = rp.plan["Integration"].get("ProfileFit")
-        #     if profile_fit is None:
-        #         profile_fit = True
-        #     by_run = False
-        #     if data.laue and not profile_fit:
-        #         by_run = True
+        pt = ParallelTasks(func, comb)
 
-        if by_run:
-            pt = ParallelTasks(func, comb)
+        n_runs = len(rp.plan["Runs"])
 
-            n_runs = len(rp.plan["Runs"])
+        max_proc = min(os.cpu_count(), n_runs)
 
-            max_proc = min(os.cpu_count(), n_runs)
+        if n_proc > max_proc:
+            n_proc = max_proc
 
-            if n_proc > max_proc:
-                n_proc = max_proc
-
-            pt.run_tasks(rp.plan, n_proc)
-
-        else:
-            max_proc = os.cpu_count()
-
-            if n_proc > max_proc:
-                n_proc = max_proc
-
-            inst.integrate(n_proc)
+        pt.run_tasks(rp.plan, n_proc)
 
         fname = filename.replace(".yaml", "_" + reduction + ".json")
 

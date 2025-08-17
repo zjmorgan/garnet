@@ -53,6 +53,7 @@ centering_reflection = {
 class PeaksModel:
     def __init__(self):
         self.edge_pixels = 0
+        self.monitor_count = 1
 
     def find_peaks(self, md, peaks, max_d, density=50, max_peaks=1000):
         """
@@ -197,50 +198,8 @@ class PeaksModel:
             OutputWorkspace=peaks,
         )
 
-        # radius = []
-
-        # for peak in mtd[peaks]:
-        #     shape = peak.getPeakShape()
-
-        #     shape_dict = eval(shape.toJSON())
-
-        #     if "radius0" in shape_dict.keys():
-        #         r0 = shape_dict["radius0"]
-        #         r1 = shape_dict["radius1"]
-        #         r2 = shape_dict["radius2"]
-
-        #         radius.append(np.cbrt(r0 * r1 * r2))
-        #     else:
-        #         r = shape_dict["radius"]
-        #         radius.append(r)
-
-        # peak_radius = np.nanmedian(radius)
-        # background_inner_radius = peak_radius * background_inner_fact
-        # background_outer_radius = peak_radius * background_outer_fact
-
         if method == "sphere" and centroid:
             self.centroid_peaks(md, peaks, peak_radius)
-
-        # if method == "ellipsoid":
-        #     IntegratePeaksMD(
-        #         InputWorkspace=md,
-        #         PeaksWorkspace=peaks,
-        #         PeakRadius=peak_radius,
-        #         BackgroundInnerRadius=background_inner_radius,
-        #         BackgroundOuterRadius=background_outer_radius,
-        #         UseOnePercentBackgroundCorrection=True,
-        #         Ellipsoid=True,
-        #         FixQAxis=True,
-        #         FixMajorAxisLength=False,
-        #         UseCentroid=centroid,
-        #         MaxIterations=5,
-        #         ReplaceIntensity=True,
-        #         IntegrateIfOnEdge=True,
-        #         AdaptiveQBackground=adaptive,
-        #         AdaptiveQMultiplier=radius_scale,
-        #         MaskEdgeTubes=False,
-        #         OutputWorkspace=peaks,
-        #     )
 
         for peak in mtd[peaks]:
             Q0, Q1, Q2 = peak.getQSampleFrame()
@@ -1145,6 +1104,21 @@ class PeaksModel:
             BankName="None",
         )
 
+    def update_scale_factor(self, peaks, value):
+        """
+        Update counting statistic refrence value for normalization
+
+        Parameters
+        ----------
+        value: float
+            Monitor count or proton charge
+
+        """
+
+        for i in range(mtd[peaks].getNumberPeaks()):
+            mtd[peaks].getPeak(i).setMonitorCount(value)
+            mtd[peaks].getPeak(i).setBinCount(value)
+
     def remove_peaks_by_d_tolerance(self, peaks, tol=0.05):
         """
         Filter out peaks based on d-spacing tolerance.
@@ -1743,24 +1717,4 @@ class PeakModel:
         """
 
         mtd[self.peaks].getPeak(no).setBinCount(scale)
-
-
-class PeaksStatisticsModel(PeaksModel):
-    def __init__(self, peaks):
-        super(PeaksModel, self).__init__(peaks)
-
-        self.peaks = peaks + "_stats"
-
-        CloneWorkspace(InputWorkspace=peaks, OutputWorkspace=self.peaks)
-
-    def set_scale(self, scale="auto"):
-        if scale == "auto":
-            scale = 1
-            if mtd[self.peaks].getNumberPeaks() > 1:
-                I_max = max(mtd[self.peaks].column("Intens"))
-                if I_max > 0:
-                    scale = 1e4 / I_max
-
-        for peak in mtd[self.peaks]:
-            peak.setIntensity(scale * peak.getIntensity())
-            peak.setSigmaIntensity(scale * peak.getSigmaIntensity())
+        mtd[self.peaks].getPeak(no).setMonitorCount(scale)

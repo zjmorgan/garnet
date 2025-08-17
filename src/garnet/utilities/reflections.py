@@ -24,6 +24,11 @@ from mantid.simpleapi import (
     SetGoniometer,
     SetSample,
     AddAbsorptionWeightedPathLengths,
+    RemoveMaskedSpectra,
+    GroupDetectors,
+    CreateGroupingWorkspace,
+    SolidAngle,
+    Divide,
     mtd,
 )
 
@@ -1215,6 +1220,14 @@ class Peaks:
         self.modUB = np.zeros((3, 3))
         self.modHKL = np.zeros((3, 3))
 
+        # self.flux_file = '/SNS/MANDI/shared/Vanadium/2025A_3mm_sphere_2A/flux.nxs'
+        # self.solid_angle_file = '/SNS/MANDI/shared/Vanadium/2025A_3mm_sphere_2A/solid_angle.nxs'
+
+        self.flux_file = (
+            "/SNS/CORELLI/shared/Vanadium/2025B_0813_CCR_SC_sphere/flux.nxs"
+        )
+        self.solid_angle_file = "/SNS/CORELLI/shared/Vanadium/2025B_0813_CCR_SC_sphere/solid_angle.nxs"
+
     def refine_UB(self, peaks):
         opt = Optimization(peaks)
 
@@ -1268,6 +1281,23 @@ class Peaks:
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
         with open(filename, "w") as f:
             f.write("{:.4e}".format(scale))
+
+    def remove_edge_peaks(self):
+        edge_pixels = {
+            "TOPAZ": ([32, 224], [32, 224]),
+            "MANDI": ([32, 224], [32, 224]),
+            "CORELLI": ([1, 15], [32, 224]),
+        }
+
+        inst = mtd[self.peaks].getInstrument()
+
+        cols, rows = edge_pixels[inst.getName()]
+
+        for peak in mtd[self.peaks]:
+            col = peak.getCol()
+            row = peak.getRow()
+            if not (cols[0] < col < cols[1]) or not (rows[0] < row < rows[1]):
+                peak.setSigmaIntensity(peak.getIntensity())
 
     def remove_off_centered(self):
         aluminum = CrystalStructure(
@@ -1478,6 +1508,7 @@ class Peaks:
         if os.path.exists(ub_file):
             LoadIsawUB(Filename=ub_file, InputWorkspace=self.peaks)
 
+        self.remove_edge_peaks()
         self.remove_off_centered()
         self.remove_non_integrated()
 
@@ -1651,99 +1682,97 @@ class Peaks:
             SortAscending=False,
         )
 
-        # lamda = np.array(mtd[self.peaks].column("Wavelength"))
-        # lamda_min = np.min(lamda)
-        # lamda_max = np.max(lamda)
-
-        # banks = np.array(mtd[self.peaks].column("BankName"))
-
-        # spectrum_dict = {}
-
-        # for i, peak in enumerate(mtd[self.peaks]):
-        #     h, k, l = [int(val) for val in peak.getIntHKL()]
-        #     m, n, p = [int(val) for val in peak.getIntMNP()]
-
-        #     run = int(peak.getRunNumber())
-        #     key = (run, h, k, l, m, n, p)
-        #     raw_intens, raw_sig = self.norm_dict[key]
-
-        #     bank = banks[i]
-
-        #     intens = peak.getIntensity()
-        #     sig = peak.getSigmaIntensity()
-
-        #     lamda = peak.getWavelength()
-        #     two_theta = peak.getScattering()
-
-        #     L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
-
-        #     norm = raw_intens / intens
-        #     err = np.abs(norm) * np.sqrt((raw_sig / raw_intens)**2 + (sig / intens)**2)
-
-        #     items = spectrum_dict.get(bank)
-        #     if items is None:
-        #         items = [], [], [], []
-        #     items[0].append(lamda)
-        #     items[1].append(norm / L)
-        #     items[2].append(err / L)
-        #     items[3].append(i)
-        #     spectrum_dict[bank] = items
-
-        # with PdfPages(filename + "_spec.pdf") as pdf:
-
-        #     for bank in spectrum_dict.keys():
-
-        #         x, y, e, ind = spectrum_dict[bank]
-
-        #         x, y, e = np.array(x), np.array(y), np.array(e)
-
-        #         ind = np.array(ind)
-
-        #         sort = np.argsort(x)
-
-        #         x, y, e = x[sort], y[sort], e[sort]
-
-        #         ind = ind[sort]
-
-        #         y_hat = lowess(y, x, frac=0.15, delta=0.1, it=10, return_sorted=False)
-
-        #         diff = y - y_hat
-
-        #         spread = 3 * np.nanmedian(np.abs(diff))
-
-        #         mask = np.abs(diff) < spread
-
-        #         fig, ax = plt.subplots(1, 1, sharex=True, layout="constrained")
-        #         ax.set_xlabel("$\lambda$ [$\AA$]")
-        #         ax.errorbar(x[mask], y[mask], fmt=".", color="C0")
-        #         ax.errorbar(x[~mask], y[~mask], fmt="x", color="C0")
-        #         ax.plot(x, y_hat, color="C1")
-        #         ax.plot(x[mask], diff[mask], ".", color="C2")
-        #         ax.plot(x[~mask], diff[~mask], "x", color="C2")
-        #         ax.axhline(y=0, color='k', linestyle='--', linewidth=1)
-        #         ax.axhline(y=-spread, color='k', linestyle=':', linewidth=1)
-        #         ax.axhline(y=+spread, color='k', linestyle=':', linewidth=1)
-        #         ax.minorticks_on()
-        #         ax.set_xlim(lamda_min, lamda_max)
-        #         ax.set_ylabel("Spectrum")
-        #         ax.set_title(bank)
-
-        #         pdf.savefig(fig, dpi=100, bbox_inches=None)
-        #         plt.close(fig)
-
-        #         for i in ind[~mask].tolist():
-        #             peak = mtd[self.peaks].getPeak(i)
-        #             peak.setSigmaIntensity(peak.getIntensity())
-
-        # FilterPeaks(
-        #     InputWorkspace=self.peaks,
-        #     OutputWorkspace=self.peaks,
-        #     FilterVariable="Signal/Noise",
-        #     FilterValue=3,
-        #     Operator=">",
-        # )
+        # self.renormalize_intensities()
 
         self.rescale_intensities()
+
+    def renormalize_intensities(self):
+        LoadNexus(Filename=self.flux_file, OutputWorkspace="flux")
+        LoadNexus(Filename=self.solid_angle_file, OutputWorkspace="sa")
+
+        detIDs = mtd["peaks"].column("DetID")
+
+        inds = list(mtd["sa"].getIndicesFromDetectorIDs(detIDs))
+
+        y = mtd["sa"].extractY().ravel()
+
+        for i, peak in enumerate(mtd[self.peaks]):
+            ind = inds[i]
+            if y[ind] == 0:
+                peak.setSigmaIntensity(peak.getIntensity())
+
+        FilterPeaks(
+            InputWorkspace=self.peaks,
+            OutputWorkspace=self.peaks,
+            FilterVariable="Signal/Noise",
+            FilterValue=3,
+            Operator=">",
+        )
+
+        SolidAngle(InputWorkspace="sa", OutputWorkspace="solid_angle")
+
+        Divide(
+            LHSWorkspace="sa",
+            RHSWorkspace="solid_angle",
+            OutputWorkspace="efficiency",
+        )
+
+        CreateGroupingWorkspace(
+            InputWorkspace="sa",
+            GroupDetectorsBy="bank",
+            OutputWorkspace="group",
+        )
+
+        GroupDetectors(
+            InputWorkspace="efficiency",
+            OutputWorkspace="scale",
+            Behaviour="Average",
+            CopyGroupingFromWorkspace="group",
+        )
+
+        RemoveMaskedSpectra(InputWorkspace="scale", OutputWorkspace="scale")
+
+        s = mtd["scale"].extractY().ravel()
+
+        y = mtd["flux"].extractY()
+        x = mtd["flux"].extractX()
+
+        k = 0.5 * (x[:, 1:] + x[:, :-1])
+        y = np.diff(y) * y.shape[1]
+
+        x = 2 * np.pi / k
+        z = 2 * np.pi * y / x**2
+        y = z * ((x[:, 0] - x[:, -1]) / (k[:, -1] - k[:, 0]))[:, None]
+
+        x = x[:, ::-1]
+        y = y[:, ::-1]
+
+        detIDs = mtd["peaks"].column("DetID")
+        print(np.sort(detIDs))
+
+        rows = list(mtd["scale"].getIndicesFromDetectorIDs(detIDs))
+
+        for i, peak in enumerate(mtd[self.peaks]):
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
+
+            run = int(peak.getRunNumber())
+            key = (run, h, k, l, m, n, p)
+            raw_intens, raw_sig = self.norm_dict[key]
+
+            lamda = peak.getWavelength()
+            two_theta = peak.getScattering()
+
+            L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
+
+            corr = np.inf
+            row = rows[i]
+
+            col = np.searchsorted(x[row], lamda, side="right") - 1
+            corr = y[row, col] * s[row]
+
+            peak.setIntensity(raw_intens / L / corr)
+            peak.setSigmaIntensity(raw_sig / L / corr)
 
     def merge_intensities(self, name=None, fit_dict=None):
         if name is not None:
@@ -1998,8 +2027,6 @@ class Peaks:
 
             ol.setModUB(self.modUB)
 
-        print(self.max_order)
-
     def save_peaks(self, name=None, fit_dict=None):
         if name is not None:
             peaks = name
@@ -2035,7 +2062,7 @@ class Peaks:
         )
 
         for i, peak in zip(indices.tolist(), mtd[peaks]):
-            peak.setRunNumber(i + 1)
+            peak.setRunNumber(1)
 
         FilterPeaks(
             InputWorkspace=peaks,
@@ -2132,7 +2159,7 @@ class Peaks:
         CloneWorkspace(InputWorkspace=name, OutputWorkspace="tmp")
 
         runs, indices = np.unique(
-            mtd["tmp"].column("BinCount"), return_inverse=True
+            mtd["tmp"].column("BankName"), return_inverse=True
         )
 
         pg = PointGroupFactory.createPointGroup(self.point_groups[0])
@@ -2153,28 +2180,26 @@ class Peaks:
             items = peak_dict[key]
             peak_dict[key] = [np.array(item) for item in items]
 
-        x0 = np.concatenate((np.ones_like(runs), np.zeros_like(runs)))[1:]
+        x0 = np.ones_like(runs, dtype="float")[1:]
         args = (name, peak_dict)
 
         sol = scipy.optimize.minimize(self.scale_peaks, x0=x0, args=args)
 
-        c, a = np.insert(sol.x, 0, 1).reshape(2, -1)
-        sort = np.argsort(runs)
-        print(c[sort])
+        c = np.insert(sol.x, 0, 1)
 
         for peak, index in zip(mtd[name], indices):
-            s = c[index] + peak.getWavelength() * a[index]
+            s = c[index]
             peak.setIntensity(peak.getIntensity() * s)
             peak.setSigmaIntensity(peak.getSigmaIntensity() * s)
 
     def update_scales(self, name, peak_dict, x):
         R_merge = 0
 
-        c, a = np.insert(x, 0, 1).reshape(2, -1)
+        c = np.insert(x, 0, 1)
 
         for key in peak_dict.keys():
             I, wl, indices = peak_dict[key]
-            Ip = I * (c[indices] + wl * a[indices])
+            Ip = I * c[indices]
             Im = np.nanmean(Ip)
             R_merge += np.nansum(np.abs(Ip - Im)) / np.nansum(Ip)
 

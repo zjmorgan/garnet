@@ -81,18 +81,7 @@ class Integration(SubPlan):
         instance.proc = proc
         instance.n_proc = 1
 
-        return instance.laue_integrate()
-
-    def integrate(self, n_proc=1):
-        data = DataModel(beamlines[self.plan["Instrument"]])
-
-        instance = Integration(self.plan)
-        instance.n_proc = n_proc
-
-        if data.laue:
-            return instance.laue_integrate()
-        else:
-            return instance.monochromatic_integrate()
+        return instance.integrate()
 
     def integrate_peaks(self, data):
         pp = ParallelProcessor(n_proc=self.n_proc)
@@ -131,7 +120,7 @@ class Integration(SubPlan):
 
         self.cleanup()
 
-    def laue_integrate(self):
+    def integrate(self):
         output_file = self.get_output_file()
 
         data = DataModel(beamlines[self.plan["Instrument"]])
@@ -282,6 +271,8 @@ class Integration(SubPlan):
 
             self.update_peak_info("peaks", results)
 
+            peaks.update_scale_factor("peaks", data.monitor)
+
             data.delete_workspace("data")
 
             peaks.combine_peaks("peaks", "combine")
@@ -332,103 +323,6 @@ class Integration(SubPlan):
                 self.params["MaxOrder"],
                 self.params["CrossTerms"],
             )
-
-    def monochromatic_integrate(self):
-        output_file = self.get_output_file()
-
-        data = DataModel(beamlines[self.plan["Instrument"]])
-        data.update_raw_path(self.plan)
-
-        runs = self.plan["Runs"]
-
-        peaks = PeaksModel()
-
-        lamda_min, lamda_max = data.wavelength_band
-
-        self.run = 0
-        self.runs = len(runs)
-
-        if self.plan["Instrument"] == "WAND²":
-            self.runs = 1
-            self.run += 1
-
-            data.load_data(
-                "data", self.plan["IPTS"], runs, self.plan.get("Grouping")
-            )
-
-            data.load_generate_normalization(self.plan["VanadiumFile"], "data")
-
-            data.convert_to_Q_sample("data", "md", lorentz_corr=True)
-
-            md_file = self.get_diagnostic_file("run#{}_data".format(self.run))
-            data.save_histograms(md_file, "md", sample_logs=True)
-
-        else:
-            for run in runs:
-                self.run += 1
-
-                data.load_data(
-                    "data", self.plan["IPTS"], run, self.plan.get("Grouping")
-                )
-
-                data.load_generate_normalization(
-                    self.plan["VanadiumFile"], "data"
-                )
-
-                data.convert_to_Q_sample("data", "md", lorentz_corr=True)
-
-                if self.plan.get("UBFile") is None:
-                    UB_file = output_file.replace(".nxs", ".mat")
-                    data.save_UB(UB_file, "md_data")
-                    self.plan["UBFile"] = UB_file
-
-                data.load_clear_UB(self.plan["UBFile"], "md")
-
-                peaks.predict_peaks(
-                    "md",
-                    "peaks",
-                    self.params["Centering"],
-                    self.params["MinD"],
-                    lamda_min,
-                    lamda_max,
-                )
-
-                if self.params["MaxOrder"] > 0:
-                    peaks.predict_satellite_peaks(
-                        "peaks",
-                        "md",
-                        self.params["MinD"],
-                        lamda_min,
-                        lamda_max,
-                        self.params["ModVec1"],
-                        self.params["ModVec2"],
-                        self.params["ModVec3"],
-                        self.params["MaxOrder"],
-                        self.params["CrossTerms"],
-                    )
-
-                self.peaks, self.data = peaks, data
-
-                params = self.estimate_peak_size("peaks", "md")
-
-                self.fit_peaks("peaks", params)
-
-                peaks.combine_peaks("peaks", "combine")
-
-                md_file = self.get_diagnostic_file("run#{}_data".format(run))
-                data.save_histograms(md_file, "md", sample_logs=True)
-
-                pk_file = self.get_diagnostic_file("run#{}_peaks".format(run))
-                peaks.save_peaks(pk_file, "peaks")
-
-        if self.plan["Instrument"] != "WAND²":
-            peaks.remove_weak_peaks("combine")
-
-            peaks.save_peaks(output_file, "combine")
-
-        mtd.clear()
-
-        return output_file
 
     def get_file(self, file, ws=""):
         """
@@ -941,9 +835,7 @@ class Integration(SubPlan):
                 d, _, Q0, Q1, Q2 = data.extract_bin_info("md_data")
                 n, _, Q0, Q1, Q2 = data.extract_bin_info("md_norm")
 
-                # if data.workspace_exists("md_bkg_data"):
-                #     b, _, Q0, Q1, Q2 = data.extract_bin_info("md_bkg_data")
-                #     d -= b
+                data.check_volume_preservation("md_result")
 
                 data.clear_norm("md")
 
@@ -3105,6 +2997,9 @@ class PeakEllipsoid:
         if pk_cnts == 0.0:
             pk_norm = float("nan")
 
+        y_pk = d_pk / n_pk
+        e_pk = np.sqrt(d_pk) / n_pk
+
         y_bkg = d_bkg / n_bkg
         e_bkg = np.sqrt(d_bkg) / n_bkg
 
@@ -3114,10 +3009,8 @@ class PeakEllipsoid:
         bkg_intens = np.nansum(y_bkg)
         bkg_err = np.sqrt(np.nansum(e_bkg**2))
 
-        norm = np.nanmean(n_pk)
-
-        pk_intens = pk_cnts / norm
-        pk_err = np.sqrt(pk_cnts) / norm
+        pk_intens = np.nansum(y_pk)
+        pk_err = np.sqrt(np.nansum(e_pk**2))
 
         intens = pk_intens - (N / M) * bkg_intens
         sig = np.sqrt(pk_err**2 + (N / M) ** 2 * bkg_err**2)
@@ -3174,6 +3067,9 @@ class PeakEllipsoid:
             for item in self.intensity
             for x in (item if isinstance(item, (list, tuple)) else [item])
         ]
+
+        intens = self.intensity[-2]
+        sig = self.sigma[-2]
 
         return intens, np.sqrt(np.nanstd(intensity) ** 2 + sig**2)
 

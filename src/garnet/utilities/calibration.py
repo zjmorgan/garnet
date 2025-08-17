@@ -92,7 +92,7 @@ class Calibration:
             InputWorkspace="peaks",
             OutputWorkspace="peaks",
             FilterVariable="Signal/Noise",
-            FilterValue=15,
+            FilterValue=5,
             Operator=">",
         )
 
@@ -318,9 +318,9 @@ class Calibration:
             SearchRadiusL1=0.5,
             CalibrateBanks=True,
             SearchRadiusTransBank=0.5,
-            SearchRadiusRotXBank=15,
+            SearchRadiusRotXBank=15 if self.instrument != "CORELLI" else 0,
             SearchRadiusRotYBank=15,
-            SearchRadiusRotZBank=15,
+            SearchRadiusRotZBank=15 if self.instrument != "CORELLI" else 0,
             VerboseOutput=True,
             SearchRadiusSamplePos=0.01,
             TuneSamplePosition=True,
