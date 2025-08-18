@@ -1628,8 +1628,8 @@ class Peaks:
         cdf = scipy.integrate.cumulative_trapezoid(pdf, x, initial=0)
         cdf /= cdf[-1]
 
-        lower_bound = x[np.searchsorted(cdf, 0.003)]
-        upper_bound = x[np.searchsorted(cdf, 0.997)]
+        lower_bound = x[np.searchsorted(cdf, 0.0001)]
+        upper_bound = x[np.searchsorted(cdf, 0.9999)]
 
         filename = os.path.splitext(self.filename)[0]
 
