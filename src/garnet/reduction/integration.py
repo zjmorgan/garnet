@@ -3062,9 +3062,6 @@ class PeakEllipsoid:
             for x in (item if isinstance(item, (list, tuple)) else [item])
         ]
 
-        intens = self.intensity[-2]
-        sig = self.sigma[-2]
-
         return intens, np.sqrt(np.nanstd(intensity) ** 2 + sig**2)
 
     def sigma_clip(self, array, sigma=3, maxiters=5):

@@ -1220,9 +1220,6 @@ class Peaks:
         self.modUB = np.zeros((3, 3))
         self.modHKL = np.zeros((3, 3))
 
-        # self.flux_file = '/SNS/MANDI/shared/Vanadium/2025A_3mm_sphere_2A/flux.nxs'
-        # self.solid_angle_file = '/SNS/MANDI/shared/Vanadium/2025A_3mm_sphere_2A/solid_angle.nxs'
-
         self.flux_file = (
             "/SNS/CORELLI/shared/Vanadium/2025B_0813_CCR_SC_sphere/flux.nxs"
         )
@@ -1682,7 +1679,7 @@ class Peaks:
             SortAscending=False,
         )
 
-        # self.renormalize_intensities()
+        self.renormalize_intensities()
 
         self.rescale_intensities()
 
@@ -1748,7 +1745,6 @@ class Peaks:
         y = y[:, ::-1]
 
         detIDs = mtd["peaks"].column("DetID")
-        print(np.sort(detIDs))
 
         rows = list(mtd["scale"].getIndicesFromDetectorIDs(detIDs))
 
@@ -1762,6 +1758,7 @@ class Peaks:
 
             lamda = peak.getWavelength()
             two_theta = peak.getScattering()
+            proton_charge = peak.getBinCount()
 
             L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
 
@@ -1769,7 +1766,7 @@ class Peaks:
             row = rows[i]
 
             col = np.searchsorted(x[row], lamda, side="right") - 1
-            corr = y[row, col] * s[row]
+            corr = y[row, col] * s[row] * proton_charge
 
             peak.setIntensity(raw_intens / L / corr)
             peak.setSigmaIntensity(raw_sig / L / corr)
