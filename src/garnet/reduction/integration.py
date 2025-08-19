@@ -166,7 +166,7 @@ class Integration(SubPlan):
 
             data.group_pixels("data")
 
-            data.load_background(self.plan.get("BackgroundFile"), "data")
+            # data.load_background(self.plan.get("BackgroundFile"), "data")
 
             data.load_clear_UB(self.plan["UBFile"], "data", run)
 
@@ -178,6 +178,8 @@ class Integration(SubPlan):
 
             cell = self.params["Cell"]
 
+            data.convert_to_Q_sample("data", "md", lorentz_corr=True)
+
             if self.params.get("Recalibrate"):
                 ub = UBModel("data")
 
@@ -186,8 +188,6 @@ class Integration(SubPlan):
                 min_d, max_d = ub.get_primitive_cell_length_range(centering)
 
                 const = ub.convert_conventional_to_primitive(*const, centering)
-
-                data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
                 md_file = self.get_diagnostic_file("run#{}_data".format(run))
 
@@ -215,8 +215,6 @@ class Integration(SubPlan):
                 ub.save_UB(ub_file)
 
                 data.load_clear_UB(ub_file, "data", run)
-
-            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
             peaks.predict_peaks(
                 "data",
@@ -264,6 +262,8 @@ class Integration(SubPlan):
             params = self.estimate_peak_size("peaks", r_cut, est_file)
 
             fit = self.params["ProfileFit"]
+
+            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
             peak_dict = self.extract_peak_info("peaks", params, True, fit)
 
@@ -823,7 +823,7 @@ class Integration(SubPlan):
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, fit
+            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, dQ, fit
 
             bin_extent = self.bin_extent(*bin_params)
 
@@ -946,7 +946,7 @@ class Integration(SubPlan):
 
         return np.einsum("ij,j...->i...", W, [Q0, Q1, Q2])
 
-    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut, fit):
+    def bin_extent(self, UB, hkl, lamda, R, two_theta, az_phi, r_cut, dQ, fit):
         n, u, v = self.bin_axes(R, two_theta, az_phi)
 
         projections = [n, u, v]
@@ -975,6 +975,8 @@ class Integration(SubPlan):
             ]
 
         bin_sizes = np.array(dQ_cut) / n_bins
+
+        bin_sizes[bin_sizes < dQ] = dQ
 
         Q0_box, Q1_box, Q2_box = [], [], []
 
