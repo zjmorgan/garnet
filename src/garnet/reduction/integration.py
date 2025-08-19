@@ -2917,6 +2917,8 @@ class PeakEllipsoid:
     def peak_roi(self, x0, x1, x2, c, S, det_mask, p=0.997):
         c0, c1, c2 = c
 
+        dx0, dx1, dx2 = self.voxels(x0, x1, x2)
+
         x = np.array([x0 - c0, x1 - c1, x2 - c2])
 
         S_inv = np.linalg.inv(S)
@@ -2925,7 +2927,15 @@ class PeakEllipsoid:
 
         pk = ellipsoid <= 1
 
-        bkg = (ellipsoid > 1) & (ellipsoid < np.cbrt(2) ** 2)
+        structure = np.ones((3, 3, 3), dtype=bool)
+
+        pk = scipy.ndimage.binary_dilation(pk, structure=structure)
+
+        inner = ellipsoid < np.cbrt(2) ** 2
+
+        outer = scipy.ndimage.binary_dilation(inner, structure=structure)
+
+        bkg = outer & (~inner)
 
         scale = scipy.stats.chi2.ppf(p, df=3)
 
