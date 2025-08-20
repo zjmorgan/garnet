@@ -687,9 +687,9 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
-        sc = ax.scatter([], [], c="w", marker=".")
+        sc = ax.scatter([], [], c="w", marker=".", alpha=0.25)
         self.norm_pk.append(sc)
-        sc = ax.scatter([], [], c="w", marker=",")
+        sc = ax.scatter([], [], c="w", marker=".", alpha=0.5)
         self.norm_bkg.append(sc)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
@@ -709,9 +709,9 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        sc = ax.scatter([], [], c="w", marker=".")
+        sc = ax.scatter([], [], c="w", marker=".", alpha=0.25)
         self.norm_pk.append(sc)
-        sc = ax.scatter([], [], c="w", marker=",")
+        sc = ax.scatter([], [], c="w", marker=".", alpha=0.5)
         self.norm_bkg.append(sc)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
@@ -731,9 +731,9 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.yaxis.set_ticklabels([])
 
-        sc = ax.scatter([], [], c="w", marker=".")
+        sc = ax.scatter([], [], c="w", marker=".", alpha=0.25)
         self.norm_pk.append(sc)
-        sc = ax.scatter([], [], c="w", marker=",")
+        sc = ax.scatter([], [], c="w", marker=".", alpha=0.5)
         self.norm_bkg.append(sc)
 
         ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
