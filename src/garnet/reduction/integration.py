@@ -582,6 +582,12 @@ class Integration(SubPlan):
         pk_data = np.nansum(d[2:-2, 2:-2, 2:-2])
         pk_norm = np.nansum(n[2:-2, 2:-2, 2:-2])
 
+        pk = np.zeros_like(d, dtype=bool)
+        bkg = np.zeros_like(d, dtype=bool)
+
+        pk[2:-2, 2:-2, 2:-2] = True
+        bkg[0::8][0::8][0::8] = True
+
         b = bkg_data / bkg_norm
         b_err = np.sqrt(bkg_data) / np.nansum(bkg_norm)
 
@@ -593,6 +599,8 @@ class Integration(SubPlan):
         params = (intens, sig, b, b_err)
 
         data_norm_fit = ((x0, x1, x2), (d0, d1, d2), y3d), params
+
+        peak_background_mask = x0, x1, x2, pk, bkg
 
         info = [d3, b, b_err]
 
@@ -632,6 +640,7 @@ class Integration(SubPlan):
             best_proj,
             best_fit,
             data_norm_fit,
+            peak_background_mask,
             redchi2,
             intensity,
             sigma,
@@ -672,6 +681,7 @@ class Integration(SubPlan):
                 best_proj,
                 best_fit,
                 data_norm_fit,
+                peak_background_mask,
                 redchi2,
                 intensity,
                 sigma,
@@ -703,6 +713,7 @@ class Integration(SubPlan):
             redchi2 = ellipsoid.redchi2
             intensity = ellipsoid.intensity
             sigma = ellipsoid.sigma
+            peak_background_mask = ellipsoid.peak_background_mask
 
         if self.make_plot and params is not None:
             self.peak_plot.add_ellipsoid_fit(best_fit)
@@ -713,7 +724,7 @@ class Integration(SubPlan):
 
             self.peak_plot.add_ellipsoid(c, S)
 
-            self.peak_plot.update_envelope(c, S)
+            self.peak_plot.update_envelope(*peak_background_mask)
 
             self.peak_plot.add_peak_info(
                 hkl, d_spacing, wavelength, angles, goniometer
@@ -3066,6 +3077,8 @@ class PeakEllipsoid:
         params = (intens, sig, b, b_err)
 
         self.data_norm_fit = xye, params
+
+        self.peak_background_mask = x0, x1, x2, pk, bkg
 
         intensity = [
             x

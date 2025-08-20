@@ -663,8 +663,7 @@ class PeakPlot(BasePlot):
     def __init_norm(self):
         self.norm = []
         self.norm_im = []
-        self.norm_el = []
-        self.norm_sp = []
+        self.norm_sc = []
 
         x = np.arange(5)
         y = np.arange(6)
@@ -687,10 +686,8 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
-        self.norm_el.append(el)
-        self.norm_sp.append(sp)
+        sc = ax.scatter([], [], c="w", marker=".")
+        self.norm_sc.append(sc)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
@@ -709,10 +706,8 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
-        self.norm_el.append(el)
-        self.norm_sp.append(sp)
+        sc = ax.scatter([], [], c="w", marker=".")
+        self.norm_sc.append(sc)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
@@ -731,10 +726,8 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.yaxis.set_ticklabels([])
 
-        el = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
-        sp = self._draw_ellipse(ax, 2.5, 3, 1, 1, 0, "r")
-        self.norm_el.append(el)
-        self.norm_sp.append(sp)
+        sc = ax.scatter([], [], c="w", marker=".")
+        self.norm_sc.append(sc)
 
         ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
@@ -1195,52 +1188,37 @@ class PeakPlot(BasePlot):
         self.prof[2].relim()
         self.prof[2].autoscale_view()
 
-    def update_envelope(self, c, S):
+    def update_envelope(self, x0, x1, x2, pk, bkg):
         """
-        Draw ellipsoid envelopes.
+        Draw region-of-interest.
+        mask =
 
         Parameters
         ----------
-        c : 1d-array
-            3 component center.
-        S : 2d-array
-            3x3 covariance matrix.
+        pk : 3d-array
+            Peak region.
+        bkg : 3d-array
+            Background shell.
 
         """
 
-        r = np.sqrt(np.diag(S))
+        mask = (np.nansum(pk, axis=0) == 0) & (np.nansum(bkg, axis=0) > 0)
 
-        rho = [
-            S[1, 2] / r[1] / r[2],
-            S[0, 2] / r[0] / r[2],
-            S[0, 1] / r[0] / r[1],
-        ]
+        x, y = x1[0, :, :][mask], x2[0, :, :][mask]
 
-        for el, ax in zip(self.norm_el[0:1], self.norm[0:1]):
-            self._update_ellipse(el, ax, c[0], c[1], r[0], r[1], rho[2])
+        self.norm_sc[2].set_offsets(np.c_[x, y])
 
-        for el, ax in zip(self.norm_el[1:2], self.norm[1:2]):
-            self._update_ellipse(el, ax, c[0], c[2], r[0], r[2], rho[1])
+        mask = (np.nansum(pk, axis=1) == 0) & (np.nansum(bkg, axis=1) > 0)
 
-        for el, ax in zip(self.norm_el[2:3], self.norm[2:3]):
-            self._update_ellipse(el, ax, c[1], c[2], r[1], r[2], rho[0])
+        x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
 
-        s = np.cbrt(2)
+        self.norm_sc[1].set_offsets(np.c_[x, y])
 
-        for el, ax in zip(self.norm_sp[0:1], self.norm[0:1]):
-            self._update_ellipse(
-                el, ax, c[0], c[1], r[0] * s, r[1] * s, rho[2]
-            )
+        mask = (np.nansum(pk, axis=2) == 0) & (np.nansum(bkg, axis=2) > 0)
 
-        for el, ax in zip(self.norm_sp[1:2], self.norm[1:2]):
-            self._update_ellipse(
-                el, ax, c[0], c[2], r[0] * s, r[2] * s, rho[1]
-            )
+        x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
 
-        for el, ax in zip(self.norm_sp[2:3], self.norm[2:3]):
-            self._update_ellipse(
-                el, ax, c[1], c[2], r[1] * s, r[2] * s, rho[0]
-            )
+        self.norm_sc[0].set_offsets(np.c_[x, y])
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
         ellipse.set_center((0, 0))
