@@ -1011,7 +1011,6 @@ class Integration(SubPlan):
 
             bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
-            bins[bins < 10] = 10
             bins[bins > 20] = 20
 
             extents = np.vstack((min_adjusted, max_adjusted)).T
