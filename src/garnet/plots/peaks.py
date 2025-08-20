@@ -663,7 +663,8 @@ class PeakPlot(BasePlot):
     def __init_norm(self):
         self.norm = []
         self.norm_im = []
-        self.norm_sc = []
+        self.norm_pk = []
+        self.norm_bkg = []
 
         x = np.arange(5)
         y = np.arange(6)
@@ -687,7 +688,9 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
         sc = ax.scatter([], [], c="w", marker=".")
-        self.norm_sc.append(sc)
+        self.norm_pk.append(sc)
+        sc = ax.scatter([], [], c="w", marker=",")
+        self.norm_bkg.append(sc)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
@@ -707,7 +710,9 @@ class PeakPlot(BasePlot):
         ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
         sc = ax.scatter([], [], c="w", marker=".")
-        self.norm_sc.append(sc)
+        self.norm_pk.append(sc)
+        sc = ax.scatter([], [], c="w", marker=",")
+        self.norm_bkg.append(sc)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
@@ -727,7 +732,9 @@ class PeakPlot(BasePlot):
         ax.yaxis.set_ticklabels([])
 
         sc = ax.scatter([], [], c="w", marker=".")
-        self.norm_sc.append(sc)
+        self.norm_pk.append(sc)
+        sc = ax.scatter([], [], c="w", marker=",")
+        self.norm_bkg.append(sc)
 
         ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
@@ -900,6 +907,10 @@ class PeakPlot(BasePlot):
         x0, x1, x2 = axes
 
         y[np.isinf(y)] = np.nan
+
+        mask = np.isfinite(y) & (y > 0)
+
+        y[~mask] = np.nan
 
         y0 = np.nansum(y, axis=0)  # / np.nanmean(e > 0, axis=0)
         y1 = np.nansum(y, axis=1)  # / np.nanmean(e > 0, axis=1)
@@ -1206,19 +1217,39 @@ class PeakPlot(BasePlot):
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
 
-        self.norm_sc[2].set_offsets(np.c_[x, y])
+        self.norm_bkg[2].set_offsets(np.c_[x, y])
 
         mask = (np.nansum(pk, axis=1) == 0) & (np.nansum(bkg, axis=1) > 0)
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
 
-        self.norm_sc[1].set_offsets(np.c_[x, y])
+        self.norm_bkg[1].set_offsets(np.c_[x, y])
 
         mask = (np.nansum(pk, axis=2) == 0) & (np.nansum(bkg, axis=2) > 0)
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
 
-        self.norm_sc[0].set_offsets(np.c_[x, y])
+        self.norm_bkg[0].set_offsets(np.c_[x, y])
+
+        # ---
+
+        mask = np.nansum(pk, axis=0) > 0
+
+        x, y = x1[0, :, :][mask], x2[0, :, :][mask]
+
+        self.norm_pk[2].set_offsets(np.c_[x, y])
+
+        mask = np.nansum(pk, axis=1) > 0
+
+        x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
+
+        self.norm_pk[1].set_offsets(np.c_[x, y])
+
+        mask = np.nansum(pk, axis=2) > 0
+
+        x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
+
+        self.norm_pk[0].set_offsets(np.c_[x, y])
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
         ellipse.set_center((0, 0))
