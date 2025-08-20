@@ -1679,7 +1679,7 @@ class Peaks:
             SortAscending=False,
         )
 
-        self.renormalize_intensities()
+        # self.renormalize_intensities()
 
         self.rescale_intensities()
 
