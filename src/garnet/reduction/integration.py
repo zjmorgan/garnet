@@ -2933,19 +2933,17 @@ class PeakEllipsoid:
 
         S_inv = np.linalg.inv(S)
 
+        corr = (
+            S_inv[0, 0] * dx0**2
+            + S_inv[1, 1] * dx1**2
+            + S_inv[2, 2] * dx2**2
+        ) / 12.0
+
         ellipsoid = np.einsum("ij,jklm,iklm->klm", S_inv, x, x)
 
-        pk = ellipsoid <= 1
+        pk = ellipsoid + corr <= 1
 
-        structure = np.ones((3, 3, 3), dtype=bool)
-
-        pk = scipy.ndimage.binary_dilation(pk, structure=structure)
-
-        inner = ellipsoid < np.cbrt(2) ** 2
-
-        outer = scipy.ndimage.binary_dilation(inner, structure=structure)
-
-        bkg = outer & (~inner)
+        bkg = (ellipsoid + corr > 1) & (ellipsoid + 2 * corr < np.cbrt(2) ** 2)
 
         scale = scipy.stats.chi2.ppf(p, df=3)
 

@@ -918,6 +918,14 @@ class PeakPlot(BasePlot):
         y1 = np.nansum(y, axis=1)  # / np.nanmean(e > 0, axis=1)
         y2 = np.nansum(y, axis=2)  # / np.nanmean(e > 0, axis=2)
 
+        mask_0 = np.isfinite(y0) & (y0 > 0)
+        mask_1 = np.isfinite(y1) & (y1 > 0)
+        mask_2 = np.isfinite(y2) & (y2 > 0)
+
+        y0[~mask_0] = np.nan
+        y1[~mask_1] = np.nan
+        y2[~mask_2] = np.nan
+
         mask = np.isfinite(y)
 
         if mask.sum() == 0:
