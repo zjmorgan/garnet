@@ -598,7 +598,7 @@ class Integration(SubPlan):
 
         params = (intens, sig, b, b_err)
 
-        data_norm_fit = ((x0, x1, x2), (d0, d1, d2), y3d), params
+        data_norm_fit = ((x0, x1, x2), (d0, d1, d2), y3d, e3d), params
 
         peak_background_mask = x0, x1, x2, pk, bkg
 
@@ -3058,8 +3058,11 @@ class PeakEllipsoid:
 
         self.info = [d3x, b, b_err]
 
-        freq = d / n  # - np.nanmean(d[bkg] / n[bkg])
-        freq[~(pk | bkg)] = np.nan
+        y = d / n  # - np.nanmean(d[bkg] / n[bkg])
+        y[~(pk | bkg)] = np.nan
+
+        e = np.sqrt(d) / n
+        e[~(pk | bkg)] = np.nan
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
@@ -3070,7 +3073,7 @@ class PeakEllipsoid:
         if not np.isfinite(sig):
             sig = float("inf")
 
-        xye = (x0, x1, x2), (dx0, dx1, dx2), freq
+        xye = (x0, x1, x2), (dx0, dx1, dx2), y, e
 
         params = (intens, sig, b, b_err)
 
