@@ -16,6 +16,8 @@ from matplotlib.patches import Ellipse
 from matplotlib.transforms import Affine2D
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
+from scipy.spatial import ConvexHull
+
 from garnet.plots.base import BasePlot
 
 
@@ -687,10 +689,10 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.set_ylabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
-        sc = ax.scatter([], [], c="w", marker=".", alpha=0.25)
-        self.norm_pk.append(sc)
-        sc = ax.scatter([], [], c="w", marker=".", alpha=0.5)
-        self.norm_bkg.append(sc)
+        [line] = ax.plot([], [], color="r")
+        self.norm_pk.append(line)
+        [line] = ax.plot([], [], color="r")
+        self.norm_bkg.append(line)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
@@ -709,10 +711,10 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.set_ylabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
 
-        sc = ax.scatter([], [], c="w", marker=".", alpha=0.25)
-        self.norm_pk.append(sc)
-        sc = ax.scatter([], [], c="w", marker=".", alpha=0.5)
-        self.norm_bkg.append(sc)
+        [line] = ax.plot([], [], color="r")
+        self.norm_pk.append(line)
+        [line] = ax.plot([], [], color="r")
+        self.norm_bkg.append(line)
 
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
 
@@ -731,10 +733,10 @@ class PeakPlot(BasePlot):
         # ax.xaxis.set_ticklabels([])
         ax.yaxis.set_ticklabels([])
 
-        sc = ax.scatter([], [], c="w", marker=".", alpha=0.25)
-        self.norm_pk.append(sc)
-        sc = ax.scatter([], [], c="w", marker=".", alpha=0.5)
-        self.norm_bkg.append(sc)
+        [line] = ax.plot([], [], color="r")
+        self.norm_pk.append(line)
+        [line] = ax.plot([], [], color="r")
+        self.norm_bkg.append(line)
 
         ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
 
@@ -1199,6 +1201,16 @@ class PeakPlot(BasePlot):
         self.prof[2].relim()
         self.prof[2].autoscale_view()
 
+    def _hull_path(self, x, y):
+        pts = np.column_stack([x, y])
+        if len(pts) < 3:
+            idx = np.r_[np.arange(len(pts)), 0 if len(pts) else []]
+            return pts[idx, 0], pts[idx, 1]
+        hull = ConvexHull(pts)
+        order = hull.vertices
+        order = np.r_[order, order[0]]
+        return pts[order, 0], pts[order, 1]
+
     def update_envelope(self, x0, x1, x2, pk, bkg):
         """
         Draw region-of-interest.
@@ -1216,40 +1228,46 @@ class PeakPlot(BasePlot):
         mask = (np.nansum(pk, axis=0) == 0) & (np.nansum(bkg, axis=0) > 0)
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
+        x, y = self._hull_path(x, y)
 
-        self.norm_bkg[2].set_offsets(np.c_[x, y])
+        self.norm_bkg[2].set_data(x, y)
 
         mask = (np.nansum(pk, axis=1) == 0) & (np.nansum(bkg, axis=1) > 0)
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
+        x, y = self._hull_path(x, y)
 
-        self.norm_bkg[1].set_offsets(np.c_[x, y])
+        self.norm_bkg[1].set_data(x, y)
 
         mask = (np.nansum(pk, axis=2) == 0) & (np.nansum(bkg, axis=2) > 0)
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
+        x, y = self._hull_path(x, y)
 
-        self.norm_bkg[0].set_offsets(np.c_[x, y])
+        self.norm_bkg[0].set_data(x, y)
 
         # ---
 
         mask = np.nansum(pk, axis=0) > 0
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
+        x, y = self._hull_path(x, y)
 
-        self.norm_pk[2].set_offsets(np.c_[x, y])
+        self.norm_pk[2].set_data(x, y)
 
         mask = np.nansum(pk, axis=1) > 0
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
+        x, y = self._hull_path(x, y)
 
-        self.norm_pk[1].set_offsets(np.c_[x, y])
+        self.norm_pk[1].set_data(x, y)
 
         mask = np.nansum(pk, axis=2) > 0
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
+        x, y = self._hull_path(x, y)
 
-        self.norm_pk[0].set_offsets(np.c_[x, y])
+        self.norm_pk[0].set_data(x, y)
 
     def _update_ellipse(self, ellipse, ax, cx, cy, rx, ry, rho):
         ellipse.set_center((0, 0))
