@@ -2943,7 +2943,7 @@ class PeakEllipsoid:
 
         pk = ellipsoid + corr <= 1
 
-        bkg = (ellipsoid + corr > 1) & (ellipsoid + 3 * corr < np.cbrt(2) ** 2)
+        bkg = (ellipsoid + corr > 1) & (ellipsoid + 4 * corr < np.cbrt(2) ** 2)
 
         scale = scipy.stats.chi2.ppf(p, df=3)
 
