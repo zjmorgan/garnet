@@ -1211,8 +1211,11 @@ class PeakPlot(BasePlot):
 
     def _hull_path(self, x, y):
         pts = np.column_stack([x, y])
-        if len(pts) < 3:
-            idx = np.r_[np.arange(len(pts)), 0 if len(pts) else []]
+        n = len(pts)
+        if n == 0:
+            return np.array([]), np.array([])
+        if n < 3:
+            idx = np.r_[np.arange(n), 0]
             return pts[idx, 0], pts[idx, 1]
         hull = ConvexHull(pts)
         order = hull.vertices
