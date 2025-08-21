@@ -1209,11 +1209,20 @@ class PeakPlot(BasePlot):
         self.prof[2].relim()
         self.prof[2].autoscale_view()
 
-    def _hull_path(self, x, y):
-        pts = np.column_stack([x, y])
-        n = len(pts)
+    def _hull_path(self, x, y, dx, dy):
+        base = np.column_stack([x, y])
+        n = len(base)
         if n == 0:
             return np.array([]), np.array([])
+        shifts = np.array(
+            [
+                [+dx / 2, +dy / 2],
+                [+dx / 2, -dy / 2],
+                [-dx / 2, +dy / 2],
+                [-dx / 2, -dy / 2],
+            ]
+        )
+        pts = np.vstack([base + s for s in shifts])
         if n < 3:
             idx = np.r_[np.arange(n), 0]
             return pts[idx, 0], pts[idx, 1]
@@ -1236,24 +1245,28 @@ class PeakPlot(BasePlot):
 
         """
 
+        dx0 = x0[1, 0, 0] - x0[0, 0, 0]
+        dx1 = x1[1, 0, 0] - x1[0, 0, 0]
+        dx2 = x2[1, 0, 0] - x2[0, 0, 0]
+
         mask = (np.nansum(pk, axis=0) > 0) | (np.nansum(bkg, axis=0) > 0)
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
-        x, y = self._hull_path(x, y)
+        x, y = self._hull_path(x, y, dx1, dx2)
 
         self.norm_bkg[2].set_data(x, y)
 
         mask = (np.nansum(pk, axis=1) > 0) | (np.nansum(bkg, axis=1) > 0)
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
-        x, y = self._hull_path(x, y)
+        x, y = self._hull_path(x, y, dx0, dx2)
 
         self.norm_bkg[1].set_data(x, y)
 
         mask = (np.nansum(pk, axis=2) > 0) | (np.nansum(bkg, axis=2) > 0)
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
-        x, y = self._hull_path(x, y)
+        x, y = self._hull_path(x, y, dx0, dx1)
 
         self.norm_bkg[0].set_data(x, y)
 
@@ -1262,21 +1275,21 @@ class PeakPlot(BasePlot):
         mask = np.nansum(pk, axis=0) > 0
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
-        x, y = self._hull_path(x, y)
+        x, y = self._hull_path(x, y, dx1, dx2)
 
         self.norm_pk[2].set_data(x, y)
 
         mask = np.nansum(pk, axis=1) > 0
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
-        x, y = self._hull_path(x, y)
+        x, y = self._hull_path(x, y, dx0, dx2)
 
         self.norm_pk[1].set_data(x, y)
 
         mask = np.nansum(pk, axis=2) > 0
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
-        x, y = self._hull_path(x, y)
+        x, y = self._hull_path(x, y, dx0, dx1)
 
         self.norm_pk[0].set_data(x, y)
 
