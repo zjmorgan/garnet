@@ -2941,11 +2941,9 @@ class PeakEllipsoid:
 
         pk = scipy.ndimage.binary_dilation(mask, structure=structure)
 
-        inner = scipy.ndimage.binary_dilation(pk, structure=structure)
+        mask = scipy.ndimage.binary_dilation(pk, structure=structure)
 
-        outer = scipy.ndimage.binary_dilation(inner, structure=structure)
-
-        bkg = outer & (~inner)
+        bkg = mask & (~pk)
 
         scale = scipy.stats.chi2.ppf(p, df=3)
 
@@ -2957,7 +2955,7 @@ class PeakEllipsoid:
 
         y = np.exp(-0.5 * d2) / np.sqrt((2 * np.pi) ** 3 * det)
 
-        return pk, bkg, y
+        return pk, bkg, mask, y
 
     def extract_raw_intensity(self, counts, pk, bkg):
         d = counts.copy()
@@ -3041,7 +3039,7 @@ class PeakEllipsoid:
 
         d3x = self.voxel_volume(x0, x1, x2)
 
-        pk, bkg, kernel = self.peak_roi(x0, x1, x2, c, S, det_mask)
+        pk, bkg, mask, kernel = self.peak_roi(x0, x1, x2, c, S, det_mask)
 
         d[np.isinf(d)] = np.nan
         n[np.isinf(n)] = np.nan
@@ -3061,10 +3059,10 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         y = d / n  # - np.nanmean(d[bkg] / n[bkg])
-        y[~(pk | bkg)] = np.nan
+        y[~mask] = np.nan
 
         e = np.sqrt(d) / n
-        e[~(pk | bkg)] = np.nan
+        e[~mask] = np.nan
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
