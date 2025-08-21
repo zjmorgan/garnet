@@ -938,9 +938,9 @@ class PeakPlot(BasePlot):
         s1 = 0.5 * (x1[0, 1, 0] - x1[0, 0, 0])
         s2 = 0.5 * (x2[0, 0, 1] - x2[0, 0, 0])
 
-        x0min, x0max = x0[mask].min() - s0 * 1, x0[mask].max() + s0 * 1
-        x1min, x1max = x1[mask].min() - s1 * 1, x1[mask].max() + s1 * 1
-        x2min, x2max = x2[mask].min() - s2 * 1, x2[mask].max() + s2 * 1
+        x0min, x0max = x0[mask].min() - s0 * 2, x0[mask].max() + s0 * 2
+        x1min, x1max = x1[mask].min() - s1 * 2, x1[mask].max() + s1 * 2
+        x2min, x2max = x2[mask].min() - s2 * 2, x2[mask].max() + s2 * 2
 
         x0_min, x0_max = x0[0, 0, 0] - s0, x0[-1, 0, 0] + s0
         x1_min, x1_max = x1[0, 0, 0] - s1, x1[0, -1, 0] + s1
