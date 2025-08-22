@@ -35,7 +35,14 @@ from garnet.reduction.data import DataModel
 from garnet.reduction.plan import SubPlan
 from garnet.reduction.parallel import ParallelProcessor
 
-REFLECTIONS = "../utilities/reflections.py"
+
+INTEGRATION = os.path.abspath(__file__)
+directory = os.path.dirname(INTEGRATION)
+
+filename = os.path.join(directory, "../utilities/reflections.py")
+REFLECTIONS = os.path.abspath(filename)
+
+assert os.path.exists(REFLECTIONS)
 
 
 class Integration(SubPlan):
