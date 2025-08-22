@@ -1221,8 +1221,8 @@ class PeakPlot(BasePlot):
         c = max(contours, key=len)
         row, col = c[:, 0], c[:, 1]
 
-        hx = x + (col + 0.5) * dx
-        hy = y + (row + 0.5) * dy
+        hx = x + (row + 0.5) * dx
+        hy = y + (col + 0.5) * dy
 
         if hx[0] != hx[-1] or hy[0] != hy[-1]:
             hx = np.r_[hx, hx[0]]
