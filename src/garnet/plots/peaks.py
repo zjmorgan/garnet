@@ -1216,13 +1216,15 @@ class PeakPlot(BasePlot):
         if not mask.any():
             return np.array([]), np.array([])
 
-        contours = skimage.measure.find_contours(mask.astype(float), level=0.5)
+        roi = np.repeat(np.repeat(mask, 4, axis=0), 4, axis=1)
+
+        contours = skimage.measure.find_contours(roi.astype(float), level=0.5)
 
         c = max(contours, key=len)
         row, col = c[:, 0], c[:, 1]
 
-        hx = x + (row + 0.5) * dx - 0.5 * dx
-        hy = y + (col + 0.5) * dy - 0.5 * dy
+        hx = x + 0.25 * (row + 0.5) * dx - 0.5 * dx
+        hy = y + 0.25 * (col + 0.5) * dy - 0.5 * dy
 
         if hx[0] != hx[-1] or hy[0] != hy[-1]:
             hx = np.r_[hx, hx[0]]
