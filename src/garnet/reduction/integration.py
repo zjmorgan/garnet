@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import numpy as np
 
@@ -33,6 +34,8 @@ from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
 from garnet.reduction.data import DataModel
 from garnet.reduction.plan import SubPlan
 from garnet.reduction.parallel import ParallelProcessor
+
+REFLECTIONS = "../utilities/reflections.py"
 
 
 class Integration(SubPlan):
@@ -119,6 +122,10 @@ class Integration(SubPlan):
             ub.save_UB(ub_file)
 
         self.cleanup()
+        self.write(result_file)
+
+    def write(self, result_file):
+        subprocess.run(["python", REFLECTIONS, result_file], check=True)
 
     def integrate(self):
         output_file = self.get_output_file()
