@@ -1212,33 +1212,22 @@ class PeakPlot(BasePlot):
         self.prof[2].relim()
         self.prof[2].autoscale_view()
 
-    def _path(self, x, y, dx, dy):
-        if x.size == 0:
+    def _path(self, mask, x, y, dx, dy):
+        if not mask.any():
             return np.array([]), np.array([])
 
-        xi = np.round((x - x.min()) / dx).astype(int)
-        yi = np.round((y - y.min()) / dy).astype(int)
-        if xi.size == 0:
-            return np.array([]), np.array([])
+        contours = skimage.measure.find_contours(mask.astype(float), level=0.5)
 
-        nx, ny = xi.max() + 1, yi.max() + 1
-        H = np.zeros((ny, nx), dtype=bool)
-        H[yi, xi] = True
-
-        conts = skimage.measure.find_contours(H.astype(float), level=0.5)
-        if not conts:
-            return np.array([]), np.array([])
-
-        c = max(conts, key=len)
+        c = max(contours, key=len)
         row, col = c[:, 0], c[:, 1]
 
-        x0, y0 = x.min() - dx / 2, y.min() - dy / 2
-        hx = x0 + (col + 0.5) * dx
-        hy = y0 + (row + 0.5) * dy
+        hx = x + (col + 0.5) * dx
+        hy = y + (row + 0.5) * dy
 
         if hx[0] != hx[-1] or hy[0] != hy[-1]:
             hx = np.r_[hx, hx[0]]
             hy = np.r_[hy, hy[0]]
+
         return hx, hy
 
     def update_envelope(self, x0, x1, x2, pk, bkg):
@@ -1259,24 +1248,26 @@ class PeakPlot(BasePlot):
         dx1 = x1[0, 1, 0] - x1[0, 0, 0]
         dx2 = x2[0, 0, 1] - x2[0, 0, 0]
 
+        x0, x1, x2 = x0[0, 0, 0], x1[0, 0, 0], x2[0, 0, 0]
+
         mask = (np.nansum(pk, axis=0) > 0) | (np.nansum(bkg, axis=0) > 0)
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
-        x, y = self._path(x, y, dx1, dx2)
+        x, y = self._path(mask, x1, x2, dx1, dx2)
 
         self.norm_bkg[2].set_data(x, y)
 
         mask = (np.nansum(pk, axis=1) > 0) | (np.nansum(bkg, axis=1) > 0)
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
-        x, y = self._path(x, y, dx0, dx2)
+        x, y = self._path(mask, x0, x2, dx0, dx2)
 
         self.norm_bkg[1].set_data(x, y)
 
         mask = (np.nansum(pk, axis=2) > 0) | (np.nansum(bkg, axis=2) > 0)
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
-        x, y = self._path(x, y, dx0, dx1)
+        x, y = self._path(mask, x0, x1, dx0, dx1)
 
         self.norm_bkg[0].set_data(x, y)
 
@@ -1285,21 +1276,21 @@ class PeakPlot(BasePlot):
         mask = np.nansum(pk, axis=0) > 0
 
         x, y = x1[0, :, :][mask], x2[0, :, :][mask]
-        x, y = self._path(x, y, dx1, dx2)
+        x, y = self._path(mask, x1, x2, dx1, dx2)
 
         self.norm_pk[2].set_data(x, y)
 
         mask = np.nansum(pk, axis=1) > 0
 
         x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
-        x, y = self._path(x, y, dx0, dx2)
+        x, y = self._path(mask, x0, x2, dx0, dx2)
 
         self.norm_pk[1].set_data(x, y)
 
         mask = np.nansum(pk, axis=2) > 0
 
         x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
-        x, y = self._path(x, y, dx0, dx1)
+        x, y = self._path(mask, x0, x1, dx0, dx1)
 
         self.norm_pk[0].set_data(x, y)
 
