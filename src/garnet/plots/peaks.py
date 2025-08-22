@@ -1218,6 +1218,9 @@ class PeakPlot(BasePlot):
         hx = x + 0.25 * (row + 0.5) * dx - 0.5 * dx
         hy = y + 0.25 * (col + 0.5) * dy - 0.5 * dy
 
+        if hx.size <= 1:
+            return np.array([]), np.array([])
+
         if hx[0] != hx[-1] or hy[0] != hy[-1]:
             hx = np.r_[hx, hx[0]]
             hy = np.r_[hy, hy[0]]

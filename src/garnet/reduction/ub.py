@@ -705,7 +705,7 @@ class Optimization:
 
         return (a, b, c, alpha, beta, gamma, *params)
 
-    def residual(self, x, hkl, Q, fun):
+    def residual(self, x, hkl, Q, fun, W=np.eye(3)):
         """
         Optimization residual function.
 
@@ -719,6 +719,8 @@ class Optimization:
             Q-sample vectors.
         fun : function
             Lattice constraint function.
+        W: 3x3-array
+            Weight matrix
 
         Returns
         -------
@@ -734,7 +736,15 @@ class Optimization:
 
         UB = np.dot(U, B)
 
-        return (np.einsum("ij,lj->li", UB, hkl) * 2 * np.pi - Q).flatten()
+        wr = (np.einsum("ij,lj->li", UB, hkl) * 2 * np.pi - Q) @ W.T
+
+        return wr.flatten()
+
+    def whiten_weight_matrix(self, Q):
+        sigma = np.cov(Q.T)
+        L = np.linalg.cholesky(sigma)
+        W = np.linalg.inv(L)
+        return W
 
     def optimize_lattice(self, cell):
         """
@@ -777,8 +787,10 @@ class Optimization:
             fun = fun_dict[cell]
             x0 = x0_dict[cell]
 
+            W = self.whiten_weight_matrix(self.Q)
+
             x0 += (phi, theta, omega)
-            args = (self.hkl, self.Q, fun)
+            args = (self.hkl, self.Q, fun, W)
 
             sol = scipy.optimize.least_squares(self.residual, x0=x0, args=args)
 

@@ -1220,11 +1220,6 @@ class Peaks:
         self.modUB = np.zeros((3, 3))
         self.modHKL = np.zeros((3, 3))
 
-        self.flux_file = (
-            "/SNS/CORELLI/shared/Vanadium/2025B_0813_CCR_SC_sphere/flux.nxs"
-        )
-        self.solid_angle_file = "/SNS/CORELLI/shared/Vanadium/2025B_0813_CCR_SC_sphere/solid_angle.nxs"
-
     def refine_UB(self, peaks):
         opt = Optimization(peaks)
 
@@ -1262,8 +1257,6 @@ class Peaks:
             I0 = np.nanpercentile(I, 99)
             scale = maximal / I0
             self.scale = scale
-
-        # _, indices = np.unique(mtd[self.peaks].column(0), return_inverse=True)
 
         indices = np.arange(mtd[self.peaks].getNumberPeaks())
         for i, peak in zip(indices.tolist(), mtd[self.peaks]):
