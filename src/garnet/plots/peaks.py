@@ -818,7 +818,7 @@ class PeakPlot(BasePlot):
     def add_projection_fit(self, xye_fit):
         x1, x2, y_fit, y, e = xye_fit[0]
 
-        mask = np.isfinite(y) & (e > 0)
+        mask = np.isfinite(e) & (e > 0)
         y[~mask] = np.nan
         y_fit[~mask] = np.nan
 
@@ -908,10 +908,10 @@ class PeakPlot(BasePlot):
 
         x0, x1, x2 = axes
 
-        y[np.isinf(y)] = np.nan
         mask = np.isfinite(e) & (e > 0)
 
         y[~mask] = np.nan
+        e[~mask] = np.nan
 
         y0 = np.nansum(y, axis=0)  # / np.nanmean(e > 0, axis=0)
         y1 = np.nansum(y, axis=1)  # / np.nanmean(e > 0, axis=1)
@@ -945,14 +945,6 @@ class PeakPlot(BasePlot):
         x0_min, x0_max = x0[0, 0, 0] - s0, x0[-1, 0, 0] + s0
         x1_min, x1_max = x1[0, 0, 0] - s1, x1[0, -1, 0] + s1
         x2_min, x2_max = x2[0, 0, 0] - s2, x2[0, 0, -1] + s2
-
-        mask_0 = np.isfinite(y0)
-        mask_1 = np.isfinite(y1)
-        mask_2 = np.isfinite(y2)
-
-        y0[~mask_0] = np.nan
-        y1[~mask_1] = np.nan
-        y2[~mask_2] = np.nan
 
         vmin, vmax = self._color_limits(y2)
 

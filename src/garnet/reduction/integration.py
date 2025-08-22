@@ -1568,7 +1568,7 @@ class PeakEllipsoid:
 
         return y_int, e_int
 
-    def normalize(self, x0, x1, x2, d, n, mode="3d"):
+    def normalize(self, x0, x1, x2, d, n, mode="3d", x=0.05):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == "1d_0":
@@ -1614,8 +1614,7 @@ class PeakEllipsoid:
         fmin = f.min()
 
         u = (f - fmin) / (fmax - fmin + 1e-16)
-        w = 0.2 + 0.8 * u
-        w = 0.2 + 0.8 * u
+        w = x + (1 - x) * u
 
         y_int, e_int = self.data_norm(d_int, n_int)
 
@@ -2786,17 +2785,17 @@ class PeakEllipsoid:
         self.params["c1"].set(vary=False)
         self.params["c2"].set(vary=False)
 
-        self.params["u0"].set(vary=False)
-        self.params["u1"].set(vary=False)
-        self.params["u2"].set(vary=False)
+        self.params["u0"].set(vary=True)
+        self.params["u1"].set(vary=True)
+        self.params["u2"].set(vary=True)
 
         # r0 = self.params["r0"].value
         # r1 = self.params["r1"].value
         # r2 = self.params["r2"].value
 
-        self.params["r0"].set(vary=False)
-        self.params["r1"].set(vary=False)
-        self.params["r2"].set(vary=False)
+        self.params["r0"].set(vary=True)
+        self.params["r1"].set(vary=True)
+        self.params["r2"].set(vary=True)
 
         # self.params["r1"].set(expr="{}*r0".format(r1 / r0))
         # self.params["r2"].set(expr="{}*r0".format(r2 / r0))
@@ -2811,7 +2810,7 @@ class PeakEllipsoid:
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            max_nfev=30,
+            max_nfev=100,
             col_deriv=True,
         )
 
