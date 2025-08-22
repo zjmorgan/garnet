@@ -1252,21 +1252,18 @@ class PeakPlot(BasePlot):
 
         mask = (np.nansum(pk, axis=0) > 0) | (np.nansum(bkg, axis=0) > 0)
 
-        x, y = x1[0, :, :][mask], x2[0, :, :][mask]
         x, y = self._path(mask, x1, x2, dx1, dx2)
 
         self.norm_bkg[2].set_data(x, y)
 
         mask = (np.nansum(pk, axis=1) > 0) | (np.nansum(bkg, axis=1) > 0)
 
-        x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
         x, y = self._path(mask, x0, x2, dx0, dx2)
 
         self.norm_bkg[1].set_data(x, y)
 
         mask = (np.nansum(pk, axis=2) > 0) | (np.nansum(bkg, axis=2) > 0)
 
-        x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
         x, y = self._path(mask, x0, x1, dx0, dx1)
 
         self.norm_bkg[0].set_data(x, y)
@@ -1275,21 +1272,18 @@ class PeakPlot(BasePlot):
 
         mask = np.nansum(pk, axis=0) > 0
 
-        x, y = x1[0, :, :][mask], x2[0, :, :][mask]
         x, y = self._path(mask, x1, x2, dx1, dx2)
 
         self.norm_pk[2].set_data(x, y)
 
         mask = np.nansum(pk, axis=1) > 0
 
-        x, y = x0[:, 0, :][mask], x2[:, 0, :][mask]
         x, y = self._path(mask, x0, x2, dx0, dx2)
 
         self.norm_pk[1].set_data(x, y)
 
         mask = np.nansum(pk, axis=2) > 0
 
-        x, y = x0[:, :, 0][mask], x1[:, :, 0][mask]
         x, y = self._path(mask, x0, x1, dx0, dx1)
 
         self.norm_pk[0].set_data(x, y)
