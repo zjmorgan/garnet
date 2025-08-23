@@ -1212,6 +1212,9 @@ class PeakPlot(BasePlot):
 
         contours = skimage.measure.find_contours(roi.astype(float), level=0.5)
 
+        if len(contours) == 0:
+            return np.array([]), np.array([])
+
         c = max(contours, key=len)
         row, col = c[:, 0], c[:, 1]
 
