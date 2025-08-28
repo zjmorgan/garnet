@@ -908,7 +908,7 @@ class PeakPlot(BasePlot):
 
         x0, x1, x2 = axes
 
-        mask = np.isfinite(e) & (e > 0)
+        mask = np.isfinite(e) & (e >= 0)
 
         y[~mask] = np.nan
         e[~mask] = np.nan
@@ -921,9 +921,9 @@ class PeakPlot(BasePlot):
         e1 = np.nansum(e**2, axis=1)
         e2 = np.nansum(e**2, axis=2)
 
-        mask_0 = np.isfinite(y0) & (e0 > 0)
-        mask_1 = np.isfinite(y1) & (e1 > 0)
-        mask_2 = np.isfinite(y2) & (e2 > 0)
+        mask_0 = np.isfinite(y0) & (e0 >= 0)
+        mask_1 = np.isfinite(y1) & (e1 >= 0)
+        mask_2 = np.isfinite(y2) & (e2 >= 0)
 
         y0[~mask_0] = np.nan
         y1[~mask_1] = np.nan
