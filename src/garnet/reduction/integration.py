@@ -1563,8 +1563,10 @@ class PeakEllipsoid:
 
         abs_err = np.nanstd(d)
 
-        y_int = d / n
-        e_int = np.sqrt(d + (rel_err * d) ** 2 + (rel_err * abs_err) ** 2) / n
+        c = d + (n > 0)
+
+        y_int = c / n
+        e_int = np.sqrt(c + (rel_err * c) ** 2 + (rel_err * abs_err) ** 2) / n
 
         return y_int, e_int
 
