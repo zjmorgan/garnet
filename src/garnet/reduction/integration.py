@@ -515,7 +515,7 @@ class Integration(SubPlan):
         b1d_1 = np.nanmedian(y1d_1[shell])
         b1d_2 = np.nanmedian(y1d_2[shell])
 
-        core = (k0 >= m_bins) | (k0 < n_bins - m_bins)
+        core = (k0 >= m_bins) & (k0 < n_bins - m_bins)
 
         I1d_0 = np.nansum(y1d_0[core] - b1d_0) * d0
         I1d_1 = np.nansum(y1d_1[core] - b1d_1) * d1
@@ -560,9 +560,9 @@ class Integration(SubPlan):
 
         core = (
             (j0 <= m_bins)
-            | (j1 <= m_bins)
-            | (j0 > n_bins - m_bins)
-            | (j1 > n_bins - m_bins)
+            & (j1 <= m_bins)
+            & (j0 > n_bins - m_bins)
+            & (j1 > n_bins - m_bins)
         )
 
         I2d_0 = np.nansum(y2d_0[core] - b2d_0) * d2_0
@@ -594,11 +594,11 @@ class Integration(SubPlan):
 
         core = (
             (i0 >= m_bins)
-            | (i1 >= m_bins)
-            | (i2 >= m_bins)
-            | (i0 < n_bins - m_bins)
-            | (i1 < n_bins - m_bins)
-            | (i2 < n_bins - m_bins)
+            & (i1 >= m_bins)
+            & (i2 >= m_bins)
+            & (i0 < n_bins - m_bins)
+            & (i1 < n_bins - m_bins)
+            & (i2 < n_bins - m_bins)
         )
 
         I3d = np.nansum(y3d[shell] - b3d) * d3
