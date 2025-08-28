@@ -2529,6 +2529,9 @@ class PeakEllipsoid:
             c0, c1, c2, r0, r1, r2, u0, u1, u2
         )
 
+        S_vox = np.diag(np.array(self.voxels(x0, x1, x2)) ** 2 / 12.0)
+        S_inv = inv_S + S_vox
+
         args = x0, x1, x2, c, inv_S
 
         A0 = self.params["A1d_0"]
@@ -2560,9 +2563,9 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_1d)
 
-        I0, s0 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y1[0], "1d_0")
-        I1, s1 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y1[1], "1d_1")
-        I2, s2 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y1[2], "1d_2")
+        I0, s0 = self.estimate_intensity(x0, x1, x2, c, S_inv, *y1[0], "1d_0")
+        I1, s1 = self.estimate_intensity(x0, x1, x2, c, S_inv, *y1[1], "1d_1")
+        I2, s2 = self.estimate_intensity(x0, x1, x2, c, S_inv, *y1[2], "1d_2")
 
         self.intensity.append([I0, I1, I2])
         self.sigma.append([s0, s1, s2])
@@ -2598,9 +2601,9 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2_2d)
 
-        I0, s0 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y2[0], "2d_0")
-        I1, s1 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y2[1], "2d_1")
-        I2, s2 = self.estimate_intensity(x0, x1, x2, c, inv_S, *y2[2], "2d_2")
+        I0, s0 = self.estimate_intensity(x0, x1, x2, c, S_inv, *y2[0], "2d_0")
+        I1, s1 = self.estimate_intensity(x0, x1, x2, c, S_inv, *y2[1], "2d_1")
+        I2, s2 = self.estimate_intensity(x0, x1, x2, c, S_inv, *y2[2], "2d_2")
 
         self.intensity.append([I0, I1, I2])
         self.sigma.append([s0, s1, s2])
@@ -2620,7 +2623,7 @@ class PeakEllipsoid:
 
         self.redchi2.append(chi2)
 
-        I, s = self.estimate_intensity(x0, x1, x2, c, inv_S, *y3, "3d")
+        I, s = self.estimate_intensity(x0, x1, x2, c, S_inv, *y3, "3d")
 
         self.intensity.append(I)
         self.sigma.append(s)
@@ -2810,7 +2813,7 @@ class PeakEllipsoid:
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            max_nfev=100,
+            max_nfev=50,
             col_deriv=True,
         )
 

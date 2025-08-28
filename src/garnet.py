@@ -1125,8 +1125,6 @@ class FormView(QWidget):
         self.instrument_combo.addItem("MANDI")
         self.instrument_combo.addItem("CORELLI")
         self.instrument_combo.addItem("SNAP")
-        self.instrument_combo.addItem("WAND²")
-        self.instrument_combo.addItem("DEMAND")
 
         self.grouping_combo = QComboBox(self)
 
