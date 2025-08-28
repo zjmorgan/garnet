@@ -862,6 +862,18 @@ class Integration(SubPlan):
 
                 data.check_volume_preservation("md_result")
 
+                peak_file = self.get_diagnostic_file(peak_name)
+
+                directory = os.path.dirname(peak_file)
+
+                os.makedirs(directory, exist_ok=True)
+
+                data_file = self.get_diagnostic_file(peak_name + "_data")
+                norm_file = self.get_diagnostic_file(peak_name + "_norm")
+
+                data.save_histograms(data_file, "md_data")
+                data.save_histograms(norm_file, "md_norm")
+
                 data.clear_norm("md")
 
             else:
