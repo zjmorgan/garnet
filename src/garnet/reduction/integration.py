@@ -3088,10 +3088,10 @@ class PeakEllipsoid:
 
         self.info = [d3x, b, b_err]
 
-        y = d / n  # - np.nanmean(d[bkg] / n[bkg])
+        y = d / n
         y[~mask] = np.nan
 
-        e = np.sqrt(d) / n
+        e = np.sqrt(d + (n > 0)) / n
         e[~mask] = np.nan
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
