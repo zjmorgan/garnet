@@ -474,9 +474,12 @@ class Integration(SubPlan):
 
         return params
 
-    def quick_fit(self, x0, x1, x2, d, n):
-        i0, i1, i2 = np.indices((9, 9, 9))
-        j0, j1 = np.indices((9, 9))
+    def quick_fit(self, x0, x1, x2, d, n, n_bins=21, m_bins=4):
+        assert d.shape == (n_bins, n_bins, n_bins)
+
+        i0, i1, i2 = np.indices((n_bins, n_bins, n_bins))
+        j0, j1 = np.indices((n_bins, n_bins))
+        k0 = np.arange(n_bins)
 
         d0 = x0[1, 0, 0] - x0[0, 0, 0]
         d1 = x1[0, 1, 0] - x1[0, 0, 0]
@@ -506,19 +509,23 @@ class Integration(SubPlan):
             (y1d_2_fit, y1d_2, e1d_2),
         ]
 
-        b1d_0 = np.nanmedian(y1d_0[0::8])
-        b1d_1 = np.nanmedian(y1d_1[0::8])
-        b1d_2 = np.nanmedian(y1d_2[0::8])
+        shell = (k0 < m_bins) | (k0 >= n_bins - m_bins)
 
-        I1d_0 = np.nansum(y1d_0[2:-2] - b1d_0) * d0
-        I1d_1 = np.nansum(y1d_1[2:-2] - b1d_1) * d1
-        I1d_2 = np.nansum(y1d_2[2:-2] - b1d_2) * d2
+        b1d_0 = np.nanmedian(y1d_0[shell])
+        b1d_1 = np.nanmedian(y1d_1[shell])
+        b1d_2 = np.nanmedian(y1d_2[shell])
+
+        core = (k0 >= m_bins) | (k0 < n_bins - m_bins)
+
+        I1d_0 = np.nansum(y1d_0[core] - b1d_0) * d0
+        I1d_1 = np.nansum(y1d_1[core] - b1d_1) * d1
+        I1d_2 = np.nansum(y1d_2[core] - b1d_2) * d2
 
         I1d = [I1d_0, I1d_1, I1d_2]
 
-        s1d_0 = np.sqrt(np.nansum(e1d_0[2:-2] ** 2 + b1d_0)) * d0
-        s1d_1 = np.sqrt(np.nansum(e1d_1[2:-2] ** 2 + b1d_1)) * d1
-        s1d_2 = np.sqrt(np.nansum(e1d_2[2:-2] ** 2 + b1d_2)) * d2
+        s1d_0 = np.sqrt(np.nansum(e1d_0[core] ** 2 + b1d_0)) * d0
+        s1d_1 = np.sqrt(np.nansum(e1d_1[core] ** 2 + b1d_1)) * d1
+        s1d_2 = np.sqrt(np.nansum(e1d_2[core] ** 2 + b1d_2)) * d2
 
         s1d = [s1d_0, s1d_1, s1d_2]
 
@@ -540,21 +547,33 @@ class Integration(SubPlan):
             (y2d_2_fit, y2d_2, e2d_2),
         ]
 
-        shell = (j0 == 0) | (j0 == 8) | (j1 == 0) | (j1 == 8)
+        shell = (
+            (j0 < m_bins)
+            | (j1 < m_bins)
+            | (j0 >= n_bins - m_bins)
+            | (j1 >= n_bins - m_bins)
+        )
 
         b2d_0 = np.nanmedian(y2d_0[shell])
         b2d_1 = np.nanmedian(y2d_1[shell])
         b2d_2 = np.nanmedian(y2d_2[shell])
 
-        I2d_0 = np.nansum(y2d_0[2:-2][2:-2] - b2d_0) * d2_0
-        I2d_1 = np.nansum(y2d_1[2:-2][2:-2] - b2d_1) * d2_1
-        I2d_2 = np.nansum(y2d_2[2:-2][2:-2] - b2d_2) * d2_2
+        core = (
+            (j0 <= m_bins)
+            | (j1 <= m_bins)
+            | (j0 > n_bins - m_bins)
+            | (j1 > n_bins - m_bins)
+        )
+
+        I2d_0 = np.nansum(y2d_0[core] - b2d_0) * d2_0
+        I2d_1 = np.nansum(y2d_1[core] - b2d_1) * d2_1
+        I2d_2 = np.nansum(y2d_2[core] - b2d_2) * d2_2
 
         I2d = [I2d_0, I2d_1, I2d_2]
 
-        s2d_0 = np.sqrt(np.nansum(e2d_0[2:-2][2:-2] ** 2 + b2d_0)) * d2_0
-        s2d_1 = np.sqrt(np.nansum(e2d_1[2:-2][2:-2] ** 2 + b2d_1)) * d2_1
-        s2d_2 = np.sqrt(np.nansum(e2d_2[2:-2][2:-2] ** 2 + b2d_2)) * d2_2
+        s2d_0 = np.sqrt(np.nansum(e2d_0[core] ** 2 + b2d_0)) * d2_0
+        s2d_1 = np.sqrt(np.nansum(e2d_1[core] ** 2 + b2d_1)) * d2_1
+        s2d_2 = np.sqrt(np.nansum(e2d_2[core] ** 2 + b2d_2)) * d2_2
 
         s2d = [s2d_0, s2d_1, s2d_2]
 
@@ -563,18 +582,27 @@ class Integration(SubPlan):
         y3d_fit = y3d.copy()
 
         shell = (
-            (i0 == 0)
-            | (i0 == 8)
-            | (i1 == 0)
-            | (i1 == 8)
-            | (i2 == 0)
-            | (i2 == 8)
+            (i0 < m_bins)
+            | (i1 < m_bins)
+            | (i2 < m_bins)
+            | (i0 >= n_bins - m_bins)
+            | (i1 >= n_bins - m_bins)
+            | (i2 >= n_bins - m_bins)
         )
 
         b3d = np.nanmedian(y3d[shell])
 
-        I3d = np.nansum(y3d[2:-2, 2:-2, 2:-2] - b3d) * d3
-        s3d = np.sqrt(np.nansum(e3d[2:-2, 2:-2, 2:-2] ** 2 + b3d)) * d3
+        core = (
+            (i0 >= m_bins)
+            | (i1 >= m_bins)
+            | (i2 >= m_bins)
+            | (i0 < n_bins - m_bins)
+            | (i1 < n_bins - m_bins)
+            | (i2 < n_bins - m_bins)
+        )
+
+        I3d = np.nansum(y3d[shell] - b3d) * d3
+        s3d = np.sqrt(np.nansum(e3d[core] ** 2 + b3d)) * d3
 
         best_prof = (
             (x0[:, 0, 0], *y1d[0]),
@@ -590,22 +618,19 @@ class Integration(SubPlan):
 
         best_fit = (x0, x1, x2, y3d_fit, y3d, e3d)
 
-        bkg_data = np.nansum(d[0::8][0::8][0::8])
-        bkg_norm = np.nansum(n[0::8][0::8][0::8])
+        bkg_data = np.nansum(d[shell])
+        bkg_norm = np.nansum(n[shell])
 
-        pk_data = np.nansum(d[2:-2, 2:-2, 2:-2])
-        pk_norm = np.nansum(n[2:-2, 2:-2, 2:-2])
+        pk_data = np.nansum(d[core])
+        pk_norm = np.nansum(n[core])
 
-        pk = np.zeros_like(d, dtype=bool)
-        bkg = np.zeros_like(d, dtype=bool)
-
-        pk[2:-2, 2:-2, 2:-2] = True
-        bkg[0::8][0::8][0::8] = True
+        pk = core.copy()
+        bkg = shell.copy()
 
         b = bkg_data / bkg_norm
         b_err = np.sqrt(bkg_data) / np.nansum(bkg_norm)
 
-        M, N = 386, 125
+        M, N = np.sum(bkg), np.sum(pk)
 
         intens = np.nansum(pk_data / pk_norm - b) * d3 * N
         sig = np.sqrt(np.nansum(pk_data / pk_norm**2 + b_err**2)) * d3 * N
@@ -997,7 +1022,7 @@ class Integration(SubPlan):
 
         Q0, Q1, Q2 = 2 * np.pi * np.dot(W.T, np.dot(UB, [h, k, l]))
 
-        n_bins = 15 if fit else 9
+        n_bins = 15 if fit else 21
 
         if type(r_cut) is float:
             dQ_cut = 3 * [r_cut]
@@ -3089,10 +3114,7 @@ class PeakEllipsoid:
         self.info = [d3x, b, b_err]
 
         y = d / n
-        y[~mask] = np.nan
-
         e = np.sqrt(d + (n > 0)) / n
-        e[~mask] = np.nan
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
