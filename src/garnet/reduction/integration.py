@@ -601,7 +601,7 @@ class Integration(SubPlan):
             & (i2 < n_bins - m_bins)
         )
 
-        I3d = np.nansum(y3d[shell] - b3d) * d3
+        I3d = np.nansum(y3d[core] - b3d) * d3
         s3d = np.sqrt(np.nansum(e3d[core] ** 2 + b3d)) * d3
 
         best_prof = (
