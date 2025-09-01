@@ -1266,7 +1266,7 @@ class Peaks:
                 peak.setSigmaIntensity(peak.getIntensity())
             peak.setPeakNumber(peak.getRunNumber())
             peak.setBinCount(peak.getRunNumber())
-            peak.setRunNumber(1)
+            # peak.setRunNumber(1)
 
         filename = os.path.splitext(self.filename)[0] + "_scale.txt"
         with open(filename, "w") as f:
@@ -1677,6 +1677,13 @@ class Peaks:
         self.rescale_intensities()
 
     def renormalize_intensities(self):
+        self.flux_file = (
+            "/SNS/TOPAZ/shared/Vanadium/2025B_AG_4mm_sphere/flux.nxs"
+        )
+        self.solid_angle_file = (
+            "/SNS/TOPAZ/shared/Vanadium/2025B_AG_4mm_sphere/solid_angle.nxs"
+        )
+
         LoadNexus(Filename=self.flux_file, OutputWorkspace="flux")
         LoadNexus(Filename=self.solid_angle_file, OutputWorkspace="sa")
 
@@ -1737,6 +1744,17 @@ class Peaks:
         x = x[:, ::-1]
         y = y[:, ::-1]
 
+        j = np.searchsorted(x[0, :], 1.0)
+
+        scale = y[:, j]
+
+        filename = os.path.splitext(self.filename)[0]
+
+        fig, ax = plt.subplots(1, 1, layout="constrained")
+        for i in range(x.shape[0]):
+            ax.plot(x[i, :], y[i, :] / scale[i])
+        fig.savefig(filename + "_spec.pdf")
+
         detIDs = mtd["peaks"].column("DetID")
 
         rows = list(mtd["scale"].getIndicesFromDetectorIDs(detIDs))
@@ -1745,24 +1763,28 @@ class Peaks:
             h, k, l = [int(val) for val in peak.getIntHKL()]
             m, n, p = [int(val) for val in peak.getIntMNP()]
 
-            run = int(peak.getRunNumber())
-            key = (run, h, k, l, m, n, p)
-            raw_intens, raw_sig = self.norm_dict[key]
-
-            lamda = peak.getWavelength()
-            two_theta = peak.getScattering()
-            proton_charge = peak.getBinCount()
-
-            L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
-
-            corr = np.inf
             row = rows[i]
+            peak.setIntensity(peak.getIntensity() / scale[row])
+            peak.setSigmaIntensity(peak.getSigmaIntensity() / scale[row])
 
-            col = np.searchsorted(x[row], lamda, side="right") - 1
-            corr = y[row, col] * s[row] * proton_charge
+            # run = int(peak.getRunNumber())
+            # key = (run, h, k, l, m, n, p)
+            # raw_intens, raw_sig = self.norm_dict[key]
 
-            peak.setIntensity(raw_intens / L / corr)
-            peak.setSigmaIntensity(raw_sig / L / corr)
+            # lamda = peak.getWavelength()
+            # two_theta = peak.getScattering()
+            # proton_charge = peak.getBinCount()
+
+            # L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
+
+            # corr = np.inf
+            # row = rows[i]
+
+            # col = np.searchsorted(x[row], lamda, side="right") - 1
+            # corr = y[row, col] * s[row] * proton_charge / scale[row]
+
+            # peak.setIntensity(raw_intens / L / corr)
+            # peak.setSigmaIntensity(raw_sig / L / corr)
 
     def merge_intensities(self, name=None, fit_dict=None):
         if name is not None:
@@ -2047,12 +2069,12 @@ class Peaks:
         # I if diff >= 2 * sig and diff > 0 else sig
         # peak.setSigmaIntensity(sig)
 
-        _, indices = np.unique(
-            mtd[peaks].column("BankName"), return_inverse=True
-        )
+        # _, indices = np.unique(
+        #     mtd[peaks].column("BankName"), return_inverse=True
+        # )
 
-        for i, peak in zip(indices.tolist(), mtd[peaks]):
-            peak.setRunNumber(1)
+        # for i, peak in zip(indices.tolist(), mtd[peaks]):
+        #    peak.setRunNumber(1)
 
         FilterPeaks(
             InputWorkspace=peaks,
@@ -2071,12 +2093,21 @@ class Peaks:
 
         self.calculate_statistics(peaks, filename + "_symm.txt")
 
+        # for peak in mtd[peaks]:
+        #     peak.setRunNumber(1)
+
         SaveHKL(
             InputWorkspace=peaks,
             Filename=filename + ".hkl",
             DirectionCosines=True,
             ApplyAnvredCorrections=False,
             SortBy="RunNumber",
+        )
+
+        SaveReflections(
+            InputWorkspace=peaks,
+            Filename=filename + ".int",
+            Format="Jana",
         )
 
         self.refine_UB(peaks)
@@ -2145,11 +2176,13 @@ class Peaks:
 
             self.resort_hkl(satellite, filename + "_sat.hkl")
 
-    def refine_scales(self, name):
+    def refine_scales(self, name, batch="run"):
         CloneWorkspace(InputWorkspace=name, OutputWorkspace="tmp")
 
+        column = "RunNumber" if batch == "run" else "BankName"
+
         runs, indices = np.unique(
-            mtd["tmp"].column("BankName"), return_inverse=True
+            mtd["tmp"].column(column), return_inverse=True
         )
 
         pg = PointGroupFactory.createPointGroup(self.point_groups[0])
@@ -2171,7 +2204,9 @@ class Peaks:
             peak_dict[key] = [np.array(item) for item in items]
 
         x0 = np.ones_like(runs, dtype="float")[1:]
-        args = (name, peak_dict)
+        args = ("tmp", peak_dict)
+
+        Rm_0 = self.scale_peaks(x0, *args)
 
         sol = scipy.optimize.minimize(self.scale_peaks, x0=x0, args=args)
 
@@ -2182,8 +2217,12 @@ class Peaks:
             peak.setIntensity(peak.getIntensity() * s)
             peak.setSigmaIntensity(peak.getSigmaIntensity() * s)
 
+        Rm = self.scale_peaks(sol.x, *args)
+
+        print("R(merge) = {:.2f} -> {:.2f}%".format(Rm_0, Rm))
+
     def update_scales(self, name, peak_dict, x):
-        R_merge = 0
+        num, den = 0.0, 0.0
 
         c = np.insert(x, 0, 1)
 
@@ -2191,14 +2230,15 @@ class Peaks:
             I, wl, indices = peak_dict[key]
             Ip = I * c[indices]
             Im = np.nanmean(Ip)
-            R_merge += np.nansum(np.abs(Ip - Im)) / np.nansum(Ip)
+            num += np.nansum(np.abs(Ip - Im))
+            den += np.nansum(Ip)
 
-        return R_merge
+        return (num / den) * 100
 
     def scale_peaks(self, x, *args):
         name, peak_dict = args
 
-        R_merge = self.update_scales("tmp", peak_dict, x)
+        R_merge = self.update_scales(name, peak_dict, x)
 
         return R_merge
 
@@ -2222,7 +2262,7 @@ class Peaks:
 
         self.point_groups = [point_group]
 
-        # self.refine_scales(name)
+        # self.refine_scales(name, 'run')
 
         StatisticsOfPeaksWorkspace(
             InputWorkspace=name,

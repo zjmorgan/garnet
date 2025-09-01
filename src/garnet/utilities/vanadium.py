@@ -23,6 +23,7 @@ from mantid.simpleapi import (
     Rebin,
     Minus,
     Divide,
+    Multiply,
     ConvertUnits,
     CropWorkspace,
     AddSampleLog,
@@ -38,8 +39,9 @@ from mantid.simpleapi import (
     ExtractMask,
     SetSample,
     SetBeam,
-    SphericalAbsorption,
-    CylinderAbsorption,
+    AbsorptionCorrection,
+    MultipleScatteringCorrection,
+    CreateSingleValuedWorkspace,
     SmoothNeighbours,
     InterpolatingRebin,
     CopyInstrumentParameters,
@@ -256,7 +258,7 @@ class Vanadium:
         if not isinstance(run_nos, list):
             run_nos = self._runs_string_to_list(run_nos)
 
-        files_to_load = ",".join(
+        files_to_load = "+".join(
             [
                 os.path.join(
                     self.file_folder.format(self.instrument, ipts),
@@ -295,8 +297,8 @@ class Vanadium:
         )
 
         Rebin(
-            InputWorkspace="vanadium",
-            OutputWorkspace="vanadium",
+            InputWorkspace=workspace,
+            OutputWorkspace=workspace,
             Params=[self.k_min, (self.k_max - self.k_min) / 50, self.k_max],
             PreserveEvents=True,
         )
@@ -468,6 +470,8 @@ class Vanadium:
         print("mass: {:.4f} g\n".format(m))
         print("equivalent radius: {:.4} cm".format(r))
 
+        self.r = r * 10
+
     def apply_absorption_correction(self):
         ConvertUnits(
             InputWorkspace="vanadium",
@@ -482,26 +486,38 @@ class Vanadium:
             PreserveEvents=True,
         )
 
-        if self.sample_shape == "cylinder":
-            CylinderAbsorption(
-                InputWorkspace="vanadium",
-                OutputWorkspace="corr",
-                NumberOfWavelengthPoints=5,
-                CylinderSampleHeight=self.height * 0.1,
-                CylinderSampleRadius=self.diameter * 0.05,
-                NumberOfSlices=8,
-                NumberOfAnnuli=8,
-            )
-        else:
-            SphericalAbsorption(
-                InputWorkspace="vanadium",
-                OutputWorkspace="corr",
-                SphericalSampleRadius=self.diameter * 0.05,
-            )
+        AbsorptionCorrection(
+            InputWorkspace="vanadium",
+            NumberOfWavelengthPoints=10,
+            ElementSize=self.r / 10,
+            OutputWorkspace="correction",
+        )
+
+        # MultipleScatteringCorrection(
+        #     InputWorkspace="vanadium",
+        #     NumberOfWavelengthPoints=20,
+        #     Method="SampleOnly",
+        #     ElementSize=self.r / 20,
+        #     OutputWorkspace="factor",
+        # )
+
+        CreateSingleValuedWorkspace(OutputWorkspace="unity", DataValue=1)
 
         Divide(
+            LHSWorkspace="unity",
+            RHSWorkspace="correction",
+            OutputWorkspace="scale",
+        )
+
+        # Minus(
+        #     LHSWorkspace="scale",
+        #     RHSWorkspace="factor_ms_sampleOnly",
+        #     OutputWorkspace="scale"
+        # )
+
+        Multiply(
             LHSWorkspace="vanadium",
-            RHSWorkspace="corr",
+            RHSWorkspace="scale",
             OutputWorkspace="vanadium",
         )
 
@@ -512,8 +528,6 @@ class Vanadium:
             PreserveEvents=False,
             OutputWorkspace="spectra",
         )
-
-        # self._smooth_data("spectra", units="wavelength")
 
         Rebin(
             InputWorkspace="spectra",
@@ -651,6 +665,8 @@ class Vanadium:
             "flux",
             "spectra",
             "solid_angle",
+            "correction",
+            "scale",
         ]
         for workspace in workspaces:
             filename = os.path.join(output_folder, workspace + ".nxs")
