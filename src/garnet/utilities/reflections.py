@@ -1274,9 +1274,9 @@ class Peaks:
 
     def remove_edge_peaks(self):
         edge_pixels = {
-            "TOPAZ": ([32, 224], [32, 224]),
-            "MANDI": ([32, 224], [32, 224]),
-            "CORELLI": ([1, 15], [32, 224]),
+            "TOPAZ": ([24, 232], [24, 232]),
+            "MANDI": ([24, 232], [24, 232]),
+            "CORELLI": ([1, 15], [24, 232]),
         }
 
         inst = mtd[self.peaks].getInstrument()
