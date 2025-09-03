@@ -3067,25 +3067,22 @@ class PeakEllipsoid:
             pk_norm = float("nan")
 
         y_pk = d_pk / n_pk
-        # e_pk = np.sqrt(d_pk) / n_pk
+        e_pk = np.sqrt(d_pk) / n_pk
 
         y_bkg = d_bkg / n_bkg
-        # e_bkg = np.sqrt(d_bkg) / n_bkg
+        e_bkg = np.sqrt(d_bkg) / n_bkg
 
         y_bkg[~np.isfinite(y_bkg)] = np.nan
-        # e_bkg[~np.isfinite(e_bkg)] = np.nan
+        e_bkg[~np.isfinite(e_bkg)] = np.nan
 
         bkg_intens = np.nanmedian(y_bkg) * M
-        # bkg_err = np.sqrt(np.nansum(e_bkg**2))
+        bkg_err = np.sqrt(np.nansum(e_bkg**2))
 
         pk_intens = np.nansum(y_pk)
-        # pk_err = np.sqrt(np.nansum(e_pk**2))
+        pk_err = np.sqrt(np.nansum(e_pk**2))
 
         intens = pk_intens - (N / M) * bkg_intens
-        # sig = np.sqrt(pk_err**2 + (N / M) ** 2 * bkg_err**2)
-
-        sig_raw = np.nansum(d_pk) + (N / M) ** 2 * np.nansum(d_bkg)
-        sig = np.sqrt(sig_raw) / np.nanmean(n_pk)
+        sig = np.sqrt(pk_err**2 + (N / M) ** 2 * bkg_err**2)
 
         if not sig > 0:
             sig = float("inf")
@@ -3121,6 +3118,8 @@ class PeakEllipsoid:
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
+        sig = (sig_raw / intens_raw) * intens
+
         self.info += [intens_raw, sig_raw]
 
         self.info += [N, pk_data, pk_norm, bkg_data, bkg_norm]
@@ -3136,10 +3135,10 @@ class PeakEllipsoid:
 
         self.peak_background_mask = x0, x1, x2, pk, bkg
 
-        intensity = [
-            x
-            for item in self.intensity
-            for x in (item if isinstance(item, (list, tuple)) else [item])
-        ]
+        # intensity = [
+        #     x
+        #     for item in self.intensity
+        #     for x in (item if isinstance(item, (list, tuple)) else [item])
+        # ]
 
-        return intens, np.sqrt(np.nanstd(intensity) ** 2 + sig**2)
+        return intens, sig
