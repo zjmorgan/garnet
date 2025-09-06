@@ -977,11 +977,11 @@ class Integration(SubPlan):
         n = kf_hat - ki_hat
         n /= np.linalg.norm(n)
 
-        v = np.cross(ki_hat, kf_hat)
-        v /= np.linalg.norm(v)
-
-        u = np.cross(v, n)
+        u = np.cross(ki_hat, kf_hat)
         u /= np.linalg.norm(u)
+
+        v = np.cross(n, u)
+        v /= np.linalg.norm(v)
 
         return R.T @ n, R.T @ u, R.T @ v
 
@@ -1035,7 +1035,6 @@ class Integration(SubPlan):
                 r1 * (1 + dr1 * kappa) * 2,
                 r2 * (1 + dr2 * Q) * 2,
             ]
-            n_bins *= 2
 
         bin_sizes = np.array(dQ_cut) / n_bins
 
