@@ -399,7 +399,7 @@ class PeakPlot(BasePlot):
         im = ScalarMappable(norm=norm)
         self.cb_el = self.fig.colorbar(im, ax=self.ellip[-2:])
         self.cb_el.ax.minorticks_on()
-        self.cb_el.formatter.set_powerlimits((0, 0))
+        # self.cb_el.formatter.set_powerlimits((0, 0))
         self.cb_el.formatter.set_useMathText(True)
 
     def __init_profile(self):
@@ -417,7 +417,7 @@ class PeakPlot(BasePlot):
 
         ax.minorticks_on()
         ax.set_xlabel(r"$|Q|$ [$\AA^{-1}$]")
-        ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
+        # ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
         ax.yaxis.get_major_formatter().set_useMathText(True)
 
         x = np.arange(10) - 5
@@ -448,7 +448,7 @@ class PeakPlot(BasePlot):
 
         ax.minorticks_on()
         ax.set_xlabel(r"$\Delta{Q}_1$ [$\AA^{-1}$]")
-        ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
+        # ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
         ax.yaxis.get_major_formatter().set_useMathText(True)
 
         x = np.arange(10) - 5
@@ -479,7 +479,7 @@ class PeakPlot(BasePlot):
 
         ax.minorticks_on()
         ax.set_xlabel(r"$\Delta{Q}_2$ [$\AA^{-1}$]")
-        ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
+        # ax.yaxis.get_major_formatter().set_powerlimits((0, 0))
         ax.yaxis.get_major_formatter().set_useMathText(True)
 
         x = np.arange(10) - 5
@@ -689,7 +689,7 @@ class PeakPlot(BasePlot):
         im = ScalarMappable(norm=norm)
         self.cb_proj = self.fig.colorbar(im, ax=self.proj[-2:])
         self.cb_proj.ax.minorticks_on()
-        self.cb_proj.formatter.set_powerlimits((0, 0))
+        # self.cb_proj.formatter.set_powerlimits((0, 0))
         self.cb_proj.formatter.set_useMathText(True)
 
     def __init_norm(self):
@@ -789,7 +789,7 @@ class PeakPlot(BasePlot):
             im, ax=self.norm, orientation="horizontal"
         )
         self.cb_norm.ax.minorticks_on()
-        self.cb_norm.formatter.set_powerlimits((0, 0))
+        # self.cb_norm.formatter.set_powerlimits((0, 0))
         self.cb_norm.formatter.set_useMathText(True)
 
     def add_profile_fit(self, xye_fit):
@@ -942,7 +942,7 @@ class PeakPlot(BasePlot):
 
         self.cb_proj.update_normal(self.proj_im[4])
         self.cb_proj.ax.minorticks_on()
-        self.cb_proj.formatter.set_powerlimits((0, 0))
+        # self.cb_proj.formatter.set_powerlimits((0, 0))
         self.cb_proj.formatter.set_useMathText(True)
 
     def add_data_norm_fit(self, xye, params):
@@ -1018,7 +1018,7 @@ class PeakPlot(BasePlot):
 
         self.cb_norm.update_normal(self.norm_im[2])
         self.cb_norm.ax.minorticks_on()
-        self.cb_norm.formatter.set_powerlimits((0, 0))
+        # self.cb_norm.formatter.set_powerlimits((0, 0))
         self.cb_norm.formatter.set_useMathText(True)
 
         I = r"$I={}$"
@@ -1143,7 +1143,7 @@ class PeakPlot(BasePlot):
 
         self.cb_el.update_normal(self.ellip_im[4])
         self.cb_el.ax.minorticks_on()
-        self.cb_el.formatter.set_powerlimits((0, 0))
+        # self.cb_el.formatter.set_powerlimits((0, 0))
         self.cb_el.formatter.set_useMathText(True)
 
     def add_ellipsoid(self, c, S):
