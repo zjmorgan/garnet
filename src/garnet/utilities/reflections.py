@@ -44,7 +44,7 @@ import scipy.interpolate
 
 from scipy.spatial.transform import Rotation
 
-# from statsmodels.nonparametric.smoothers_lowess import lowess
+from sklearn.cluster import AgglomerativeClustering
 
 from mantid.geometry import (
     CrystalStructure,
@@ -1763,28 +1763,24 @@ class Peaks:
             h, k, l = [int(val) for val in peak.getIntHKL()]
             m, n, p = [int(val) for val in peak.getIntMNP()]
 
+            run = int(peak.getRunNumber())
+            key = (run, h, k, l, m, n, p)
+            raw_intens, raw_sig = self.norm_dict[key]
+
+            lamda = peak.getWavelength()
+            two_theta = peak.getScattering()
+            proton_charge = peak.getBinCount()
+
+            L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
+
+            corr = np.inf
             row = rows[i]
-            peak.setIntensity(peak.getIntensity() / scale[row])
-            peak.setSigmaIntensity(peak.getSigmaIntensity() / scale[row])
 
-            # run = int(peak.getRunNumber())
-            # key = (run, h, k, l, m, n, p)
-            # raw_intens, raw_sig = self.norm_dict[key]
+            col = np.searchsorted(x[row], lamda, side="right") - 1
+            corr = y[row, col] * s[row] * proton_charge / scale[row]
 
-            # lamda = peak.getWavelength()
-            # two_theta = peak.getScattering()
-            # proton_charge = peak.getBinCount()
-
-            # L = 0.5 * lamda**4 / np.sin(0.5 * two_theta) ** 2
-
-            # corr = np.inf
-            # row = rows[i]
-
-            # col = np.searchsorted(x[row], lamda, side="right") - 1
-            # corr = y[row, col] * s[row] * proton_charge / scale[row]
-
-            # peak.setIntensity(raw_intens / L / corr)
-            # peak.setSigmaIntensity(raw_sig / L / corr)
+            peak.setIntensity(raw_intens / L / corr)
+            peak.setSigmaIntensity(raw_sig / L / corr)
 
     def merge_intensities(self, name=None, fit_dict=None):
         if name is not None:
@@ -2093,8 +2089,7 @@ class Peaks:
 
         self.calculate_statistics(peaks, filename + "_symm.txt")
 
-        # for peak in mtd[peaks]:
-        #     peak.setRunNumber(1)
+        self.renumber_peaks(peaks)
 
         SaveHKL(
             InputWorkspace=peaks,
@@ -2175,6 +2170,52 @@ class Peaks:
             )
 
             self.resort_hkl(satellite, filename + "_sat.hkl")
+
+    def _angle_distance_matrix(self, Rs):
+        G = np.tensordot(Rs, Rs, axes=([1, 2], [1, 2]))
+        cos_th = (G - 1.0) / 2.0
+        np.clip(cos_th, -1.0, 1.0, out=cos_th)
+        D = np.arccos(cos_th)
+        np.fill_diagonal(D, 0.0)
+        return D
+
+    def renumber_peaks(self, peaks, k=60, decimals=6, linkage="average"):
+        Rs_all = []
+        for p in mtd[peaks]:
+            Rs_all.append(p.getGoniometerMatrix())
+        Rs_all = np.asarray(Rs_all)
+        N = len(Rs_all)
+
+        flat = np.round(Rs_all.reshape(N, 9), decimals=decimals)
+        uniq_rows, inv = np.unique(flat, axis=0, return_inverse=True)
+        Rs_unique = np.array(
+            [Rs_all[np.where(inv == i)[0][0]] for i in range(len(uniq_rows))]
+        )
+        M = len(Rs_unique)
+
+        D = self._angle_distance_matrix(Rs_unique)
+
+        n_clusters = min(k, M) if M > 0 else 0
+        if n_clusters <= 1:
+            labels_unique = (
+                np.zeros(M, dtype=int) if M else np.array([], dtype=int)
+            )
+        else:
+            model = AgglomerativeClustering(
+                n_clusters=n_clusters, metric="precomputed", linkage=linkage
+            )
+            labels_unique = model.fit_predict(D)
+
+        old_ids = np.unique(labels_unique)
+        new_id_map = {old: i + 1 for i, old in enumerate(sorted(old_ids))}
+        new_labels_unique = np.array(
+            [new_id_map[x] for x in labels_unique], dtype=int
+        )
+
+        labels_all = new_labels_unique[inv]
+
+        for p, lbl in zip(mtd[peaks], labels_all):
+            p.setRunNumber(int(lbl))
 
     def refine_scales(self, name, batch="run"):
         CloneWorkspace(InputWorkspace=name, OutputWorkspace="tmp")
