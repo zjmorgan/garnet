@@ -603,7 +603,7 @@ class BaseDataModel:
 
         """
 
-        LoadMD(Filename=filename, OutputWorkspace=ws)
+        LoadMD(Filename=filename, OutputWorkspace=ws, LoadHistory=False)
 
     def save_histograms(self, filename, ws, sample_logs=False):
         """
