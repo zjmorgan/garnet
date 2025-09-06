@@ -237,7 +237,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.ellip_im.append(im)
@@ -265,7 +265,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
-            norm="asinh",
+            norm="linear",
         )
 
         self.ellip_im.append(im)
@@ -292,7 +292,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.ellip_im.append(im)
@@ -320,7 +320,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
-            norm="asinh",
+            norm="linear",
         )
 
         self.ellip_im.append(im)
@@ -347,7 +347,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.ellip_im.append(im)
@@ -376,7 +376,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
-            norm="asinh",
+            norm="linear",
         )
 
         self.ellip_im.append(im)
@@ -527,7 +527,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.proj_im.append(im)
@@ -555,7 +555,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
-            norm="asinh",
+            norm="linear",
         )
 
         self.proj_im.append(im)
@@ -582,7 +582,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.proj_im.append(im)
@@ -610,7 +610,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
-            norm="asinh",
+            norm="linear",
         )
 
         self.proj_im.append(im)
@@ -637,7 +637,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.proj_im.append(im)
@@ -666,7 +666,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
-            norm="asinh",
+            norm="linear",
         )
 
         self.proj_im.append(im)
@@ -713,7 +713,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.norm_im.append(im)
@@ -739,7 +739,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.norm_im.append(im)
@@ -765,7 +765,7 @@ class PeakPlot(BasePlot):
             extent=(0, 5, 0, 6),
             origin="lower",
             interpolation="nearest",
-            norm="asinh",
+            norm="linear",
         )
 
         self.norm_im.append(im)
