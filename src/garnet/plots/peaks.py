@@ -233,7 +233,11 @@ class PeakPlot(BasePlot):
         self.ellip.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.ellip_im.append(im)
@@ -261,6 +265,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
+            norm="asinh",
         )
 
         self.ellip_im.append(im)
@@ -283,7 +288,11 @@ class PeakPlot(BasePlot):
         self.ellip.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.ellip_im.append(im)
@@ -311,6 +320,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
+            norm="asinh",
         )
 
         self.ellip_im.append(im)
@@ -333,7 +343,11 @@ class PeakPlot(BasePlot):
         self.ellip.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.ellip_im.append(im)
@@ -362,6 +376,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
+            norm="asinh",
         )
 
         self.ellip_im.append(im)
@@ -508,7 +523,11 @@ class PeakPlot(BasePlot):
         self.proj.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.proj_im.append(im)
@@ -536,6 +555,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
+            norm="asinh",
         )
 
         self.proj_im.append(im)
@@ -558,7 +578,11 @@ class PeakPlot(BasePlot):
         self.proj.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.proj_im.append(im)
@@ -586,6 +610,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
+            norm="asinh",
         )
 
         self.proj_im.append(im)
@@ -608,7 +633,11 @@ class PeakPlot(BasePlot):
         self.proj.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.proj_im.append(im)
@@ -637,6 +666,7 @@ class PeakPlot(BasePlot):
             origin="lower",
             interpolation="nearest",
             cmap="viridis",
+            norm="asinh",
         )
 
         self.proj_im.append(im)
@@ -679,7 +709,11 @@ class PeakPlot(BasePlot):
         self.norm.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.norm_im.append(im)
@@ -701,7 +735,11 @@ class PeakPlot(BasePlot):
         self.norm.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.norm_im.append(im)
@@ -723,7 +761,11 @@ class PeakPlot(BasePlot):
         self.norm.append(ax)
 
         im = ax.imshow(
-            z.T, extent=(0, 5, 0, 6), origin="lower", interpolation="nearest"
+            z.T,
+            extent=(0, 5, 0, 6),
+            origin="lower",
+            interpolation="nearest",
+            norm="asinh",
         )
 
         self.norm_im.append(im)
