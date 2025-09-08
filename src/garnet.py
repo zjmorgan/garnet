@@ -1879,6 +1879,9 @@ class FormPresenter:
     def save_config(self):
         filename = self.view.get_config()
 
+        instrument = self.view.get_instrument()
+        self.model.set_instrument(instrument)
+
         valid = self.model.validate_file(filename)
 
         if not valid:
