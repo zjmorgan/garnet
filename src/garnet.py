@@ -511,7 +511,7 @@ class FormView(QWidget):
 
         dim_log_label = QLabel("Log Name:")
 
-        self.param_log_line = QLineEdit("sample_temperature")
+        self.param_log_line = QLineEdit("sample_temp")
 
         bin_layout.addWidget(min_label, 0, 1, Qt.AlignCenter)
         bin_layout.addWidget(max_label, 0, 2, Qt.AlignCenter)

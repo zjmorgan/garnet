@@ -230,6 +230,8 @@ class Integration(SubPlan):
 
                 data.load_clear_UB(ub_file, "data", run)
 
+            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
+
             peaks.predict_peaks(
                 "data",
                 "peaks",
@@ -276,8 +278,6 @@ class Integration(SubPlan):
             params = self.estimate_peak_size("peaks", r_cut, est_file)
 
             fit = self.params["ProfileFit"]
-
-            data.convert_to_Q_sample("data", "md", lorentz_corr=False)
 
             peak_dict = self.extract_peak_info("peaks", params, True, fit)
 
@@ -906,7 +906,7 @@ class Integration(SubPlan):
                     "md", extents, bins, projections
                 )
 
-                n = 1.0 * (data.extract_counts("md_bin") > 0)
+                n = (d > 0) * data.approximate_norm(Q0, lamda)
 
             if fit:
                 interp = self.interpolate(Q0, Q1, Q2, d, n)
@@ -1219,7 +1219,7 @@ class PeakProfile:
 
         y_fit = A * y_hat + B
 
-        residuals = y_fit - (A * y_hat + B)
+        residuals = y_fit - y
 
         N = np.nansum(np.isfinite(y))
 
@@ -1397,30 +1397,30 @@ class PeakProfile:
             Q0, Q1, Q2, _, _, *interp, dQ, Q, k, projections = data_info
             d, n, val_mask, det_mask = interp
 
-            d0 = self.filter_array(np.nansum(d, axis=(1, 2)))
-            n0 = self.filter_array(np.nansum(n, axis=(1, 2)))
-            y0 = d0 / n0
-            e0 = np.sqrt(d0 + (y0 == 0) ** 2) / n0
+            d0 = np.nansum(d, axis=(1, 2))
+            # n0 = np.nanmean(n, axis=(1, 2))
+            y0 = d0  # / n0
+            e0 = np.sqrt(d0)  # / n0
             x0 = Q0[:, 0, 0] - Q
 
             y0s.append(y0)
             e0s.append(e0)
             x0s.append(x0)
 
-            d1 = self.filter_array(np.nansum(d, axis=(0, 2)))
-            n1 = self.filter_array(np.nansum(n, axis=(0, 2)))
-            y1 = d1 / n1
-            e1 = np.sqrt(d1 + (y1 == 0) ** 2) / n1
+            d1 = np.nansum(d, axis=(0, 2))
+            # n1 = np.nanmean(n, axis=(0, 2))
+            y1 = d1  # / n1
+            e1 = np.sqrt(d1)  # / n1
             x1 = Q1[0, :, 0]
 
             y1s.append(y1)
             e1s.append(e1)
             x1s.append(x1)
 
-            d2 = self.filter_array(np.nansum(d, axis=(0, 1)))
-            n2 = self.filter_array(np.nansum(n, axis=(0, 1)))
-            y2 = d2 / n2
-            e2 = np.sqrt(d2 + (y2 == 0) ** 2) / n2
+            d2 = np.nansum(d, axis=(0, 1))
+            # n2 = np.nanmean(n, axis=(0, 1))
+            y2 = d2  # / n2
+            e2 = np.sqrt(d2)  # / n2
             x2 = Q2[0, 0, :]
 
             y2s.append(y2)

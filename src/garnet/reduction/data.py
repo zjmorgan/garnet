@@ -1629,6 +1629,26 @@ class LaueData(BaseDataModel):
 
             self.wavelength_band = [lamda_min, lamda_max]
 
+            y = mtd["flux"].extractY()
+            x = mtd["flux"].extractX()
+
+            k = 0.5 * (x[:, 1:] + x[:, :-1])
+            y = np.diff(y) * y.shape[1]
+
+            x = 2 * np.pi / k
+            z = 2 * np.pi * y / x**2
+            y = z * ((x[:, 0] - x[:, -1]) / (k[:, -1] - k[:, 0]))[:, None]
+
+            self.lamda_x = x[:, ::-1].mean(axis=0)
+            self.spect_y = y[:, ::-1].mean(axis=0)
+
+    def approximate_norm(self, Q, lamda):
+        L = 8 * np.pi**2 * lamda**2 / Q**2
+
+        i = np.searchsorted(self.lamda_x, lamda, side="right") - 1
+
+        return L * self.spect_y[i]
+
     def crop_for_normalization(self, event_name):
         """
         Convert units to momentum and crop to momentum band.

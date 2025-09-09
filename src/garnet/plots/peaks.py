@@ -82,7 +82,7 @@ class PeakProfilePlot(BasePlot):
 
         self.plot_peaks(*x, *y, *e, r_cut)
 
-        self.plot_peak_bins(*x, *y)
+        self.plot_peak_bins(*x, *y, *e)
 
         self.draw_boundary(Q, k, r)
 
@@ -107,18 +107,22 @@ class PeakProfilePlot(BasePlot):
         self.ax[1].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
         self.ax[2].set_xlim(-1.2 * r_cut, 1.2 * r_cut)
 
-    def plot_peak_bins(self, x0, x1, x2, y0, y1, y2):
+    def plot_peak_bins(self, x0, x1, x2, y0, y1, y2, e0, e1, e2):
         mask0 = y0 > 0
         mask1 = y1 > 0
         mask2 = y2 > 0
+
+        w0 = y0.copy()
+        w1 = y1.copy()
+        w2 = y2.copy()
 
         x0_bins = np.histogram_bin_edges(x0[mask0], bins="auto")
         x1_bins = np.histogram_bin_edges(x1[mask1], bins="auto")
         x2_bins = np.histogram_bin_edges(x2[mask2], bins="auto")
 
-        w0_bins, _ = np.histogram(x0[mask0], bins=x0_bins, weights=y0[mask0])
-        w1_bins, _ = np.histogram(x1[mask1], bins=x1_bins, weights=y1[mask1])
-        w2_bins, _ = np.histogram(x2[mask2], bins=x2_bins, weights=y2[mask2])
+        w0_bins, _ = np.histogram(x0[mask0], bins=x0_bins, weights=w0[mask0])
+        w1_bins, _ = np.histogram(x1[mask1], bins=x1_bins, weights=w1[mask1])
+        w2_bins, _ = np.histogram(x2[mask2], bins=x2_bins, weights=w2[mask2])
 
         w0_bins /= w0_bins.max()
         w1_bins /= w1_bins.max()
