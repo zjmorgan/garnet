@@ -16,6 +16,7 @@ from matplotlib.patches import Ellipse
 from matplotlib.transforms import Affine2D
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
+import scipy.ndimage
 import skimage.measure
 
 from garnet.plots.base import BasePlot
@@ -66,7 +67,7 @@ class PeakCentroidPlot(BasePlot):
 
 
 class PeakProfilePlot(BasePlot):
-    def __init__(self, x, y, e, Q, k, r, r_cut):
+    def __init__(self, x, y, e, vol, r, r_cut):
         super(PeakProfilePlot, self).__init__()
 
         plt.close("all")
@@ -84,7 +85,7 @@ class PeakProfilePlot(BasePlot):
 
         self.plot_peak_bins(*x, *y, *e)
 
-        self.draw_boundary(Q, k, r)
+        self.draw_boundary(vol, r)
 
     def plot_peaks(self, x0, x1, x2, y0, y1, y2, e0, e1, e2, r_cut):
         self.ax[0].errorbar(x0, y0, e0, fmt=".", color="C0")
@@ -132,45 +133,36 @@ class PeakProfilePlot(BasePlot):
         self.ax[1].stairs(w1_bins, x1_bins, color="k", zorder=100)
         self.ax[2].stairs(w2_bins, x2_bins, color="k", zorder=100)
 
-    def draw_boundary(self, Q, k, params):
+    def draw_boundary(self, res, params):
         (r0, r1, r2), (dr0, dr1, dr2) = params
 
-        if len(Q) > 1:
-            Q_min, Q_max = np.min(Q), np.max(Q)
-            k_min, k_max = np.min(k), np.max(k)
-        else:
-            Q_min, Q_max = 0, 0
-            k_min, k_max = 0, 0
+        res_min, res_max = 0, 0
+        if len(res) > 1:
+            res_min, res_max = np.min(res), np.max(res)
 
-        s0_max = 1 + k_max * dr0
-        s1_max = 1 + k_max * dr1
-        s2_max = 1 + Q_max * dr2
+        s0_max = r0 + res_max * dr0
+        s1_max = r1 + res_max * dr1
+        s2_max = r2 + res_max * dr2
 
-        s0_min = 1 + k_min * dr0
-        s1_min = 1 + k_min * dr1
-        s2_min = 1 + Q_min * dr2
+        s0_min = r0 + res_min * dr0
+        s1_min = r1 + res_min * dr1
+        s2_min = r2 + res_min * dr2
 
-        self.ax[0].axvline(r0 * s0_max, linestyle="--", color="k", linewidth=1)
-        self.ax[1].axvline(r1 * s1_max, linestyle="--", color="k", linewidth=1)
-        self.ax[2].axvline(r2 * s2_max, linestyle="--", color="k", linewidth=1)
+        self.ax[0].axvline(s0_max, linestyle="--", color="k", linewidth=1)
+        self.ax[1].axvline(s1_max, linestyle="--", color="k", linewidth=1)
+        self.ax[2].axvline(s2_max, linestyle="--", color="k", linewidth=1)
 
-        self.ax[0].axvline(
-            -r0 * s0_max, linestyle="--", color="k", linewidth=1
-        )
-        self.ax[1].axvline(
-            -r1 * s1_max, linestyle="--", color="k", linewidth=1
-        )
-        self.ax[2].axvline(
-            -r2 * s2_max, linestyle="--", color="k", linewidth=1
-        )
+        self.ax[0].axvline(-s0_max, linestyle="--", color="k", linewidth=1)
+        self.ax[1].axvline(-s1_max, linestyle="--", color="k", linewidth=1)
+        self.ax[2].axvline(-s2_max, linestyle="--", color="k", linewidth=1)
 
-        self.ax[0].axvline(r0 * s0_min, linestyle=":", color="k", linewidth=1)
-        self.ax[1].axvline(r1 * s1_min, linestyle=":", color="k", linewidth=1)
-        self.ax[2].axvline(r2 * s2_min, linestyle=":", color="k", linewidth=1)
+        self.ax[0].axvline(s0_min, linestyle=":", color="k", linewidth=1)
+        self.ax[1].axvline(s1_min, linestyle=":", color="k", linewidth=1)
+        self.ax[2].axvline(s2_min, linestyle=":", color="k", linewidth=1)
 
-        self.ax[0].axvline(-r0 * s0_min, linestyle=":", color="k", linewidth=1)
-        self.ax[1].axvline(-r1 * s1_min, linestyle=":", color="k", linewidth=1)
-        self.ax[2].axvline(-r2 * s2_min, linestyle=":", color="k", linewidth=1)
+        self.ax[0].axvline(-s0_min, linestyle=":", color="k", linewidth=1)
+        self.ax[1].axvline(-s1_min, linestyle=":", color="k", linewidth=1)
+        self.ax[2].axvline(-s2_min, linestyle=":", color="k", linewidth=1)
 
 
 class PeakPlot(BasePlot):
@@ -1253,6 +1245,9 @@ class PeakPlot(BasePlot):
     def _path(self, mask, x, y, dx, dy):
         if not mask.any():
             return np.array([]), np.array([])
+
+        mask = scipy.ndimage.binary_fill_holes(mask)
+        mask = scipy.ndimage.binary_closing(mask, structure=np.ones((3, 3)))
 
         roi = np.repeat(np.repeat(mask, 4, axis=0), 4, axis=1)
 

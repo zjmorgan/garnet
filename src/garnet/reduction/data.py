@@ -30,6 +30,7 @@ from mantid.simpleapi import (
     NormaliseSpectra,
     GroupDetectors,
     LoadEmptyInstrument,
+    SolidAngle,
     CopyInstrumentParameters,
     ConvertToMD,
     ConvertHFIRSCDtoMDE,
@@ -750,7 +751,13 @@ class BaseDataModel:
 
         """
 
-        dQ = 4 * np.pi / lamda * np.cos(np.deg2rad(two_theta) * 0.5) * self.dt
+        dl = 1e-3 * lamda
+
+        theta = 0.5 * np.deg2rad(two_theta)
+
+        Q = 4 * np.pi / lamda * np.sin(theta)
+
+        dQ = Q * np.sqrt((dl / lamda) ** 2 + (self.dt / np.tan(theta)) ** 2)
 
         return dQ
 
@@ -1418,6 +1425,22 @@ class LaueData(BaseDataModel):
                 InputWorkspace=ws, OutputWorkspace="detectors"
             )
 
+            if not mtd.doesExist("solid_angle"):
+                SolidAngle(InputWorkspace=ws, OutputWorkspace="solid_angle")
+
+                self.det_IDs = mtd["detectors"].column("DetectorID")
+
+                inds = mtd["solid_angle"].getIndicesFromDetectorIDs(
+                    self.det_IDs
+                )
+
+                self.solid_angle_y = mtd["solid_angle"].extractY().ravel()
+
+                self.solid_angle_ind = {
+                    det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
+                }
+                self.solid_angle_ind[-1] = 0
+
             two_theta = mtd["detectors"].column("TwoTheta")
 
             self.theta_max = 0.5 * np.max(two_theta)
@@ -1624,6 +1647,15 @@ class LaueData(BaseDataModel):
             self.k_min = mtd["flux"].getXDimension().getMinimum()
             self.k_max = mtd["flux"].getXDimension().getMaximum()
 
+            inds = mtd["sa"].getIndicesFromDetectorIDs(self.det_IDs)
+
+            self.sa_y = mtd["sa"].extractY().ravel()
+
+            self.sa_ind = {
+                det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
+            }
+            self.sa_ind[-1] = 0
+
             lamda_min = 2 * np.pi / self.k_max
             lamda_max = 2 * np.pi / self.k_min
 
@@ -1639,15 +1671,32 @@ class LaueData(BaseDataModel):
             z = 2 * np.pi * y / x**2
             y = z * ((x[:, 0] - x[:, -1]) / (k[:, -1] - k[:, 0]))[:, None]
 
-            self.lamda_x = x[:, ::-1].mean(axis=0)
-            self.spect_y = y[:, ::-1].mean(axis=0)
+            inds = mtd["flux"].getIndicesFromDetectorIDs(self.det_IDs)
 
-    def approximate_norm(self, Q, lamda):
-        L = 8 * np.pi**2 * lamda**2 / Q**2
+            self.spec_ind = {
+                det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
+            }
+            self.spec_ind[-1] = 0
+
+            self.lamda_x = x[:, ::-1].mean(axis=0)
+            self.spect_y = y[:, ::-1]
+
+    def get_volume_in_Q(self, lamda, two_theta, det_ID):
+        L_inv = 2 * np.sin(0.5 * np.deg2rad(two_theta)) ** 2 / lamda**4
+
+        solid_angle_ind = self.solid_angle_ind[det_ID]
+
+        return L_inv * solid_angle_ind
+
+    def approximate_norm(self, lamda, two_theta, det_ID):
+        vol = self.get_volume_in_Q(lamda, two_theta, det_ID)
 
         i = np.searchsorted(self.lamda_x, lamda, side="right") - 1
 
-        return L * self.spect_y[i]
+        spec_ind = self.spec_ind[det_ID]
+        sa_ind = self.sa_ind[det_ID]
+
+        return self.spect_y[spec_ind][i] * self.sa_y[sa_ind] / vol
 
     def crop_for_normalization(self, event_name):
         """

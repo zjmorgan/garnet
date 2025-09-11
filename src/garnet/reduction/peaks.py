@@ -1401,11 +1401,11 @@ class PeakModel:
         if (R @ n) @ n < 0:
             n *= -1
 
-        v = np.cross(ki_hat, kf_hat)
-        v /= np.linalg.norm(v)
-
-        u = np.cross(v, n)
+        u = np.cross(ki_hat, kf_hat)
         u /= np.linalg.norm(u)
+
+        v = np.cross(n, u)
+        v /= np.linalg.norm(v)
 
         return (R.T @ n).tolist(), (R.T @ u).tolist(), (R.T @ v).tolist()
 
