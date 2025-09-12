@@ -918,7 +918,7 @@ class Integration(SubPlan):
                     "md", extents, bins, projections
                 )
 
-                n = (d > 0) * data.approximate_norm(lamda, two_theta, det_ID)
+                n = d > 0
 
             if fit:
                 interp = self.interpolate(Q0, Q1, Q2, d, n)
