@@ -132,7 +132,19 @@ class Integration(SubPlan):
         self.write(result_file)
 
     def write(self, result_file):
-        subprocess.Popen(["python", REFLECTIONS, result_file])
+        try:
+            process = subprocess.Popen(
+                ["python", REFLECTIONS, result_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            out, err = process.communicate()
+            if process.returncode == 0:
+                print("First command succeeded:", out.decode().strip())
+            else:
+                raise subprocess.SubprocessError(err.decode().strip())
+        except (FileNotFoundError, subprocess.SubprocessError):
+            subprocess.Popen(["mantidpython", REFLECTIONS, result_file])
 
     def integrate(self):
         output_file = self.get_output_file()
