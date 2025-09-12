@@ -456,6 +456,8 @@ class Parametrization(SubPlan):
         data.save_histograms(norm_file, "norm", sample_logs=True)
         data.save_histograms(result_file, "result", sample_logs=True)
 
+        view_file = result_file
+
         if mtd.doesExist("bkg_data") and mtd.doesExist("bkg_norm"):
             data_file = self.get_file(diag_file, "bkg_data")
             norm_file = self.get_file(diag_file, "bkg_norm")
@@ -472,3 +474,7 @@ class Parametrization(SubPlan):
 
             sub_output_file = self.get_file(output_file, "sub_bkg")
             data.save_histograms(sub_output_file, "sub", sample_logs=True)
+
+            view_file = sub_output_file
+
+        self.view(view_file)
