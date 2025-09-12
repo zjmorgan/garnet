@@ -2964,7 +2964,7 @@ class PeakEllipsoid:
 
         amp, bkg = self.extract_amplitude_background()
 
-        strong = np.all(amp > 15 * bkg)
+        strong = np.all(amp > 5 * bkg)
 
         self.params["c0"].set(vary=strong)
         self.params["c1"].set(vary=strong)
