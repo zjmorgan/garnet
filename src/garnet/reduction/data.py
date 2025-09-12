@@ -87,6 +87,7 @@ class BaseDataModel:
         self.elastic = None
         self.grouping = None
         self.custom_path = False
+        self.det_IDs = None
 
         self.instrument_config = instrument_config
         self.instrument = self.instrument_config["FancyName"]
@@ -1647,39 +1648,40 @@ class LaueData(BaseDataModel):
             self.k_min = mtd["flux"].getXDimension().getMinimum()
             self.k_max = mtd["flux"].getXDimension().getMaximum()
 
-            inds = mtd["sa"].getIndicesFromDetectorIDs(self.det_IDs)
+            if self.det_IDs is not None:
+                inds = mtd["sa"].getIndicesFromDetectorIDs(self.det_IDs)
 
-            self.sa_y = mtd["sa"].extractY().ravel()
+                self.sa_y = mtd["sa"].extractY().ravel()
 
-            self.sa_ind = {
-                det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
-            }
-            self.sa_ind[-1] = 0
+                self.sa_ind = {
+                    det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
+                }
+                self.sa_ind[-1] = 0
 
-            lamda_min = 2 * np.pi / self.k_max
-            lamda_max = 2 * np.pi / self.k_min
+                lamda_min = 2 * np.pi / self.k_max
+                lamda_max = 2 * np.pi / self.k_min
 
-            self.wavelength_band = [lamda_min, lamda_max]
+                self.wavelength_band = [lamda_min, lamda_max]
 
-            y = mtd["flux"].extractY()
-            x = mtd["flux"].extractX()
+                y = mtd["flux"].extractY()
+                x = mtd["flux"].extractX()
 
-            k = 0.5 * (x[:, 1:] + x[:, :-1])
-            y = np.diff(y) * y.shape[1]
+                k = 0.5 * (x[:, 1:] + x[:, :-1])
+                y = np.diff(y) * y.shape[1]
 
-            x = 2 * np.pi / k
-            z = 2 * np.pi * y / x**2
-            y = z * ((x[:, 0] - x[:, -1]) / (k[:, -1] - k[:, 0]))[:, None]
+                x = 2 * np.pi / k
+                z = 2 * np.pi * y / x**2
+                y = z * ((x[:, 0] - x[:, -1]) / (k[:, -1] - k[:, 0]))[:, None]
 
-            inds = mtd["flux"].getIndicesFromDetectorIDs(self.det_IDs)
+                inds = mtd["flux"].getIndicesFromDetectorIDs(self.det_IDs)
 
-            self.spec_ind = {
-                det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
-            }
-            self.spec_ind[-1] = 0
+                self.spec_ind = {
+                    det_ID: ind for det_ID, ind in zip(self.det_IDs, inds)
+                }
+                self.spec_ind[-1] = 0
 
-            self.lamda_x = x[:, ::-1].mean(axis=0)
-            self.spect_y = y[:, ::-1]
+                self.lamda_x = x[:, ::-1].mean(axis=0)
+                self.spect_y = y[:, ::-1]
 
     def get_volume_in_Q(self, lamda, two_theta, det_ID):
         L_inv = 2 * np.sin(0.5 * np.deg2rad(two_theta)) ** 2 / lamda**4
