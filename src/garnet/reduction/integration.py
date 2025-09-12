@@ -478,11 +478,6 @@ class Integration(SubPlan):
         roi = PeakProfile(r_cut)
         params = roi.fit(peak_dict)
 
-        peak_dict = self.extract_peak_info(peaks_ws, params)
-
-        roi = PeakProfile(r_cut)
-        params = roi.fit(peak_dict)
-
         x, y, e, res = roi.extract_fit()
 
         plot = PeakProfilePlot(x, y, e, res, params, r_cut)
@@ -1325,9 +1320,9 @@ class PeakProfile:
             if (
                 A0 > B0
                 and B0 > 0
-                and A1 > 3 * B1
+                and A1 > B1
                 and B1 > 0
-                and A2 > 3 * B2
+                and A2 > B2
                 and B2 > 0
             ):
                 y0_hat = y0 - B0
@@ -1447,19 +1442,19 @@ class PeakProfile:
         xmax, xmin = x.max(), x.min()
         dx = xmax - xmin
 
-        self.params.add("y0_0", value=r_cut, min=eps, max=2 * r_cut - eps)
+        self.params.add("y0_0", value=r_cut / 2, min=eps, max=2 * r_cut - eps)
         self.params.add("y0_1", expr="y0_0")
 
         self.params.add("m0", expr="(y0_1 - y0_0) / {}".format(dx))
         self.params.add("b0", expr="y0_0 - m0 * {}".format(xmin))
 
-        self.params.add("y1_0", value=r_cut, min=eps, max=2 * r_cut - eps)
+        self.params.add("y1_0", value=r_cut / 2, min=eps, max=2 * r_cut - eps)
         self.params.add("y1_1", expr="y1_0")
 
         self.params.add("m1", expr="(y1_1 - y1_0) / {}".format(dx))
         self.params.add("b1", expr="y1_0 - m1 * {}".format(xmin))
 
-        self.params.add("y2_0", value=r_cut, min=eps, max=2 * r_cut - eps)
+        self.params.add("y2_0", value=r_cut / 2, min=eps, max=2 * r_cut - eps)
         self.params.add("y2_1", expr="y2_0")
 
         self.params.add("m2", expr="(y2_1 - y2_0) / {}".format(dx))
@@ -1469,7 +1464,7 @@ class PeakProfile:
             self.objective, self.params, fcn_args=self.args, nan_policy="omit"
         )
 
-        result = out.minimize(method="least_squares", loss="linear")
+        result = out.minimize(method="least_squares", loss="soft_l1")
 
         self.params = result.params
 
@@ -1493,6 +1488,10 @@ class PeakProfile:
         w1_bins, _ = np.histogram(x1[mask1], bins=x1_bins, weights=w1[mask1])
         w2_bins, _ = np.histogram(x2[mask2], bins=x2_bins, weights=w2[mask2])
 
+        w0_bins /= w0_bins[w0_bins.size // 2]
+        w1_bins /= w1_bins[w1_bins.size // 2]
+        w2_bins /= w2_bins[w2_bins.size // 2]
+
         m0 = self.params["m0"].value
         m1 = self.params["m1"].value
         m2 = self.params["m2"].value
@@ -1506,15 +1505,30 @@ class PeakProfile:
         x2_bins = 0.5 * (x2_bins[1:] + x2_bins[:-1])
 
         r0 = scipy.optimize.curve_fit(
-            self._baseline, x0_bins, w0_bins, p0=[b0, 1, 0]
+            self._baseline,
+            x0_bins,
+            w0_bins,
+            p0=[b0, 1, 0],
+            bounds=([eps, 0, 0], [2 * r_cut, 2, 1]),
+            loss="soft_l1",
         )[0][0]
 
         r1 = scipy.optimize.curve_fit(
-            self._baseline, x0_bins, w0_bins, p0=[b1, 1, 0]
+            self._baseline,
+            x1_bins,
+            w1_bins,
+            p0=[b1, 1, 0],
+            bounds=([eps, 0, 0], [2 * r_cut, 2, 1]),
+            loss="soft_l1",
         )[0][0]
 
         r2 = scipy.optimize.curve_fit(
-            self._baseline, x0_bins, w0_bins, p0=[b2, 1, 0]
+            self._baseline,
+            x2_bins,
+            w2_bins,
+            p0=[b2, 1, 0],
+            bounds=([eps, 0, 0], [2 * r_cut, 2, 1]),
+            loss="soft_l1",
         )[0][0]
 
         return (abs(r0), abs(r1), abs(r2)), (m0, m1, m2)
@@ -2738,6 +2752,17 @@ class PeakEllipsoid:
 
         return c, c_err, inv_S, y1, y2, y3
 
+    def extract_amplitude_background(self):
+        A0 = self.params["A1d_0"]
+        A1 = self.params["A1d_1"]
+        A2 = self.params["A1d_2"]
+
+        B0 = self.params["B1d_0"]
+        B1 = self.params["B1d_1"]
+        B2 = self.params["B1d_2"]
+
+        return np.array([A0, A1, A2]), np.array([B0, B1, B2])
+
     def estimate_envelope(self, x0, x1, x2, d, n, gd, gn, report_fit=False):
         y = gd / gn
         e = np.sqrt(gd) / gn
@@ -2871,9 +2896,9 @@ class PeakEllipsoid:
 
         # ---
 
-        self.extract_result(result, args_1d, args_2d, args_3d)
+        amp, bkg = self.extract_amplitude_background()
 
-        strong = self.intensity[-1] > 5 * self.sigma[-1]
+        strong = np.all(amp > 3 * bkg)
 
         self.params["c0"].set(vary=False)
         self.params["c1"].set(vary=False)
@@ -2937,9 +2962,9 @@ class PeakEllipsoid:
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
-        self.extract_result(result, args_1d, args_2d, args_3d)
+        amp, bkg = self.extract_amplitude_background()
 
-        strong = self.intensity[-1] > 15 * self.sigma[-1]
+        strong = np.all(amp > 15 * bkg)
 
         self.params["c0"].set(vary=strong)
         self.params["c1"].set(vary=strong)

@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from mantid.simpleapi import mtd
 from mantid import config
@@ -11,6 +12,14 @@ from garnet.reduction.data import DataModel
 from garnet.reduction.peaks import PeaksModel, PeakModel
 from garnet.reduction.plan import SubPlan
 from garnet.config.instruments import beamlines
+
+PARAMETRIZATION = os.path.abspath(__file__)
+directory = os.path.dirname(PARAMETRIZATION)
+
+filename = os.path.join(directory, "../utilities/sliceview.py")
+SLICEVIEW = os.path.abspath(filename)
+
+assert os.path.exists(SLICEVIEW)
 
 
 class Parametrization(SubPlan):
@@ -54,6 +63,21 @@ class Parametrization(SubPlan):
         instance.total = total
 
         return instance.parametrize()
+
+    def view(self, result_file):
+        try:
+            process = subprocess.Popen(
+                ["python", SLICEVIEW, result_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            out, err = process.communicate()
+            if process.returncode == 0:
+                print("First command succeeded:", out.decode().strip())
+            else:
+                raise subprocess.SubprocessError(err.decode().strip())
+        except (FileNotFoundError, subprocess.SubprocessError):
+            subprocess.Popen(["mantidpython", SLICEVIEW, result_file])
 
     def parametrize(self):
         data = DataModel(beamlines[self.plan["Instrument"]])
