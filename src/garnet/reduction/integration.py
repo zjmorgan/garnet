@@ -132,7 +132,7 @@ class Integration(SubPlan):
         self.write(result_file)
 
     def write(self, result_file):
-        subprocess.run(["python", REFLECTIONS, result_file], check=True)
+        subprocess.Popen(["python", REFLECTIONS, result_file])
 
     def integrate(self):
         output_file = self.get_output_file()

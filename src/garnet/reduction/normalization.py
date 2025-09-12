@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from mantid.simpleapi import mtd
 from mantid import config
@@ -13,6 +14,14 @@ from garnet.reduction.data import DataModel
 from garnet.reduction.plan import SubPlan
 from garnet.reduction.crystallography import space_point, point_laue
 from garnet.config.instruments import beamlines
+
+NORMALIZATION = os.path.abspath(__file__)
+directory = os.path.dirname(NORMALIZATION)
+
+filename = os.path.join(directory, "../utilities/sliceview.py")
+SLICEVIEW = os.path.abspath(filename)
+
+assert os.path.exists(SLICEVIEW)
 
 
 class Normalization(SubPlan):
@@ -55,6 +64,9 @@ class Normalization(SubPlan):
         instance.proc = proc
 
         return instance.normalize()
+
+    def view(self, result_file):
+        subprocess.Popen(["python", SLICEVIEW, result_file])
 
     def normalize(self):
         data = DataModel(beamlines[self.plan["Instrument"]])
@@ -386,6 +398,8 @@ class Normalization(SubPlan):
 
             pdf.close()
 
+        view_file = result_file
+
         if mtd.doesExist("bkg_data") and mtd.doesExist("bkg_norm"):
             data_file = self.get_file(diag_file, "bkg_data")
             norm_file = self.get_file(diag_file, "bkg_norm")
@@ -402,3 +416,7 @@ class Normalization(SubPlan):
 
             sub_output_file = self.get_file(output_file, "sub_bkg")
             data.save_histograms(sub_output_file, "sub", sample_logs=True)
+
+            view_file = sub_output_file
+
+        self.view(view_file)
