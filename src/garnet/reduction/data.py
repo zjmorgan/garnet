@@ -1425,10 +1425,10 @@ class LaueData(BaseDataModel):
                 InputWorkspace=ws, OutputWorkspace="detectors"
             )
 
+            self.det_IDs = mtd["detectors"].column("DetectorID")
+
             if not mtd.doesExist("solid_angle"):
                 SolidAngle(InputWorkspace=ws, OutputWorkspace="solid_angle")
-
-                self.det_IDs = mtd["detectors"].column("DetectorID")
 
                 inds = mtd["solid_angle"].getIndicesFromDetectorIDs(
                     self.det_IDs
