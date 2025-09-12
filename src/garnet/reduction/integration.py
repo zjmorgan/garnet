@@ -1690,7 +1690,7 @@ class PeakEllipsoid:
 
         return y_int, e_int
 
-    def normalize(self, x0, x1, x2, d, n, mode="3d", x=0.05):
+    def normalize(self, x0, x1, x2, d, n, mode="3d", x=0.01):
         dx0, dx1, dx2 = self.voxels(x0, x1, x2)
 
         if mode == "1d_0":
