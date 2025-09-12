@@ -1318,11 +1318,11 @@ class PeakProfile:
                 b2, m2, y2, e2, x2, dQ
             )
             if (
-                A0 > B0
+                A0 > 3 * B0
                 and B0 > 0
-                and A1 > B1
+                and A1 > 3 * B1
                 and B1 > 0
-                and A2 > B2
+                and A2 > 3 * B2
                 and B2 > 0
             ):
                 y0_hat = y0 - B0
@@ -1488,9 +1488,9 @@ class PeakProfile:
         w1_bins, _ = np.histogram(x1[mask1], bins=x1_bins, weights=w1[mask1])
         w2_bins, _ = np.histogram(x2[mask2], bins=x2_bins, weights=w2[mask2])
 
-        w0_bins /= w0_bins[w0_bins.size // 2]
-        w1_bins /= w1_bins[w1_bins.size // 2]
-        w2_bins /= w2_bins[w2_bins.size // 2]
+        w0_bins /= w0_bins.max()
+        w1_bins /= w1_bins.max()
+        w2_bins /= w2_bins.max()
 
         m0 = self.params["m0"].value
         m1 = self.params["m1"].value
@@ -1504,10 +1504,23 @@ class PeakProfile:
         x1_bins = 0.5 * (x1_bins[1:] + x1_bins[:-1])
         x2_bins = 0.5 * (x2_bins[1:] + x2_bins[:-1])
 
+        s0_bins = np.ones_like(w0_bins)
+        s1_bins = np.ones_like(w1_bins)
+        s2_bins = np.ones_like(w2_bins)
+
+        s0_bins[~np.isfinite(w0_bins)] = 1e16
+        s1_bins[~np.isfinite(w1_bins)] = 1e16
+        s2_bins[~np.isfinite(w2_bins)] = 1e16
+
+        w0_bins = np.nan_to_num(w0_bins, nan=0.0, posinf=0.0, neginf=0.0)
+        w1_bins = np.nan_to_num(w1_bins, nan=0.0, posinf=0.0, neginf=0.0)
+        w2_bins = np.nan_to_num(w2_bins, nan=0.0, posinf=0.0, neginf=0.0)
+
         r0 = scipy.optimize.curve_fit(
             self._baseline,
             x0_bins,
             w0_bins,
+            sigma=s0_bins,
             p0=[b0, 1, 0],
             bounds=([eps, 0, 0], [2 * r_cut, 2, 1]),
             loss="soft_l1",
@@ -1517,6 +1530,7 @@ class PeakProfile:
             self._baseline,
             x1_bins,
             w1_bins,
+            sigma=s1_bins,
             p0=[b1, 1, 0],
             bounds=([eps, 0, 0], [2 * r_cut, 2, 1]),
             loss="soft_l1",
@@ -1526,6 +1540,7 @@ class PeakProfile:
             self._baseline,
             x2_bins,
             w2_bins,
+            sigma=s2_bins,
             p0=[b2, 1, 0],
             bounds=([eps, 0, 0], [2 * r_cut, 2, 1]),
             loss="soft_l1",
