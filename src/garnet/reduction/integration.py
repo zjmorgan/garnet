@@ -2907,6 +2907,41 @@ class PeakEllipsoid:
 
         self.params = result.params
 
+        amp, bkg = self.extract_amplitude_background()
+
+        strong = np.all(amp > 3 * bkg)
+
+        self.params["c0"].set(vary=strong)
+        self.params["c1"].set(vary=strong)
+        self.params["c2"].set(vary=strong)
+
+        self.params["u0"].set(vary=False)
+        self.params["u1"].set(vary=False)
+        self.params["u2"].set(vary=False)
+
+        self.params["r0"].set(vary=False)
+        self.params["r1"].set(vary=False)
+        self.params["r2"].set(vary=False)
+
+        out = Minimizer(
+            self.residual,
+            self.params,
+            fcn_args=(args_1d, args_2d, args_3d),
+            nan_policy="omit",
+        )
+
+        result = out.minimize(
+            method="leastsq",
+            Dfun=self.jacobian,
+            max_nfev=50,
+            col_deriv=True,
+        )
+
+        if report_fit:
+            print(fit_report(result))
+
+        self.params = result.params
+
         # ---
 
         amp, bkg = self.extract_amplitude_background()
@@ -2935,7 +2970,7 @@ class PeakEllipsoid:
         result = out.minimize(
             method="leastsq",
             Dfun=self.jacobian,
-            max_nfev=100,
+            max_nfev=50,
             col_deriv=True,
         )
 
@@ -2943,6 +2978,8 @@ class PeakEllipsoid:
             print(fit_report(result))
 
         self.params = result.params
+
+        # ---
 
         y = d / n
         e = np.sqrt(d) / n
@@ -2983,13 +3020,15 @@ class PeakEllipsoid:
         self.params["c1"].set(vary=strong)
         self.params["c2"].set(vary=strong)
 
-        self.params["u0"].set(vary=strong)
-        self.params["u1"].set(vary=strong)
-        self.params["u2"].set(vary=strong)
+        self.params["u0"].set(vary=True)
+        self.params["u1"].set(vary=True)
+        self.params["u2"].set(vary=True)
 
-        self.params["r0"].set(vary=strong)
-        self.params["r1"].set(vary=strong)
-        self.params["r2"].set(vary=strong)
+        dx = np.max([dx0, dx1, dx2])
+
+        self.params["r0"].set(vary=True, max=self.params["r0"].value + dx)
+        self.params["r1"].set(vary=True, max=self.params["r1"].value + dx)
+        self.params["r2"].set(vary=True, max=self.params["r2"].value + dx)
 
         out = Minimizer(
             self.residual,
