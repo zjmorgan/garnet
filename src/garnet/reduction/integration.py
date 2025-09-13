@@ -869,8 +869,6 @@ class Integration(SubPlan):
 
             lamda = peak.get_wavelength(i)
 
-            det_ID = peak.get_detector_id(i)
-
             angles = peak.get_angles(i)
 
             two_theta, az_phi = angles
@@ -1051,28 +1049,28 @@ class Integration(SubPlan):
 
         bin_sizes[bin_sizes < dQ] = dQ
 
-        # Q0_box, Q1_box, Q2_box = [], [], []
+        Q0_box, Q1_box, Q2_box = [], [], []
 
-        # points = [
-        #     [h - 0.5, k, l],
-        #     [h + 0.5, k, l],
-        #     [h, k - 0.5, l],
-        #     [h, k + 0.5, l],
-        #     [h, k, l - 0.5],
-        #     [h, k, l + 0.5],
-        # ]
+        points = [
+            [h - 0.5, k, l],
+            [h + 0.5, k, l],
+            [h, k - 0.5, l],
+            [h, k + 0.5, l],
+            [h, k, l - 0.5],
+            [h, k, l + 0.5],
+        ]
 
-        # for point in points:
-        #     Qp_0, Qp_1, Qp_2 = 2 * np.pi * np.dot(W.T, np.dot(UB, point))
-        #     Q0_box.append(Qp_0 - Q0)
-        #     Q1_box.append(Qp_1 - Q1)
-        #     Q2_box.append(Qp_2 - Q2)
+        for point in points:
+            Qp_0, Qp_1, Qp_2 = 2 * np.pi * np.dot(W.T, np.dot(UB, point))
+            Q0_box.append(Qp_0 - Q0)
+            Q1_box.append(Qp_1 - Q1)
+            Q2_box.append(Qp_2 - Q2)
 
-        dQ0, dQ1, dQ2 = dQ_cut
+        dQ0_cut, dQ1_cut, dQ2_cut = dQ_cut
 
-        # dQ0 = np.min([np.max(np.abs(Q0_box)), dQ0_cut])
-        # dQ1 = np.min([np.max(np.abs(Q1_box)), dQ1_cut])
-        # dQ2 = np.min([np.max(np.abs(Q2_box)), dQ2_cut])
+        dQ0 = np.min([np.max(np.abs(Q0_box)), dQ0_cut])
+        dQ1 = np.min([np.max(np.abs(Q1_box)), dQ1_cut])
+        dQ2 = np.min([np.max(np.abs(Q2_box)), dQ2_cut])
 
         extents = np.array(
             [[Q0 - dQ0, Q0 + dQ0], [Q1 - dQ1, Q1 + dQ1], [Q2 - dQ2, Q2 + dQ2]]
@@ -1085,6 +1083,7 @@ class Integration(SubPlan):
             bins = ((max_adjusted - min_adjusted) / bin_sizes).astype(int)
 
             bins[bins > n_bins] = n_bins
+            bins[bins < 10] = 10
 
             extents = np.vstack((min_adjusted, max_adjusted)).T
 
@@ -1546,7 +1545,9 @@ class PeakProfile:
             loss="soft_l1",
         )[0][0]
 
-        return (abs(r0), abs(r1), abs(r2)), (m0, m1, m2)
+        b0, b1, b2 = abs(r0), abs(r1), abs(r2)
+
+        return (b0, b1, b2), (m0, m1, m2)
 
     def _baseline(self, x, r, A, B):
         scale = np.sqrt(scipy.stats.chi2.ppf(0.997, df=1))
