@@ -2609,6 +2609,7 @@ class PeakEllipsoid:
         cost_3d = self.residual_3d(params, *args_3d)
 
         cost = np.concatenate([cost_1d, cost_2d, cost_3d])
+        cost = np.nan_to_num(cost, nan=0.0, posinf=1e16, neginf=-1e16)
 
         return cost
 
@@ -2618,6 +2619,7 @@ class PeakEllipsoid:
         jac_3d = self.jacobian_3d(params, *args_3d)
 
         jac = np.column_stack([jac_1d, jac_2d, jac_3d])
+        jac = np.nan_to_num(jac, nan=0.0, posinf=1e16, neginf=-1e16)
 
         return jac
 
@@ -3223,6 +3225,8 @@ class PeakEllipsoid:
         N = float(np.nansum(n_pk > 0))
         M = float(np.nansum(n_bkg > 0))
 
+        ratio = N / M if M > 0 else 0
+
         if not np.isfinite(b):
             b = 0
         if not np.isfinite(b_err):
@@ -3249,7 +3253,7 @@ class PeakEllipsoid:
         bkg_err = np.sqrt(np.nansum(e_bkg**2))
 
         intens = np.nansum(y_pk - bkg_intens)
-        sig = np.sqrt(np.nansum(e_pk**2) + (N / M) ** 2 * bkg_err**2)
+        sig = np.sqrt(np.nansum(e_pk**2) + ratio**2 * bkg_err**2)
 
         if not sig > 0:
             sig = float("inf")
