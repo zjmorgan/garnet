@@ -207,7 +207,7 @@ class Integration(SubPlan):
                 const = ub.convert_conventional_to_primitive(*const, centering)
 
                 md_file = self.get_diagnostic_file("run#{}_data".format(run))
-                md_file = os.path.splitext(ub_file)[0] + ".nxs"
+                md_file = os.path.splitext(md_file)[0] + ".nxs"
 
                 data.save_histograms(md_file, "md")
 
