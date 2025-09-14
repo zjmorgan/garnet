@@ -306,5 +306,5 @@ def test_ellipsoid_methods():
         )
 
 
-test_ellipsoid_methods()
-# test_ellipsoid()
+# test_ellipsoid_methods()
+test_ellipsoid()

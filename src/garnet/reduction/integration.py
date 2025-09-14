@@ -2616,7 +2616,7 @@ class PeakEllipsoid:
         jac = np.column_stack([jac_1d, jac_2d, jac_3d])
         jac = np.nan_to_num(jac, nan=0.0, posinf=1e16, neginf=-1e16)
 
-        return jac
+        return jac.T
 
     def extract_result(self, result, args_1d, args_2d, args_3d):
         x0, x1, x2, y1d, e1d = args_1d
@@ -2896,10 +2896,9 @@ class PeakEllipsoid:
         )
 
         result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
+            method="least_squares",
+            jac=self.jacobian,
             max_nfev=50,
-            col_deriv=True,
         )
 
         if report_fit:
@@ -2931,10 +2930,9 @@ class PeakEllipsoid:
         )
 
         result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
-            max_nfev=50,
-            col_deriv=True,
+            method="least_squares",
+            jac=self.jacobian,
+            max_nfev=100,
         )
 
         if report_fit:
@@ -2968,10 +2966,9 @@ class PeakEllipsoid:
         )
 
         result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
+            method="least_squares",
+            jac=self.jacobian,
             max_nfev=50,
-            col_deriv=True,
         )
 
         if report_fit:
@@ -3038,10 +3035,9 @@ class PeakEllipsoid:
         )
 
         result = out.minimize(
-            method="leastsq",
-            Dfun=self.jacobian,
+            method="least_squares",
+            jac=self.jacobian,
             max_nfev=50,
-            col_deriv=True,
         )
 
         if report_fit:
