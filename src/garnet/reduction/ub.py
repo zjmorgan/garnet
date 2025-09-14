@@ -206,7 +206,7 @@ class UBModel:
             Tolerance=tol,
             FixParameters=True,
             NumInitial=50,
-            Iterations=1,
+            Iterations=5,
         )
 
     def convert_conventional_to_primitive(
