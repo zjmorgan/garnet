@@ -223,7 +223,7 @@ class UBModel:
 
         G = uc.getG()
 
-        P = centering_matrices[centering]
+        P = self.centering_matrix(centering)
 
         Gp = P.T @ G @ P
 
@@ -231,8 +231,11 @@ class UBModel:
 
         return uc.a(), uc.b(), uc.c(), uc.alpha(), uc.beta(), uc.gamma()
 
+    def centering_matrix(self, centering):
+        return centering_matrices[centering]
+
     def calculate_transform_extents(self, centering):
-        P = centering_matrices[centering]
+        P = self.centering_matrix(centering)
 
         return np.linalg.inv(P).T
 

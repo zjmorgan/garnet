@@ -1554,10 +1554,15 @@ class PeakModel:
         no : int
             Peak index number.
 
+        Returns
+        -------
+        hkl : list
+            Components of Miller indices.
+
         """
 
         peak = mtd[self.peaks].getPeak(no)
-        return peak.getHKL()
+        return list(peak.getHKL())
 
     def get_peak_shape(self, no, r_cut=np.inf):
         """

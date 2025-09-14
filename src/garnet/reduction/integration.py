@@ -245,6 +245,9 @@ class Integration(SubPlan):
                 lamda_max,
             )
 
+            ub = UBModel("peaks")
+            self.P = ub.centering_matrix(centering)
+
             self.peaks, self.data = peaks, data
 
             r_cut = self.params["Radius"]
@@ -845,6 +848,8 @@ class Integration(SubPlan):
 
         UB = peak.get_UB()
 
+        UBp = UB @ self.P.T
+
         peak_dict = {}
 
         self.total = n_peak
@@ -855,9 +860,9 @@ class Integration(SubPlan):
             d_spacing = peak.get_d_spacing(i)
             Q = 2 * np.pi / d_spacing
 
-            h, k, l = peak.get_hkl(i)
+            hkl = peak.get_hkl(i)
 
-            hkl = [h, k, l]
+            hklp = np.linalg.inv(self.P).T
 
             lamda = peak.get_wavelength(i)
 
@@ -875,7 +880,7 @@ class Integration(SubPlan):
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, dQ, fit
+            bin_params = UBp, hklp, lamda, R, two_theta, az_phi, r_cut, dQ, fit
 
             bin_extent = self.bin_extent(*bin_params)
 
