@@ -1,14 +1,10 @@
 import os
 import subprocess
-
 import numpy as np
 
 import scipy.spatial.transform
-import scipy.interpolate
-import scipy.integrate
 import scipy.special
 import scipy.ndimage
-import scipy.linalg
 import scipy.stats
 
 import skimage.measure
@@ -2932,7 +2928,7 @@ class PeakEllipsoid:
         result = out.minimize(
             method="least_squares",
             jac=self.jacobian,
-            max_nfev=100,
+            max_nfev=50,
         )
 
         if report_fit:
@@ -3009,13 +3005,37 @@ class PeakEllipsoid:
 
         args_3d = [x0, x1, x2, y3d, e3d]
 
+        c0 = self.params["c0"].value
+        c1 = self.params["c1"].value
+        c2 = self.params["c2"].value
+
+        r0 = self.params["r0"].value
+        r1 = self.params["r1"].value
+        r2 = self.params["r2"].value
+
+        u0 = self.params["u0"].value
+        u1 = self.params["u1"].value
+        u2 = self.params["u2"].value
+
+        S = self.S_matrix(r0, r1, r2, u0, u1, u2)
+
+        r0, r1, r2 = np.sqrt(np.diag(S))
+
         amp, bkg = self.extract_amplitude_background()
 
         strong = np.all(amp > 5 * bkg)
 
-        self.params["c0"].set(vary=strong)
-        self.params["c1"].set(vary=strong)
-        self.params["c2"].set(vary=strong)
+        c0_max = self.params["c0"].max if strong else c0 + r0
+        c1_max = self.params["c1"].max if strong else c1 + r0
+        c2_max = self.params["c2"].max if strong else c2 + r0
+
+        c0_min = self.params["c0"].min if strong else c0 - r0
+        c1_min = self.params["c1"].min if strong else c1 - r0
+        c2_min = self.params["c2"].min if strong else c2 - r0
+
+        self.params["c0"].set(vary=True, min=c0_min, max=c0_max)
+        self.params["c1"].set(vary=True, min=c1_min, max=c1_max)
+        self.params["c2"].set(vary=True, min=c2_min, max=c2_max)
 
         self.params["u0"].set(vary=True)
         self.params["u1"].set(vary=True)
@@ -3023,9 +3043,17 @@ class PeakEllipsoid:
 
         dx = np.max([dx0, dx1, dx2])
 
-        self.params["r0"].set(vary=True, max=self.params["r0"].value + dx)
-        self.params["r1"].set(vary=True, max=self.params["r1"].value + dx)
-        self.params["r2"].set(vary=True, max=self.params["r2"].value + dx)
+        r0 = self.params["r0"].value
+        r1 = self.params["r1"].value
+        r2 = self.params["r2"].value
+
+        r0_max = self.params["r0"].max if strong else r0 + dx
+        r1_max = self.params["r1"].max if strong else r1 + dx
+        r2_max = self.params["r2"].max if strong else r2 + dx
+
+        self.params["r0"].set(vary=True, max=r0_max)
+        self.params["r1"].set(vary=True, max=r1_max)
+        self.params["r2"].set(vary=True, max=r2_max)
 
         out = Minimizer(
             self.residual,
