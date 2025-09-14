@@ -862,7 +862,7 @@ class Integration(SubPlan):
 
             hkl = peak.get_hkl(i)
 
-            hklp = np.linalg.inv(self.P).T
+            hklp = np.linalg.inv(self.P).T @ np.array(hkl)
 
             lamda = peak.get_wavelength(i)
 
