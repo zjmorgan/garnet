@@ -213,9 +213,9 @@ class Integration(SubPlan):
 
                 peaks.find_peaks("md", "peaks", max_d)
 
-                peaks.integrate_peaks("md", "peaks", self.params["Radius"])
+                peaks.integrate_peaks("md", "peaks", self.params["Radius"] / 3)
 
-                peaks.remove_weak_peaks("peaks", 10)
+                peaks.remove_weak_peaks("peaks", 20)
 
                 ub = UBModel("peaks")
                 ub.determine_UB_with_lattice_parameters(*const)

@@ -187,7 +187,7 @@ class PeaksModel:
             UseOnePercentBackgroundCorrection=True,
             Ellipsoid=True if method == "ellipsoid" else False,
             FixQAxis=True,
-            FixMajorAxisLength=True,
+            FixMajorAxisLength=False,
             UseCentroid=centroid,
             MaxIterations=5,
             ReplaceIntensity=True,
