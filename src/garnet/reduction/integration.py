@@ -848,8 +848,6 @@ class Integration(SubPlan):
 
         UB = peak.get_UB()
 
-        UBp = UB @ self.P.T
-
         peak_dict = {}
 
         self.total = n_peak
@@ -861,8 +859,6 @@ class Integration(SubPlan):
             Q = 2 * np.pi / d_spacing
 
             hkl = peak.get_hkl(i)
-
-            hklp = np.linalg.inv(self.P).T @ np.array(hkl)
 
             lamda = peak.get_wavelength(i)
 
@@ -880,7 +876,7 @@ class Integration(SubPlan):
 
             R = peak.get_goniometer_matrix(i)
 
-            bin_params = UBp, hklp, lamda, R, two_theta, az_phi, r_cut, dQ, fit
+            bin_params = UB, hkl, lamda, R, two_theta, az_phi, r_cut, dQ, fit
 
             bin_extent = self.bin_extent(*bin_params)
 
