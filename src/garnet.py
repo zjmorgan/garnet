@@ -511,7 +511,7 @@ class FormView(QWidget):
 
         dim_log_label = QLabel("Log Name:")
 
-        self.param_log_line = QLineEdit("sample_temp")
+        self.param_log_line = QLineEdit("sample_temperature")
 
         bin_layout.addWidget(min_label, 0, 1, Qt.AlignCenter)
         bin_layout.addWidget(max_label, 0, 2, Qt.AlignCenter)
@@ -1878,9 +1878,6 @@ class FormPresenter:
 
     def save_config(self):
         filename = self.view.get_config()
-
-        instrument = self.view.get_instrument()
-        self.model.set_instrument(instrument)
 
         valid = self.model.validate_file(filename)
 

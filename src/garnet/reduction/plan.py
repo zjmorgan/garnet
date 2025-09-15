@@ -223,7 +223,6 @@ class ReductionPlan:
             assert os.path.exists(fname)
         except AssertionError:
             print("{} does not exist!".format(fname))
-            sys.exit(1)
         try:
             if type(ext) is list:
                 assert os.path.splitext(fname)[1].lower() in ext
@@ -231,7 +230,6 @@ class ReductionPlan:
                 assert os.path.splitext(fname)[1].lower() == ext
         except AssertionError:
             print("{} not valid!".format(fname))
-            sys.exit(1)
 
     def validate_plan(self):
         assert self.plan["Instrument"] in beamlines.keys()
