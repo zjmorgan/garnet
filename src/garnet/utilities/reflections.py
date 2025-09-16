@@ -2408,9 +2408,12 @@ def main():
         help="Peaks Workspace",
     )
 
-    parser.add_argument(
-        "-w", "--wobble", action="store_true", help="Off-centering correction"
-    )
+    # parser.add_argument(
+    #     "-w",
+    #     "--wobble",
+    #     action="store_true",
+    #     help="Off-centering correction"
+    # )
 
     parser.add_argument(
         "-f",
@@ -2480,8 +2483,8 @@ def main():
     peaks = Peaks("peaks", args.filename, args.scale, args.pointgroup)
     peaks.load_peaks()
 
-    if args.wobble:
-        WobbleCorrection("peaks", filename=args.filename)
+    # if args.wobble:
+    #     WobbleCorrection("peaks", filename=args.filename)
 
     if (np.array(args.parameters) > 0).all():
         AbsorptionCorrection(
@@ -2497,10 +2500,10 @@ def main():
 
     peaks.save_peaks()
 
-    prune = PrunePeaks("peaks", filename=args.filename)
+    # prune = PrunePeaks("peaks", filename=args.filename)
 
-    for workspace, parameters in zip(prune.workspaces, prune.parameters):
-        peaks.save_peaks(workspace, parameters)
+    # for workspace, parameters in zip(prune.workspaces, prune.parameters):
+    #     peaks.save_peaks(workspace, parameters)
 
 
 if __name__ == "__main__":

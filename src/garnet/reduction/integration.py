@@ -3251,11 +3251,25 @@ class PeakEllipsoid:
         d_pk = d[pk].copy()
         d_bkg = d[bkg].copy()
 
-        b = np.nanmean(d_bkg)
-        b_err = np.sqrt(np.nanmean(d_bkg))
+        pk_intens = np.nansum(d_pk)
+        pk_err = np.sqrt(pk_intens)
 
-        intens = np.nansum(d_pk - b)
-        sig = np.sqrt(np.nansum(d_pk + b_err**2))
+        bkg_intens = np.nansum(d_bkg)
+        bkg_err = np.sqrt(bkg_intens)
+
+        wgt_pk = 1 / d_pk
+        wgt_bkg = 1 / d_bkg
+
+        wgt_pk[~np.isfinite(wgt_pk)] = np.nan
+        wgt_bkg[~np.isfinite(wgt_bkg)] = np.nan
+
+        vol_pk = np.nansum(wgt_pk)
+        vol_bkg = np.nansum(wgt_bkg)
+
+        ratio = vol_pk / vol_bkg if vol_bkg > 0 else 0
+
+        intens = pk_intens - ratio * bkg_intens
+        sig = np.sqrt(pk_err + ratio**2 * bkg_err**2)
 
         if not sig > 0:
             sig = float("inf")
@@ -3282,11 +3296,6 @@ class PeakEllipsoid:
         b = bkg_cnts / bkg_norm
         b_err = np.sqrt(bkg_cnts) / bkg_norm
 
-        N = float(np.nansum(n_pk > 0))
-        M = float(np.nansum(n_bkg > 0))
-
-        ratio = N / M if M > 0 else 0
-
         if not np.isfinite(b):
             b = 0
         if not np.isfinite(b_err):
@@ -3301,22 +3310,38 @@ class PeakEllipsoid:
             pk_norm = float("nan")
 
         y_pk = d_pk / n_pk
-        e_pk = np.sqrt(d_pk) / n_pk
+        e_pk = np.sqrt(d_pk + (n_pk > 0)) / n_pk
 
         y_bkg = d_bkg / n_bkg
-        e_bkg = np.sqrt(d_bkg) / n_bkg
+        e_bkg = np.sqrt(d_bkg + (n_bkg > 0)) / n_bkg
 
         y_bkg[~np.isfinite(y_bkg)] = np.nan
         e_bkg[~np.isfinite(e_bkg)] = np.nan
 
-        bkg_intens = np.nanpercentile(y_bkg, 15)
+        pk_intens = np.nansum(y_pk)
+        pk_err = np.sqrt(np.nansum(e_pk**2))
+
+        bkg_intens = np.nansum(y_bkg)
         bkg_err = np.sqrt(np.nansum(e_bkg**2))
 
-        intens = np.nansum(y_pk - bkg_intens)
-        sig = np.sqrt(np.nansum(e_pk**2) + ratio**2 * bkg_err**2)
+        wgt_pk = 1 / e_pk**2
+        wgt_bkg = 1 / e_bkg**2
+
+        wgt_pk[~np.isfinite(wgt_pk)] = np.nan
+        wgt_bkg[~np.isfinite(wgt_bkg)] = np.nan
+
+        vol_pk = np.nansum(wgt_pk)
+        vol_bkg = np.nansum(wgt_bkg)
+
+        ratio = vol_pk / vol_bkg if vol_bkg > 0 else 0
+
+        intens = pk_intens - ratio * bkg_intens
+        sig = np.sqrt(pk_err + ratio**2 * bkg_err**2)
 
         if not sig > 0:
             sig = float("inf")
+
+        N = y_pk.size
 
         return intens, sig, b, b_err, N, pk_cnts, pk_norm, bkg_cnts, bkg_norm
 
@@ -3349,7 +3374,10 @@ class PeakEllipsoid:
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
-        sig = (sig_raw / intens_raw) * intens
+        signal_to_noise = sig_raw / intens_raw
+
+        sig = signal_to_noise * intens
+        intens = signal_to_noise**2 / (signal_to_noise**2 + 4) * intens
 
         self.info += [intens_raw, sig_raw]
 

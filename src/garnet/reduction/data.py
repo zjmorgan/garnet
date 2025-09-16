@@ -1570,6 +1570,7 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=md_name,
                 PreprocDetectorsWS="detectors",
                 SplitInto=2,
+                MaxRecursionDepth=10,
             )
 
             RecalculateTrajectoriesExtents(
@@ -1608,6 +1609,7 @@ class LaueData(BaseDataModel):
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
                 PreprocDetectorsWS="detectors",
+                MaxRecursionDepth=10,
                 SplitInto=2,
             )
 
