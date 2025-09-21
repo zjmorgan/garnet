@@ -1530,12 +1530,12 @@ class LaueData(BaseDataModel):
                 OutputWorkspace=ws,
             )
 
-            if type(mtd[ws]) is EventWorkspace:
-                CompressEvents(
-                    InputWorkspace=ws,
-                    OutputWorkspace=ws,
-                    Tolerance=1e-3,
-                )
+        if type(mtd[ws]) is EventWorkspace:
+            CompressEvents(
+                InputWorkspace=ws,
+                OutputWorkspace=ws,
+                Tolerance=1e-3,
+            )
 
     def convert_to_Q_sample(self, event_name, md_name, lorentz_corr=False):
         """
@@ -1609,8 +1609,8 @@ class LaueData(BaseDataModel):
                 MaxValues=Q_max_vals,
                 OutputWorkspace=md_name,
                 PreprocDetectorsWS="detectors",
-                MaxRecursionDepth=10,
                 SplitInto=2,
+                MaxRecursionDepth=10,
             )
 
     def load_generate_normalization(self, vanadium_file, flux_file):
@@ -1795,16 +1795,7 @@ class LaueData(BaseDataModel):
 
             Q_min_vals, Q_max_vals = self.get_min_max_values()
 
-            ConvertToMD(
-                InputWorkspace="bkg",
-                QDimensions="Q3D",
-                dEAnalysisMode="Elastic",
-                Q3DFrames="Q_lab",
-                LorentzCorrection=False,
-                MinValues=Q_min_vals,
-                MaxValues=Q_max_vals,
-                OutputWorkspace="bkg_md",
-            )
+            self.convert_to_Q_lab("bkg", "bkg_md")
 
             DeleteWorkspace(Workspace="bkg")
 

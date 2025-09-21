@@ -1155,6 +1155,7 @@ class FormView(QWidget):
         self.tube_line = QLineEdit("")
         self.mask_line = QLineEdit("")
         self.output_line = QLineEdit("")
+        self.gonio_line = QLineEdit("")
 
         self.wl_min_line = QLineEdit("0.3")
         self.wl_max_line = QLineEdit("3.5")
@@ -1177,6 +1178,7 @@ class FormView(QWidget):
         self.cal_browse_button = QPushButton("Detector", self)
         self.tube_browse_button = QPushButton("Tube", self)
         self.mask_browse_button = QPushButton("Mask", self)
+        self.gonio_browse_button = QPushButton("Goniometer", self)
 
         experiment_params_layout.addWidget(self.instrument_combo)
         experiment_params_layout.addWidget(ipts_label)
@@ -1209,12 +1211,8 @@ class FormView(QWidget):
         instrument_params_layout.addWidget(self.cal_browse_button, 6, 1)
         instrument_params_layout.addWidget(self.tube_line, 7, 0)
         instrument_params_layout.addWidget(self.tube_browse_button, 7, 1)
-
-        layout.addLayout(experiment_params_layout)
-        layout.addLayout(run_params_layout)
-        layout.addLayout(instrument_params_layout)
-
-        return layout
+        instrument_params_layout.addWidget(self.gonio_line, 8, 0)
+        instrument_params_layout.addWidget(self.gonio_browse_button, 8, 1)
 
     def run_command(self, command):
         self.output.appendPlainText("Running shell command...\n")
@@ -1266,6 +1264,9 @@ class FormView(QWidget):
 
     def connect_load_detector(self, load_detector_cal):
         self.cal_browse_button.clicked.connect(load_detector_cal)
+
+    def connect_load_goniometer(self, load_goniometer_cal):
+        self.gonio_browse_button.clicked.connect(load_goniometer_cal)
 
     def connect_load_tube(self, load_tube_cal):
         self.tube_browse_button.clicked.connect(load_tube_cal)
@@ -1339,6 +1340,8 @@ class FormView(QWidget):
         if "SNS" in filepath:
             self.cal_line.setEnabled(True)
             self.cal_browse_button.setEnabled(True)
+            self.gonio_line.setEnabled(True)
+            self.gonio_browse_button.setEnabled(True)
             self.tube_line.setEnabled(False)
             self.tube_browse_button.setEnabled(False)
             if "CORELLI" in filepath:
@@ -1350,6 +1353,8 @@ class FormView(QWidget):
         else:
             self.cal_line.setEnabled(False)
             self.cal_browse_button.setEnabled(False)
+            self.gonio_line.setEnabled(False)
+            self.gonio_browse_button.setEnabled(False)
             self.tube_line.setEnabled(False)
             self.tube_browse_button.setEnabled(False)
             self.flux_line.setEnabled(False)
@@ -1481,6 +1486,27 @@ class FormView(QWidget):
 
         return filename
 
+    def get_goniometer_calibration(self):
+        return self.gonio_line.text()
+
+    def set_goniometer_calibration(self, filename):
+        return self.gonio_line.setText(filename)
+
+    def load_goniometer_cal_dialog(self, path=""):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.AnyFile)
+
+        file_filters = "Calibration files (*.xml)"
+
+        filename, _ = file_dialog.getOpenFileName(
+            self, "Load goniometer file", path, file_filters, options=options
+        )
+
+        return filename
+
     def get_IPTS(self):
         if self.ipts_line.hasAcceptableInput():
             return int(self.ipts_line.text())
@@ -1592,6 +1618,7 @@ class FormPresenter:
         self.view.connect_load_UB(self.load_UB)
         self.view.connect_load_mask(self.load_mask)
         self.view.connect_load_detector(self.load_detector)
+        self.view.connect_load_goniometer(self.load_goniometer)
         self.view.connect_load_tube(self.load_tube)
         self.view.connect_load_background(self.load_background)
         self.view.connect_load_vanadium(self.load_vanadium)
@@ -1783,6 +1810,13 @@ class FormPresenter:
         if filename:
             self.view.set_detector_calibration(filename)
 
+    def load_goniometer(self):
+        path = self.model.get_goniometer_file_path()
+        filename = self.view.load_goniometer_cal_dialog(path)
+
+        if filename:
+            self.view.set_goniometer_calibration(filename)
+
     def load_tube(self):
         path = self.model.get_calibration_file_path()
         filename = self.view.load_tube_cal_dialog(path)
@@ -1856,6 +1890,10 @@ class FormPresenter:
             if detector is not None:
                 self.view.set_detector_calibration(detector)
 
+            gonio = self.model.get_goniometer_calibration()
+            if gonio is not None:
+                self.view.set_goniometer_calibration(gonio)
+
             tube = self.model.get_tube_calibration()
             if tube is not None:
                 self.view.set_tube_calibration(tube)
@@ -1926,6 +1964,10 @@ class FormPresenter:
             detector = self.view.get_detector_calibration()
             if detector is not None:
                 self.model.set_detector_calibration(detector)
+
+            gonio = self.view.get_goniometer_calibration()
+            if gonio is not None:
+                self.model.set_goniometer_calibration(gonio)
 
             tube = self.view.get_tube_calibration()
             if tube is not None:
@@ -2222,6 +2264,18 @@ class FormModel:
             if cal is not None:
                 self.reduction.plan["DetectorCalibration"] = cal
 
+    def get_goniometer_calibration(self):
+        if self.reduction.plan is not None:
+            cal = self.reduction.plan.get("GoniometerCalibration")
+            return cal
+
+    def set_goniometer_calibration(self, cal):
+        cal = None if cal == "" else cal
+        if self.reduction.plan is not None:
+            self.reduction.plan.pop("GoniometerCalibration", None)
+            if cal is not None:
+                self.reduction.plan["GoniometerCalibration"] = cal
+
     def get_tube_calibration(self):
         if self.reduction.plan is not None:
             cal = self.reduction.plan.get("TubeCalibration")
@@ -2384,6 +2438,15 @@ class FormModel:
         return filepath
 
     def get_calibration_file_path(self):
+        return os.path.join(
+            "/",
+            self.beamline["Facility"],
+            self.beamline["InstrumentName"],
+            "shared",
+            "calibration",
+        )
+
+    def get_goniometer_file_path(self):
         return os.path.join(
             "/",
             self.beamline["Facility"],

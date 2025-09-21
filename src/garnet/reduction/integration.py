@@ -3257,14 +3257,8 @@ class PeakEllipsoid:
         bkg_intens = np.nansum(d_bkg)
         bkg_err = np.sqrt(bkg_intens)
 
-        wgt_pk = 1 / d_pk
-        wgt_bkg = 1 / d_bkg
-
-        wgt_pk[~np.isfinite(wgt_pk)] = np.nan
-        wgt_bkg[~np.isfinite(wgt_bkg)] = np.nan
-
-        vol_pk = np.nansum(wgt_pk)
-        vol_bkg = np.nansum(wgt_bkg)
+        vol_pk = pk.sum()
+        vol_bkg = bkg.sum()
 
         ratio = vol_pk / vol_bkg if vol_bkg > 0 else 0
 
@@ -3283,7 +3277,10 @@ class PeakEllipsoid:
         d_bkg = d[bkg].copy()
         n_bkg = n[bkg].copy()
 
-        # w = kernel[pk] / np.nansum(kernel[pk])
+        core = pk & (n > 0)
+        shell = bkg & (n > 0)
+
+        frac = np.nansum(kernel[core]) / np.nansum(kernel[pk])
 
         bkg_cnts = np.nansum(d_bkg)
         bkg_norm = np.nansum(n_bkg)
@@ -3324,19 +3321,13 @@ class PeakEllipsoid:
         bkg_intens = np.nansum(y_bkg)
         bkg_err = np.sqrt(np.nansum(e_bkg**2))
 
-        wgt_pk = 1 / e_pk**2
-        wgt_bkg = 1 / e_bkg**2
-
-        wgt_pk[~np.isfinite(wgt_pk)] = np.nan
-        wgt_bkg[~np.isfinite(wgt_bkg)] = np.nan
-
-        vol_pk = np.nansum(wgt_pk)
-        vol_bkg = np.nansum(wgt_bkg)
+        vol_pk = core.sum()
+        vol_bkg = shell.sum()
 
         ratio = vol_pk / vol_bkg if vol_bkg > 0 else 0
 
-        intens = pk_intens - ratio * bkg_intens
-        sig = np.sqrt(pk_err + ratio**2 * bkg_err**2)
+        intens = (pk_intens - ratio * bkg_intens) / frac
+        sig = np.sqrt(pk_err + ratio**2 * bkg_err**2) / frac
 
         if not sig > 0:
             sig = float("inf")
@@ -3374,9 +3365,9 @@ class PeakEllipsoid:
 
         intens_raw, sig_raw = self.extract_raw_intensity(d, pk, bkg)
 
-        signal_to_noise = sig_raw / intens_raw
+        signal_to_noise = intens_raw / sig_raw
 
-        sig = signal_to_noise * intens
+        sig = 1 / signal_to_noise * intens
         intens = signal_to_noise**2 / (signal_to_noise**2 + 4) * intens
 
         self.info += [intens_raw, sig_raw]
