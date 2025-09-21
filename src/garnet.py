@@ -1214,6 +1214,12 @@ class FormView(QWidget):
         instrument_params_layout.addWidget(self.gonio_line, 8, 0)
         instrument_params_layout.addWidget(self.gonio_browse_button, 8, 1)
 
+        layout.addLayout(experiment_params_layout)
+        layout.addLayout(run_params_layout)
+        layout.addLayout(instrument_params_layout)
+
+        return layout
+
     def run_command(self, command):
         self.output.appendPlainText("Running shell command...\n")
         script, *args = command.split(" ")
