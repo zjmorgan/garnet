@@ -343,22 +343,23 @@ class ReductionPlan:
 
         """
 
-        if type(runs_str) is not str:
+        if not isinstance(runs_str, str):
             runs_str = str(runs_str)
 
         runs = []
-        ranges = runs_str.split(",")
+        parts = [p.strip() for p in runs_str.split(",") if p.strip()]
 
-        for part in ranges:
+        for part in parts:
             if ":" in part:
-                range_part, *skip_part = part.split(";")
-                start, end = map(int, range_part.split(":"))
-                skip = int(skip_part[0]) if skip_part else 1
+                range_part, sep, step_part = part.partition(";")
+                start_s, end_s = range_part.split(":")
+                start, end = int(start_s), int(end_s)
+                step = int(step_part) if sep and step_part else 1
 
-                if start > end or skip <= 0:
+                if step <= 0 or start > end:
                     return None
 
-                runs.extend(range(start, end + 1, skip))
+                runs.extend(range(start, end + 1, step))
             else:
                 runs.append(int(part))
 
@@ -377,44 +378,48 @@ class ReductionPlan:
         -------
         runs_str : str
             Condensed notation for run numbers, including step notation.
+
         """
 
         if not runs:
             return ""
 
-        runs.sort()
-        result = []
+        runs = sorted(int(x) for x in runs)
+        dedup = [runs[0]]
+        for x in runs[1:]:
+            if x != dedup[-1]:
+                dedup.append(x)
+        runs = dedup
 
-        range_start = runs[0]
-        step = None
+        n = len(runs)
+        if n == 1:
+            return str(runs[0])
 
-        for i in range(1, len(runs)):
-            current_step = runs[i] - runs[i - 1]
-            if step is None:
-                step = current_step
-            elif current_step != step:
+        parts = []
+        i = 0
+        while i < n:
+            start = runs[i]
+            if i == n - 1:
+                parts.append(str(start))
+                break
+
+            step = runs[i + 1] - runs[i]
+            j = i + 1
+            while j + 1 < n and (runs[j + 1] - runs[j]) == step:
+                j += 1
+
+            if j == i:
+                parts.append(str(start))
+                i += 1
+            else:
+                end = runs[j]
                 if step == 1:
-                    result.append(
-                        "{}:{}".format(range_start, runs[i - 1])
-                    ) if range_start != runs[i - 1] else result.append(
-                        str(range_start)
-                    )
+                    parts.append("{}:{}".format(start, end))
                 else:
-                    result.append(
-                        "{}:{};{}".format(range_start, runs[i - 1], step)
-                    )
+                    parts.append("{}:{};{}".format(start, end, step))
+                i = j + 1
 
-                range_start = runs[i]
-                step = None
-
-        if step == 1 or step is None:
-            result.append(
-                "{}:{}".format(range_start, runs[i - 1])
-            ) if range_start != runs[-1] else result.append(str(range_start))
-        else:
-            result.append("{}:{};{}".format(range_start, runs[-1], step))
-
-        return ",".join(result)
+        return ",".join(parts)
 
     def generate_plan(self, instrument):
         """

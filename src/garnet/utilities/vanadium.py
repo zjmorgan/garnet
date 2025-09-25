@@ -110,6 +110,8 @@ class Vanadium:
         self.lamda_max = 2 * np.pi / self.k_min
         self.lamda_step = (self.lamda_max - self.lamda_min) / self.n_bins
 
+        self.mult_scatt = False
+
     def load_instrument(self):
         LoadEmptyInstrument(
             Filename=self.instrument_definition,
@@ -493,13 +495,14 @@ class Vanadium:
             OutputWorkspace="correction",
         )
 
-        # MultipleScatteringCorrection(
-        #     InputWorkspace="vanadium",
-        #     NumberOfWavelengthPoints=20,
-        #     Method="SampleOnly",
-        #     ElementSize=self.r / 20,
-        #     OutputWorkspace="factor",
-        # )
+        if self.mult_scatt:
+            MultipleScatteringCorrection(
+                InputWorkspace="vanadium",
+                NumberOfWavelengthPoints=20,
+                Method="SampleOnly",
+                ElementSize=self.r / 20,
+                OutputWorkspace="factor",
+            )
 
         CreateSingleValuedWorkspace(OutputWorkspace="unity", DataValue=1)
 
@@ -509,11 +512,12 @@ class Vanadium:
             OutputWorkspace="scale",
         )
 
-        # Minus(
-        #     LHSWorkspace="scale",
-        #     RHSWorkspace="factor_ms_sampleOnly",
-        #     OutputWorkspace="scale"
-        # )
+        if mtd.doesExist("factor_ms_sampleOnly"):
+            Minus(
+                LHSWorkspace="scale",
+                RHSWorkspace="factor_ms_sampleOnly",
+                OutputWorkspace="scale",
+            )
 
         Multiply(
             LHSWorkspace="vanadium",
