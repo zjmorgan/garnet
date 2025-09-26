@@ -49,6 +49,30 @@ centering_reflection = {
     "C": "C-face centred",
 }
 
+diagonstic_keys = [
+    "run",
+    "h",
+    "k",
+    "l",
+    "m",
+    "n",
+    "p",
+    "vol",
+    "bkg",
+    "bkg_err",
+    "intens",
+    "sig",
+    "voxels",
+    "pk_data",
+    "pk_norm",
+    "bkg_data",
+    "bkg_norm",
+    "Qx",
+    "Qy",
+    "Qz",
+    "cntrt",
+]
+
 
 class PeaksModel:
     def __init__(self):
@@ -1029,30 +1053,7 @@ class PeaksModel:
             merge_run = mtd[merge].run()
             peaks_run = mtd[peaks].run()
 
-            keys = [
-                "run",
-                "h",
-                "k",
-                "l",
-                "m",
-                "n",
-                "p",
-                "vol",
-                "bkg",
-                "bkg_err",
-                "intens",
-                "sig",
-                "voxels",
-                "pk_data",
-                "pk_norm",
-                "bkg_data",
-                "bkg_norm",
-                "Qx",
-                "Qy",
-                "Qz",
-            ]
-
-            for key in keys:
+            for key in diagonstic_keys:
                 log = "peaks_{}".format(key)
                 if peaks_run.hasProperty(log) and merge_run.hasProperty(log):
                     peaks_log = peaks_run.getLogData(log).value
@@ -1447,7 +1448,7 @@ class PeakModel:
 
     def add_diagonstic_info(self, no, values):
         """
-        Log diagnostic info
+        Log diagnostic info.
 
         Parameters
         ----------
@@ -1467,41 +1468,19 @@ class PeakModel:
         run_info = mtd[self.peaks].run()
         run_info_keys = run_info.keys()
 
-        keys = [
-            "run",
-            "h",
-            "k",
-            "l",
-            "m",
-            "n",
-            "p",
-            "vol",
-            "bkg",
-            "bkg_err",
-            "intens",
-            "sig",
-            "voxels",
-            "pk_data",
-            "pk_norm",
-            "bkg_data",
-            "bkg_norm",
-            "Qx",
-            "Qy",
-            "Qz",
-        ]
-
         vals = [run, h, k, l, m, n, p] + values
 
-        assert len(vals) == len(keys)
+        assert len(vals) == len(diagonstic_keys)
 
-        for key, val in zip(keys, vals):
+        for key, val in zip(diagonstic_keys, vals):
             log = "peaks_{}".format(key)
             if log not in run_info_keys:
-                run_info[log] = [val]
+                items = [val]
             else:
                 items = np.array(run_info.getLogData(log).value).tolist()
                 items.append(val)
-                run_info[log] = np.array(items).tolist()
+                items = np.array(items).tolist()
+            run_info[log] = items
 
     def get_peak_name(self, no):
         """

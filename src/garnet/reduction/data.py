@@ -12,11 +12,7 @@ from mantid.simpleapi import (
     Rebin,
     ApplyCalibration,
     Multiply,
-    Divide,
-    Plus,
-    Minus,
     PreprocessDetectorsToMD,
-    CreateDetectorTable,
     ExtractMonitors,
     LoadMask,
     MaskDetectors,
@@ -27,7 +23,6 @@ from mantid.simpleapi import (
     HB3AAdjustSampleNorm,
     CorelliCrossCorrelate,
     NormaliseByCurrent,
-    NormaliseSpectra,
     GroupDetectors,
     LoadEmptyInstrument,
     SolidAngle,
@@ -58,7 +53,6 @@ from mantid.simpleapi import (
     CompressEvents,
     GenerateEventsFilter,
     FilterEvents,
-    FilterBadPulses,
     CopySample,
     DeleteWorkspace,
     DeleteWorkspaces,
@@ -130,6 +124,9 @@ class BaseDataModel:
         CreateSingleValuedWorkspace(
             OutputWorkspace="unity", DataValue=1, ErrorValue=1
         )
+
+    def get_counting_rate(self):
+        return 1
 
     def update_wavelength(self, wl):
         self.wavelength_band = (
@@ -1305,6 +1302,27 @@ class LaueData(BaseDataModel):
             self.preprocess_detectors(event_name)
             self.create_grouping(grouping)
             self.delete_workspace("detectors")
+
+    def get_counting_rate(self, event_name):
+        """
+        Counting rate.
+
+        Parameters
+        ----------
+        event_name : str
+            Name of raw event_name data.
+
+        Returns
+        -------
+        cntrt : float
+            Counting rate in events per proton charge.
+
+        """
+
+        total_events = mtd[event_name].getNumberEvents()
+        total_charge = mtd[event_name].run().getProperty("gd_prtn_chrg").value
+
+        return total_events / total_charge
 
     def calculate_maximum_Q(self):
         """

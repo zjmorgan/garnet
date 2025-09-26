@@ -2483,8 +2483,8 @@ def main():
     peaks = Peaks("peaks", args.filename, args.scale, args.pointgroup)
     peaks.load_peaks()
 
-    # if args.wobble:
-    #     WobbleCorrection("peaks", filename=args.filename)
+    if args.wobble:
+        WobbleCorrection("peaks", filename=args.filename)
 
     if (np.array(args.parameters) > 0).all():
         AbsorptionCorrection(

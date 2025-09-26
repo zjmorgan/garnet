@@ -195,6 +195,8 @@ class Integration(SubPlan):
 
             cell = self.params["Cell"]
 
+            self.cntrt = data.get_counting_rate("data")
+
             data.convert_to_Q_sample("data", "md", lorentz_corr=True)
 
             if self.params.get("Recalibrate"):
@@ -785,7 +787,7 @@ class Integration(SubPlan):
                 print("Exception saving figure: {}".format(e))
                 return key, None
 
-            value = intens, sig, shape, [*info, *shape[:3]], hkl
+            value = intens, sig, shape, [*info, *shape[:3], self.cntrt], hkl
 
         return key, value
 

@@ -32,8 +32,6 @@ class Macromolecular:
         mtz = gemmi.Mtz(with_base=True)
         mtz.set_logging(sys.stdout)
 
-        dataset = mtz.add_dataset("dataset")
-
         mtz.spacegroup = gemmi.find_spacegroup_by_name(space_group)
 
         unit_cell = gemmi.UnitCell(
