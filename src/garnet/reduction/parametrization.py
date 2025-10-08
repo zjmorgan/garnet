@@ -32,16 +32,47 @@ class Parametrization(SubPlan):
         self.validate_params()
 
     def validate_params(self):
-        assert len(self.params["Projections"]) == 3
-        assert np.abs(np.linalg.det(self.params["Projections"])) > 0
+        self.check(
+            len(self.params["Projections"]),
+            "==",
+            3,
+            "Projections must have length 3",
+        )
+        det = np.isclose(
+            np.linalg.det(np.array(self.params["Projections"], dtype=float)), 0
+        )
+        self.check(
+            det, "is not", False, "Projections matrix must be invertible"
+        )
 
-        assert len(self.params["Bins"]) == 3
-        assert all([type(val) is int for val in self.params["Bins"]])
-        assert (np.array(self.params["Bins"]) > 0).all()
-        assert np.prod(self.params["Bins"]) < 101**3  # memory usage limit
+        self.check(
+            len(self.params["Bins"]), "==", 3, "Bins must have length 3"
+        )
+        for i, val in enumerate(self.params["Bins"]):
+            self.check(
+                isinstance(val, (int, np.integer)),
+                "is",
+                True,
+                f"Bins[{i}] must be an integer",
+            )
+            self.check(val, ">", 0, f"Bins[{i}] must be > 0")
+        self.check(
+            int(np.prod(self.params["Bins"])),
+            "<",
+            101**3,
+            "Too many bins: memory usage limit exceeded",
+        )
 
-        assert len(self.params["Extents"]) == 3
-        assert (np.diff(self.params["Extents"], axis=1) >= 0).all()
+        self.check(
+            len(self.params["Extents"]), "==", 3, "Extents must have 3 ranges"
+        )
+        ext = np.array(self.params["Extents"], dtype=float)
+        self.check(
+            bool((np.diff(ext, axis=1) >= 0).all()),
+            "is",
+            True,
+            "Each extent must satisfy min <= max",
+        )
 
         if self.params.get("LogName") is None:
             self.params["LogName"] = "SequenceTime"
@@ -49,7 +80,12 @@ class Parametrization(SubPlan):
             self.params["LogBins"] = 0
 
         if self.params.get("MillerIndex") is not None:
-            assert len(self.params["MillerIndex"]) == 3
+            self.check(
+                len(self.params["MillerIndex"]),
+                "==",
+                3,
+                "MillerIndex must have length 3",
+            )
             self.params["Projections"] = np.eye(3).tolist()
 
     @staticmethod

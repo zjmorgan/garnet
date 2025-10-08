@@ -55,35 +55,44 @@ class Integration(SubPlan):
         symmetry = self.params.get("Symmetry")
         if symmetry is not None:
             symmetry = symmetry.replace(" ", "")
-            assert symmetry in space_point.keys()
+            self.check(symmetry, "in", space_point.keys(), "Invalid symmetry")
             self.params["Symmetry"] = symmetry
 
-        assert self.params["Cell"] in lattice_group.keys()
-        assert self.params["Centering"] in centering_reflection.keys()
-        assert self.params["MinD"] > 0
-        assert self.params["Radius"] > 0
+        self.check(
+            self.params["Cell"], "in", lattice_group.keys(), "Invalid Cell"
+        )
+        self.check(
+            self.params["Centering"],
+            "in",
+            centering_reflection.keys(),
+            "Invalid Centering",
+        )
+        self.check(self.params["MinD"], ">", 0, "Invalid minimum d-spacing")
+        self.check(self.params["Radius"], ">", 0, "Invalid radius")
 
-        if self.params.get("ModVec1") is None:
-            self.params["ModVec1"] = [0, 0, 0]
-        if self.params.get("ModVec2") is None:
-            self.params["ModVec2"] = [0, 0, 0]
-        if self.params.get("ModVec3") is None:
-            self.params["ModVec3"] = [0, 0, 0]
+        for key in ("ModVec1", "ModVec2", "ModVec3"):
+            if self.params.get(key) is None:
+                self.params[key] = [0, 0, 0]
+            self.check(
+                len(self.params[key]), "==", 3, f"{key} must have 3 components"
+            )
 
         if self.params.get("MaxOrder") is None:
             self.params["MaxOrder"] = 0
         if self.params.get("CrossTerms") is None:
             self.params["CrossTerms"] = False
-
-        assert len(self.params["ModVec1"]) == 3
-        assert len(self.params["ModVec2"]) == 3
-        assert len(self.params["ModVec3"]) == 3
-
-        assert self.params["MaxOrder"] >= 0
-        assert type(self.params["CrossTerms"]) is bool
-
         if self.params.get("ProfileFit") is None:
             self.params["ProfileFit"] = True
+
+        self.check(
+            self.params["MaxOrder"], ">=", 0, "MaxOrder must be non-negative"
+        )
+        self.check(
+            type(self.params["CrossTerms"]),
+            "is",
+            bool,
+            "CrossTerms must be a boolean",
+        )
 
     @staticmethod
     def integrate_parallel(plan, runs, proc):

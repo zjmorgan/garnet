@@ -38,22 +38,57 @@ class Normalization(SubPlan):
 
         if self.params.get("Symmetry") is not None:
             symmetry = self.params["Symmetry"].replace(" ", "")
-            assert symmetry in symbols
-            if space_point.get(symmetry) is not None:
+            self.check(
+                symmetry, "in", symbols, f"Unknown Symmetry: {symmetry}"
+            )
+            if symmetry in space_point:
                 symmetry = space_point[symmetry]
+            self.check(
+                symmetry,
+                "in",
+                point_laue.keys(),
+                f"Unknown point group: {symmetry}",
+            )
             symmetry = point_laue[symmetry]
             self.params["Symmetry"] = symmetry
 
-        assert len(self.params["Projections"]) == 3
-        assert np.abs(np.linalg.det(self.params["Projections"])) > 0
+        self.check(
+            len(self.params["Projections"]),
+            "==",
+            3,
+            "Projections must have length 3",
+        )
+        det = np.isclose(np.linalg.det(self.params["Projections"]), 0)
+        self.check(
+            det, "is not", False, "Projections matrix must be invertible"
+        )
 
-        assert len(self.params["Bins"]) == 3
-        assert all([type(val) is int for val in self.params["Bins"]])
-        assert (np.array(self.params["Bins"]) > 0).all()
-        assert np.prod(self.params["Bins"]) < 1001**3  # memory usage limit
+        self.check(
+            len(self.params["Bins"]), "==", 3, "Bins must have length 3"
+        )
+        for i, val in enumerate(self.params["Bins"]):
+            self.check(
+                val,
+                lambda v: isinstance(v, (int, np.integer)),
+                f"Bins[{i}] must be an integer",
+            )
+            self.check(val, ">", 0, f"Bins[{i}] must be > 0")
+        self.check(
+            int(np.prod(self.params["Bins"])),
+            "<",
+            1001**3,
+            "Too many bins: memory usage limit exceeded",
+        )
 
-        assert len(self.params["Extents"]) == 3
-        assert (np.diff(self.params["Extents"], axis=1) >= 0).all()
+        self.check(
+            len(self.params["Extents"]), "==", 3, "Extents must have 3 ranges"
+        )
+        ext_ok = (
+            np.diff(np.array(self.params["Extents"], dtype=float), axis=1) >= 0
+        ).all()
+        self.check(
+            bool(ext_ok), "is", True, "Each extent must satisfy min <= max"
+        )
 
     @staticmethod
     def normalize_parallel(plan, runs, proc):

@@ -3,6 +3,7 @@ import sys
 import yaml
 import json
 import shutil
+import operator
 import concurrent.futures
 
 from garnet.config.instruments import beamlines
@@ -69,6 +70,70 @@ def delete_directory(path):
                 os.remove, [os.path.join(root, name) for name in files]
             )
         shutil.rmtree(path, ignore_errors=True)
+
+
+def check(value, op, other=None, message=None):
+    """
+    General-purpose assertion with flexible condition types.
+
+    Parameters
+    ----------
+    value : any
+        Parameter.
+    op : str
+        Conditional operator.
+    other : TYPE, optional
+        Reference value. The default is None.
+    message : str, optional
+        Invalid message. The default is None.
+
+    Raises
+    ------
+    ValueError
+        Invalud operator.
+    TypeError
+        Invalud conditional.
+    AssertionError
+        Invalid value.
+
+    Examples
+    --------
+    check(3, '>', 0)
+    check(5, 'in', [1, 3, 5])
+    check(None, 'is', None)
+    check(3, lambda v: v % 2 == 1)
+
+    """
+
+    ops = {
+        "==": operator.eq,
+        "!=": operator.ne,
+        ">": operator.gt,
+        "<": operator.lt,
+        ">=": operator.ge,
+        "<=": operator.le,
+        "in": lambda a, b: a in b,
+        "not in": lambda a, b: a not in b,
+        "is": operator.is_,
+        "is not": operator.is_not,
+    }
+
+    if callable(op):
+        ok = op(value)
+        op_str = op.__name__ if hasattr(op, "__name__") else "custom condition"
+    elif isinstance(op, str):
+        if op not in ops:
+            raise ValueError(f"Unsupported operator: {op!r}")
+        ok = ops[op](value, other)
+        op_str = op
+    else:
+        raise TypeError("Operator must be a string or callable.")
+
+    if not ok:
+        if message is None:
+            rhs = "" if other is None else f" {op_str} {other!r}"
+            message = f"Check failed: {value!r}{rhs}"
+        raise AssertionError(message)
 
 
 class SubPlan:
@@ -213,10 +278,16 @@ class SubPlan:
 
         return file
 
+    def check(self, *args, **kwargs):
+        return check(*args, **kwargs)
+
 
 class ReductionPlan:
     def __init__(self):
         self.plan = None
+
+    def check(self, *args, **kwargs):
+        return check(*args, **kwargs)
 
     def validate_file(self, fname, ext):
         try:
@@ -232,21 +303,24 @@ class ReductionPlan:
             print("{} not valid!".format(fname))
 
     def validate_plan(self):
-        assert self.plan["Instrument"] in beamlines.keys()
+        self.check(
+            self.plan["Instrument"],
+            "in",
+            beamlines.keys(),
+            "Invalid instrument",
+        )
 
         if self.plan.get("UBFile") is not None:
             UB = self.plan["UBFile"]
             for run in self.runs_string_to_list(self.plan["Runs"]):
                 self.validate_file(UB.replace("*", str(run)), ".mat")
 
-        nxs_items = [
+        for item in (
             "VanadiumFile",
             "FluxFile",
             "TubeCalibration",
             "BackgroundFile",
-        ]
-
-        for item in nxs_items:
+        ):
             if self.plan.get(item) is not None:
                 fname = self.plan[item]
                 self.validate_file(fname, [".nxs", ".h5"])
@@ -254,14 +328,20 @@ class ReductionPlan:
         if self.plan.get("MaskFile") is not None:
             mask = self.plan["MaskFile"]
             self.validate_file(mask, ".xml")
-            assert os.path.splitext(mask)[1] == ".xml"
+            ext = os.path.splitext(mask)[1]
+            self.check(ext, "==", ".xml", "MaskFile must have .xml extension")
 
         if self.plan.get("DetectorCalibration") is not None:
             detcal = self.plan["DetectorCalibration"]
             self.validate_file(detcal, [".xml", ".detcal"])
 
         if self.plan.get("Elastic") is not None:
-            assert self.plan["Instrument"] == "CORELLI"
+            self.check(
+                self.plan["Instrument"],
+                "==",
+                "CORELLI",
+                "Elastic mode is only supported on CORELLI",
+            )
 
     def set_output(self, filename):
         """
