@@ -39,9 +39,9 @@ for sg in gemmi.spacegroup_table():
         name = name + ":r"
     elif sg.ext == "2":
         name = name + ":2"
-
     key = name in keys
 
+    # Acta Cryst. (1992). A48, 727-732
     if not key:
         if sg.number in [39, 41, 64, 67, 68]:
             if name.startswith("A"):
@@ -50,13 +50,10 @@ for sg in gemmi.spacegroup_table():
                 name = name[:2] + "e" + name[2 + 1 :]
             elif name.startswith("C"):
                 name = name[:3] + "e" + name[3 + 1 :]
-
     key = name in keys
-
     if not key:
         if sg.number in range(3, 15 + 1):
             name = name[:1] + "1" + name[1:] + "1"
-
     key = name in keys
 
     if key:
@@ -67,3 +64,6 @@ for sg in gemmi.spacegroup_table():
 for key in keys:
     if mantid_to_gemmi.get(key) is None:
         mantid_misses.append(key)
+
+for key in mantid_misses:
+    print(key)

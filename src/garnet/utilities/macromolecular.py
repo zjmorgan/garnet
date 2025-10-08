@@ -3,15 +3,7 @@ import numpy as np
 
 import gemmi
 
-from mantid.simpleapi import LoadNexus, mtd
-
-filename = "/SNS/MANDI/IPTS-34720/shared/2025B/garnet_2025_integration/garnet_2025_Cubic_I_d(min)=1.00_r(max)=0.10.nxs"
-
-if not mtd.doesExist("peaks"):
-    LoadNexus(
-        Filename=filename,
-        OutputWorkspace="peaks",
-    )
+from mantid.simpleapi import mtd
 
 
 class Macromolecular:
@@ -59,7 +51,3 @@ class Macromolecular:
 
         mtz.set_data(data)
         mtz.write_to_file(filename)
-
-
-mm = Macromolecular("peaks")
-mm.write_mtz(filename.replace(".nxs", ".mtz"), "I a -3 d")

@@ -143,8 +143,91 @@ class WobbleCorrection:
 
         self.filename = filename
 
+        x0 = self.initial_guess()
+
         self.extract_info()
-        self.refine_centering()
+        self.refine_centering(x0)
+
+    def initial_guess(self):
+        run_info = mtd[self.peaks].run()
+
+        h = run_info.getLogData("peaks_h").value
+        k = run_info.getLogData("peaks_k").value
+        l = run_info.getLogData("peaks_l").value
+        m = run_info.getLogData("peaks_m").value
+        n = run_info.getLogData("peaks_n").value
+        p = run_info.getLogData("peaks_p").value
+        run = run_info.getLogData("peaks_run").value
+
+        cntrt = run_info.getLogData("peaks_cntrt").value
+
+        stats_dict = {}
+        for i in range(len(run)):
+            key = (run[i], h[i], k[i], l[i], m[i], n[i], p[i])
+            stats_dict[key] = cntrt[i]
+        self.stats_dict = stats_dict
+
+        x, y = [], []
+
+        for peak in mtd[self.peaks]:
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
+
+            run = int(peak.getRunNumber())
+            key = (run, h, k, l, m, n, p)
+            cntrt = self.stats_dict[key]
+
+            R = peak.getGoniometerMatrix()
+
+            x.append(R)
+            y.append(cntrt)
+
+        x, y = np.array(x), np.array(y)
+
+        x0 = [np.mean(y), 1.0, 1.0, 1.0]
+        bounds = [
+            (0, -np.inf, -np.inf, -np.inf),
+            (np.inf, np.inf, np.inf, np.inf),
+        ]
+
+        sol = scipy.optimize.basinhopping(
+            self.cost_count_rate,
+            x0=x0,
+            # bounds=bounds,
+            minimizer_kwargs={"method": "L-BFGS-B", "args": (x, y)},
+            # verbose=2,
+        )
+
+        omega = np.rad2deg(np.arctan2(x[:, 0, 2], x[:, 0, 0]))
+        omega[omega < 0] += 360
+
+        fig, ax = plt.subplots(1, 1)
+        ax.plot(omega, y, ",", color="C0")
+
+        omega = np.linspace(0, 360, 361)
+
+        R = [
+            Rotation.from_euler("y", val, degrees=True).as_matrix()
+            for val in omega
+        ]
+
+        y = sol.x[0] * self.scale_model([0, *sol.x[1:]], 0, R)
+
+        ax.plot(omega, y, "-", color="C1")
+        ax.set_xlabel("Rotation angle")
+        ax.set_ylabel("Count rate")
+        ax.minorticks_on()
+
+        if self.filename is not None:
+            filename = os.path.splitext(self.filename)[0] + "_countrate.pdf"
+            fig.savefig(filename)
+
+        return [0, *sol.x[1:]]
+
+    def cost_count_rate(self, coeffs, R, y):
+        return np.sum(
+            (y - coeffs[0] * self.scale_model([0, *coeffs[1:]], 0, R)) ** 2
+        )
 
     def extract_info(self):
         peak_dict = {}
@@ -153,8 +236,8 @@ class WobbleCorrection:
         mod_HKL = ol.getModHKL().copy()
 
         for peak in mtd[self.peaks]:
-            h, k, l = peak.getIntHKL()
-            m, n, p = peak.getIntMNP()
+            h, k, l = [int(val) for val in peak.getIntHKL()]
+            m, n, p = [int(val) for val in peak.getIntMNP()]
 
             hkl = np.array([h, k, l]) + np.dot(mod_HKL, [m, n, p])
 
@@ -192,7 +275,9 @@ class WobbleCorrection:
             + np.array([c, 0, 0])[:, np.newaxis]
         )
 
-        return np.exp(-0.5 * x**2 / (1 + b * lamda) ** 2)
+        vals = np.exp(-0.5 * x**2 / (1.0 + b * lamda) ** 2)
+
+        return vals
 
     def cost(self, coeffs, sigma=0.1):
         diff = []
@@ -208,23 +293,25 @@ class WobbleCorrection:
 
             d = np.abs(lamda[i] - lamda[j])
 
-            w = np.exp(-((d / sigma) ** 2))
+            w = np.exp(-0.5 * (d / sigma) ** 2)
 
             y_bar = 0.5 * (y[i] + y[j])
 
             diff += (w * (y[i] / y_bar - 1)).flatten().tolist()
             diff += (w * (y[j] / y_bar - 1)).flatten().tolist()
 
-        # diff += list(coeffs)
-        return np.nansum(np.square(diff))
+        return diff
 
-    def refine_centering(self):
-        sol = scipy.optimize.differential_evolution(
+    def refine_centering(self, x0):
+        x0 = np.array(x0)
+        xmin, xmax = -2 * np.abs(x0), 2 * np.abs(x0)
+        xmin[0] = 0
+        xmax[0] = np.inf
+        sol = scipy.optimize.least_squares(
             self.cost,
-            x0=[0, 0, 0, 0.0],
-            bounds=np.array([(-1, -1, -1, 0), (1, 1, 1, 1)]).T,
-            # verbose=2,
-            workers=-1,
+            x0=x0,
+            bounds=[xmin, xmax],
+            verbose=2,
         )
 
         # assert sol.status >= 1
@@ -2214,8 +2301,9 @@ class Peaks:
 
         labels_all = new_labels_unique[inv]
 
-        for p, lbl in zip(mtd[peaks], labels_all):
-            p.setRunNumber(int(lbl))
+        for ind, (peak, lbl) in enumerate(zip(mtd[peaks], labels_all)):
+            peak.setRunNumber(int(lbl))
+            peak.setPeakNumber(ind)
 
     def refine_scales(self, name, batch="run"):
         CloneWorkspace(InputWorkspace=name, OutputWorkspace="tmp")
@@ -2408,12 +2496,9 @@ def main():
         help="Peaks Workspace",
     )
 
-    # parser.add_argument(
-    #     "-w",
-    #     "--wobble",
-    #     action="store_true",
-    #     help="Off-centering correction"
-    # )
+    parser.add_argument(
+        "-w", "--wobble", action="store_true", help="Off-centering correction"
+    )
 
     parser.add_argument(
         "-f",

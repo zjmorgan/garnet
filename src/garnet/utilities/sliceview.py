@@ -4,17 +4,9 @@ import os
 
 from qtpy.QtWidgets import QApplication, QMainWindow
 
-from mantid.simpleapi import LoadMD
+from mantid.simpleapi import LoadMD, mtd
 from mantidqt.widgets.sliceviewer.presenters.presenter import SliceViewer
-
-theme = False
-try:
-    import qdarktheme
-
-    qdarktheme.enable_hi_dpi()
-    theme = True
-except ImportError:
-    print("Default theme")
+from mantidqt.plotting.functions import plot_md_ws_from_names
 
 
 class MainWindow(QMainWindow):
@@ -22,15 +14,17 @@ class MainWindow(QMainWindow):
         super().__init__()
         name = os.path.splitext(os.path.basename(filename))[0]
         self.setWindowTitle(name)
-        ws = LoadMD(Filename=filename)
-        viewer = SliceViewer(ws)
-        self.setCentralWidget(viewer.view)
+        LoadMD(Filename=filename, OutputWorkspace=name)
+        try:
+            viewer = SliceViewer(mtd[name])
+            self.setCentralWidget(viewer.view)
+        except:
+            plot_md_ws_from_names([name], True, False)
+            sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    if theme:
-        qdarktheme.setup_theme("light")
     window = MainWindow(sys.argv[1])
     window.show()
     sys.exit(app.exec_())

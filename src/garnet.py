@@ -32,15 +32,6 @@ from garnet.config.instruments import beamlines
 from garnet.reduction.plan import ReductionPlan
 from garnet.reduction.crystallography import space_point, point_laue
 
-theme = False
-try:
-    import qdarktheme
-
-    qdarktheme.enable_hi_dpi()
-    theme = True
-except ImportError:
-    print("Default theme")
-
 
 class FormView(QWidget):
     def __init__(self):
@@ -2513,8 +2504,6 @@ def handle_exception(exc_type, exc_value, exc_traceback):
 def gui():
     sys.excepthook = handle_exception
     app = QApplication(sys.argv)
-    if theme:
-        qdarktheme.setup_theme("light")
     window = Garnet()
     window.show()
     sys.exit(app.exec_())

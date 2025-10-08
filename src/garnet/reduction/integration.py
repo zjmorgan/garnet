@@ -25,6 +25,7 @@ os.environ["TBB_THREAD_ENABLED"] = "0"
 
 from garnet.plots.peaks import PeakPlot, PeakProfilePlot, PeakCentroidPlot
 from garnet.config.instruments import beamlines
+from garnet.reduction.crystallography import space_point
 from garnet.reduction.ub import UBModel, Optimization, Reorient, lattice_group
 from garnet.reduction.peaks import PeaksModel, PeakModel, centering_reflection
 from garnet.reduction.data import DataModel
@@ -51,6 +52,12 @@ class Integration(SubPlan):
         self.validate_params()
 
     def validate_params(self):
+        symmetry = self.params.get("Symmetry")
+        if symmetry is not None:
+            symmetry = symmetry.replace(" ", "")
+            assert symmetry in space_point.keys()
+            self.params["Symmetry"] = symmetry
+
         assert self.params["Cell"] in lattice_group.keys()
         assert self.params["Centering"] in centering_reflection.keys()
         assert self.params["MinD"] > 0
