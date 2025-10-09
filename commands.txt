@@ -1,0 +1,4 @@
+python ~/git/garnet-tools/src/garnet/workflow.py /SNS/CORELLI/IPTS-33613/shared/reduction/RuCl3/struct_OP/RuCl3_cycle_1_cooling.yaml param 2
+python ~/git/garnet-tools/src/garnet/workflow.py /SNS/CORELLI/IPTS-33613/shared/reduction/RuCl3/struct_OP/RuCl3_cycle_2_cooling.yaml param 2
+python ~/git/garnet-tools/src/garnet/workflow.py /SNS/CORELLI/IPTS-33613/shared/reduction/RuCl3/struct_OP/RuCl3_cycle_1_warming.yaml param 2
+python ~/git/garnet-tools/src/garnet/workflow.py /SNS/CORELLI/IPTS-33613/shared/reduction/RuCl3/struct_OP/RuCl3_cycle_2_warming.yaml param 2

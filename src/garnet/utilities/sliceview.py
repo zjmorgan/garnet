@@ -4,6 +4,10 @@ import os
 
 from qtpy.QtWidgets import QApplication, QMainWindow
 
+from mantid import config
+
+config["Q.convention"] = "Crystallography"
+
 from mantid.simpleapi import LoadMD, mtd
 from mantidqt.widgets.sliceviewer.presenters.presenter import SliceViewer
 from mantidqt.plotting.functions import plot_md_ws_from_names
