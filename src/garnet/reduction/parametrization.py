@@ -146,6 +146,8 @@ class Parametrization(SubPlan):
                     self.plan.get("GoniometerCalibration"),
                 )
 
+                data.update_logs_for_time("data")
+
                 log_vals, log_units = data.log_split_info(
                     "data",
                     self.params["LogName"],

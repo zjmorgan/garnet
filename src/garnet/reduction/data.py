@@ -823,6 +823,18 @@ class BaseDataModel:
             OutputWorkspace=md + "_slice",
         )
 
+    def update_logs_for_time(self, ws):
+        log = mtd[ws].run().getProperty("duration")
+        t_max = log.value
+        t_units = log.units
+        values = np.linspace(0, t_max, 10000)
+        times = mtd[ws].run().startTime().totalNanoseconds() + values * 1e9
+        log = FloatTimeSeriesProperty("time")
+        for t, v in zip(times, values):
+            log.addValue(t, v)
+        mtd[ws].run()["time"] = log
+        mtd[ws].run().getProperty("time").units = t_units
+
     def log_split_info(self, ws, log_name, log_limits, log_bins):
         """
         Generate split information for filtering events by log values.
